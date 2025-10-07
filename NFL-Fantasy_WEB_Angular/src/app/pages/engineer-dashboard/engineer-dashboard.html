@@ -1,0 +1,29 @@
+<!-- src/app/pages/engineer-dashboard/engineer-dashboard.html -->
+<div class="dashboard-container">
+  <div class="welcome-section">
+    <h1 class="welcome-title">Engineer Dashboard</h1>
+    <p class="welcome-subtitle">Welcome back, {{currentUser()?.firstName}} {{currentUser()?.lastSurname}}</p>
+  </div>
+
+  <mat-grid-list cols="3" rowHeight="200px" gutterSize="20">
+    @for (item of menuItems; track item.title) {
+      <mat-grid-tile>
+        <mat-card class="dashboard-card" [class.primary]="item.color === 'primary'"
+                  [class.accent]="item.color === 'accent'"
+                  [class.warn]="item.color === 'warn'">
+          <mat-card-content class="card-content">
+            <mat-icon class="card-icon">{{item.icon}}</mat-icon>
+            <h3 class="card-title">{{item.title}}</h3>
+            <p class="card-description">{{item.description}}</p>
+          </mat-card-content>
+          <mat-card-actions>
+            <button mat-button (click)="handleAction(item)">
+              Open
+              <mat-icon>arrow_forward</mat-icon>
+            </button>
+          </mat-card-actions>
+        </mat-card>
+      </mat-grid-tile>
+    }
+  </mat-grid-list>
+</div>
