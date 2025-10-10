@@ -1,161 +1,203 @@
-﻿// Middleware/AuthenticationMiddleware.cs
+﻿using System.Text.RegularExpressions;
 using NFL_Fantasy_API.Services.Interfaces;
 
 namespace NFL_Fantasy_API.Middleware
 {
+    /// <summary>
+    /// Middleware de autenticación basado en Bearer token (SessionID GUID)
+    /// Valida y refresca sesiones automáticamente (sliding expiration)
+    /// Aplica control de acceso basado en rutas
+    /// </summary>
     public class AuthenticationMiddleware
     {
         private readonly RequestDelegate _next;
-        private readonly IServiceScopeFactory _serviceScopeFactory;
+        private readonly ILogger<AuthenticationMiddleware> _logger;
 
-        public AuthenticationMiddleware(RequestDelegate next, IServiceScopeFactory serviceScopeFactory)
+        // Rutas públicas que NO requieren autenticación
+        private static readonly HashSet<string> PublicRoutes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "/api/auth/register",
+            "/api/auth/login",
+            "/api/auth/request-reset",
+            "/api/auth/reset-with-token",
+            "/api/reference/current-season",
+            "/api/reference/position-formats",
+            "/api/scoring/schemas"
+        };
+
+        // Patrones regex para rutas públicas GET
+        private static readonly List<Regex> PublicGetPatterns = new()
+        {
+            new Regex(@"^/api/reference/position-formats/\d+/slots$", RegexOptions.IgnoreCase),
+            new Regex(@"^/api/scoring/schemas/\d+/rules$", RegexOptions.IgnoreCase),
+            new Regex(@"^/swagger.*", RegexOptions.IgnoreCase),
+            new Regex(@"^/$", RegexOptions.IgnoreCase) // root
+        };
+
+        // Rutas que requieren rol ADMIN (futuro si implementas roles)
+        // Por ahora, /api/views/* está abierto a cualquier usuario autenticado
+        // Puedes agregar validación de roles en futuras features
+        private static readonly List<Regex> AdminOnlyPatterns = new()
+        {
+            // Ejemplo: new Regex(@"^/api/admin/.*", RegexOptions.IgnoreCase)
+            // Por ahora vacío; todos los autenticados pueden acceder a todo
+        };
+
+        public AuthenticationMiddleware(RequestDelegate next, ILogger<AuthenticationMiddleware> logger)
         {
             _next = next;
-            _serviceScopeFactory = serviceScopeFactory;
+            _logger = logger;
         }
 
-        public async Task InvokeAsync(HttpContext context)
+        public async Task InvokeAsync(HttpContext context, IAuthService authService)
         {
-            // Skip authentication for certain paths
-            if (ShouldSkipAuthentication(context))
+            var path = context.Request.Path.Value ?? string.Empty;
+            var method = context.Request.Method;
+
+            // 1. Verificar si la ruta es pública
+            if (ShouldSkipAuthentication(path, method))
             {
                 await _next(context);
                 return;
             }
 
-            // Check if token is provided in headers
-            if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader))
+            // 2. Extraer token Bearer del header Authorization
+            var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
+
+            if (string.IsNullOrWhiteSpace(authHeader) || !authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
             {
-                context.Response.StatusCode = 401;
-                await context.Response.WriteAsync("Missing Authorization header");
+                _logger.LogWarning("Request to protected route {Path} without valid Authorization header", path);
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    success = false,
+                    message = "Token de autenticación requerido. Incluya 'Authorization: Bearer {SessionID}' en el header."
+                });
                 return;
             }
 
-            var token = authHeader.ToString();
+            var token = authHeader.Substring("Bearer ".Length).Trim();
 
-            // Remove "Bearer " prefix if present
-            if (token.StartsWith("Bearer "))
+            // 3. Validar que el token sea un GUID válido
+            if (!Guid.TryParse(token, out Guid sessionId))
             {
-                token = token.Substring(7);
-            }
-
-            // Validate GUID format
-            if (!Guid.TryParse(token, out var sessionToken))
-            {
-                context.Response.StatusCode = 401;
-                await context.Response.WriteAsync("Invalid token format");
+                _logger.LogWarning("Invalid token format for route {Path}: {Token}", path, token);
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    success = false,
+                    message = "Formato de token inválido. Debe ser un GUID válido."
+                });
                 return;
             }
 
-            // Validate token using AuthService
-            using var scope = _serviceScopeFactory.CreateScope();
-            var authService = scope.ServiceProvider.GetRequiredService<IAuthService>();
-
-            var (isValid, userId, userType) = await authService.ValidateSessionTokenAsync(sessionToken);
-
-            if (!isValid)
+            // 4. Validar sesión con el servicio (también refresca sliding expiration)
+            try
             {
-                context.Response.StatusCode = 401;
-                await context.Response.WriteAsync("Invalid or expired token");
-                return;
+                var validation = await authService.ValidateSessionAsync(sessionId);
+
+                if (!validation.IsValid || validation.UserID <= 0)
+                {
+                    _logger.LogWarning("Invalid or expired session {SessionID} for route {Path}", sessionId, path);
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    await context.Response.WriteAsJsonAsync(new
+                    {
+                        success = false,
+                        message = "Sesión inválida o expirada. Por favor, inicie sesión nuevamente."
+                    });
+                    return;
+                }
+
+                // 5. Sesión válida: agregar información al contexto para uso en controllers
+                context.Items["UserID"] = validation.UserID;
+                context.Items["SessionID"] = sessionId;
+                context.Items["IsAuthenticated"] = true;
+
+                _logger.LogInformation("User {UserID} authenticated successfully for {Method} {Path}",
+                    validation.UserID, method, path);
+
+                // 6. Verificar permisos ADMIN si la ruta lo requiere (futuro)
+                if (RequiresAdminRole(path))
+                {
+                    // Por ahora no tenemos sistema de roles en UserAccount
+                    // En el futuro, puedes agregar un campo Role en auth.UserAccount
+                    // y verificar aquí si el usuario tiene rol ADMIN
+
+                    // Ejemplo futuro:
+                    // var userRole = await GetUserRole(validation.UserID);
+                    // if (userRole != "ADMIN")
+                    // {
+                    //     context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    //     await context.Response.WriteAsJsonAsync(new { success = false, message = "Acceso denegado. Requiere rol de administrador." });
+                    //     return;
+                    // }
+                }
+
+                // 7. Continuar al siguiente middleware/controller
+                await _next(context);
             }
-
-            // Add user information to HttpContext for use in controllers
-            context.Items["UserId"] = userId;
-            context.Items["UserType"] = userType;
-            context.Items["SessionToken"] = sessionToken;
-
-            // Check role-based access
-            if (!HasRequiredRole(context, userType))
+            catch (Exception ex)
             {
-                context.Response.StatusCode = 403;
-                await context.Response.WriteAsync("Insufficient permissions");
-                return;
+                _logger.LogError(ex, "Error during authentication for route {Path}", path);
+                context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    success = false,
+                    message = "Error interno al validar autenticación."
+                });
             }
-
-            await _next(context);
         }
 
-        private static bool ShouldSkipAuthentication(HttpContext context)
+        /// <summary>
+        /// Determina si una ruta debe omitir la autenticación
+        /// </summary>
+        private bool ShouldSkipAuthentication(string path, string method)
         {
-            var path = context.Request.Path.Value?.ToLower() ?? "";
-            var method = context.Request.Method.ToUpper();
-
-            // SIEMPRE permitir OPTIONS para CORS
-            if (method == "OPTIONS")
-                return true;
-
-            // Endpoints completamente públicos (POST para registro, GET para ubicaciones)
-            var publicEndpoints = new[]
+            // Rutas explícitamente públicas
+            if (PublicRoutes.Contains(path))
             {
-                "/api/auth/login",           // Login
-                "/api/user/clients",        // Crear cliente
-                "/api/user/engineers",      // Crear ingeniero 
-            };
-
-            // Permitir todos los métodos en estos endpoints
-            if (publicEndpoints.Any(endpoint => path.StartsWith(endpoint)))
                 return true;
+            }
 
-            // Endpoints de ubicaciones - solo GET público
-            var locationEndpoints = new[]
+            // Patrones GET públicos (reference data, swagger, etc.)
+            if (method.Equals("GET", StringComparison.OrdinalIgnoreCase))
             {
-                "/api/location/provinces",
-                "/api/location/cantons",
-                "/api/location/districts"
-            };
-
-            if (locationEndpoints.Any(endpoint => path.StartsWith(endpoint)) && method == "GET")
-                return true;
-
-            // Swagger y documentación
-            if (path.Contains("/swagger") ||
-                path.StartsWith("/swagger-ui") ||
-                path.Contains("swagger.json") ||
-                path.StartsWith("/_vs/") ||
-                path.StartsWith("/_framework/"))
-                return true;
-
-            // Archivos estáticos
-            if (path.Contains(".css") ||
-                path.Contains(".js") ||
-                path.Contains(".ico") ||
-                path.Contains(".png") ||
-                path.Contains(".jpg"))
-                return true;
+                foreach (var pattern in PublicGetPatterns)
+                {
+                    if (pattern.IsMatch(path))
+                    {
+                        return true;
+                    }
+                }
+            }
 
             return false;
         }
 
-        private static bool HasRequiredRole(HttpContext context, string? userType)
+        /// <summary>
+        /// Determina si una ruta requiere rol ADMIN
+        /// Por ahora retorna false; implementar cuando se agreguen roles a UserAccount
+        /// </summary>
+        private bool RequiresAdminRole(string path)
         {
-            var path = context.Request.Path.Value?.ToLower() ?? "";
-
-            // Admin-only endpoints
-            if (path.StartsWith("/api/admin/") ||
-                path.StartsWith("/api/auth/reset-password") ||
-                path.StartsWith("/api/views/"))
+            foreach (var pattern in AdminOnlyPatterns)
             {
-                return userType == "ADMIN";
+                if (pattern.IsMatch(path))
+                {
+                    return true;
+                }
             }
 
-            // Any authenticated user can access these
-            if (path.StartsWith("/api/auth/logout") ||
-                path.StartsWith("/api/auth/change-password") ||
-                path.StartsWith("/api/users/") ||
-                path.StartsWith("/api/location/"))
-            {
-                return true;
-            }
-
-            return true; // Default allow for authenticated users
+            return false;
         }
     }
 
-    // Extension method for easier registration
+    /// <summary>
+    /// Extension method para registrar el middleware fácilmente en Program.cs
+    /// </summary>
     public static class AuthenticationMiddlewareExtensions
     {
-        public static IApplicationBuilder UseCustomAuthentication(this IApplicationBuilder builder)
+        public static IApplicationBuilder UseAuthenticationMiddleware(this IApplicationBuilder builder)
         {
             return builder.UseMiddleware<AuthenticationMiddleware>();
         }

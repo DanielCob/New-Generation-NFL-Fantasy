@@ -1,162 +1,118 @@
-﻿// Models/DTOs/UserDTOs.cs
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace NFL_Fantasy_API.Models.DTOs
 {
-    public class CreateClientDTO
+    /// <summary>
+    /// DTO para actualización de perfil de usuario (Feature 1.1 - Gestión de perfil)
+    /// IMPORTANTE: No se pueden editar Email, UserID, CreatedAt, AccountStatus, ni Role
+    /// Solo campos editables del perfil
+    /// </summary>
+    public class UpdateUserProfileDTO
     {
-        [Required]
-        [StringLength(50)]
-        public string Username { get; set; } = string.Empty;
+        [StringLength(50, MinimumLength = 1, ErrorMessage = "El nombre debe tener entre 1 y 50 caracteres.")]
+        public string? Name { get; set; }
 
-        [Required]
-        [StringLength(100)]
-        public string FirstName { get; set; } = string.Empty;
+        [StringLength(50, ErrorMessage = "El alias no puede superar 50 caracteres.")]
+        public string? Alias { get; set; }
 
-        [Required]
-        [StringLength(100)]
-        public string LastSurname { get; set; } = string.Empty;
+        [StringLength(10, ErrorMessage = "El código de idioma no puede superar 10 caracteres.")]
+        public string? LanguageCode { get; set; }
 
-        [StringLength(100)]
-        public string? SecondSurname { get; set; }
+        // Campos de imagen de perfil (opcionales, todos o ninguno)
+        [StringLength(400, ErrorMessage = "La URL de imagen no puede superar 400 caracteres.")]
+        public string? ProfileImageUrl { get; set; }
 
-        [Required]
-        [EmailAddress]
-        [StringLength(255)]
-        public string Email { get; set; } = string.Empty;
+        [Range(300, 1024, ErrorMessage = "El ancho de imagen debe estar entre 300 y 1024 píxeles.")]
+        public short? ProfileImageWidth { get; set; }
 
-        [Required]
-        [MinLength(6)]
-        [StringLength(255)]
-        public string Password { get; set; } = string.Empty;
+        [Range(300, 1024, ErrorMessage = "El alto de imagen debe estar entre 300 y 1024 píxeles.")]
+        public short? ProfileImageHeight { get; set; }
 
-        [Required]
-        public DateTime BirthDate { get; set; }
-
-        [Required]
-        public int ProvinceID { get; set; }
-
-        [Required]
-        public int CantonID { get; set; }
-
-        public int? DistrictID { get; set; }
+        [Range(1, 5242880, ErrorMessage = "El tamaño de imagen debe estar entre 1 byte y 5MB.")]
+        public int? ProfileImageBytes { get; set; }
     }
 
-    public class CreateEngineerDTO
+    /// <summary>
+    /// Respuesta completa del perfil de usuario (Feature 1.1 - Ver perfil)
+    /// Incluye datos del usuario + ligas donde es comisionado + sus equipos
+    /// </summary>
+    public class UserProfileResponseDTO
     {
-        [Required]
-        [StringLength(50)]
-        public string Username { get; set; } = string.Empty;
-
-        [Required]
-        [StringLength(100)]
-        public string FirstName { get; set; } = string.Empty;
-
-        [Required]
-        [StringLength(100)]
-        public string LastSurname { get; set; } = string.Empty;
-
-        [StringLength(100)]
-        public string? SecondSurname { get; set; }
-
-        [Required]
-        [EmailAddress]
-        [StringLength(255)]
-        public string Email { get; set; } = string.Empty;
-
-        [Required]
-        [MinLength(6)]
-        [StringLength(255)]
-        public string Password { get; set; } = string.Empty;
-
-        [Required]
-        public DateTime BirthDate { get; set; }
-
-        [Required]
-        public int ProvinceID { get; set; }
-
-        [Required]
-        public int CantonID { get; set; }
-
-        public int? DistrictID { get; set; }
-
-        [Required]
-        [StringLength(200)]
-        public string Career { get; set; } = string.Empty;
-
-        [StringLength(200)]
-        public string? Specialization { get; set; }
-    }
-
-    public class CreateAdministratorDTO
-    {
-        [Required]
-        [StringLength(50)]
-        public string Username { get; set; } = string.Empty;
-
-        [Required]
-        [StringLength(100)]
-        public string FirstName { get; set; } = string.Empty;
-
-        [Required]
-        [StringLength(100)]
-        public string LastSurname { get; set; } = string.Empty;
-
-        [StringLength(100)]
-        public string? SecondSurname { get; set; }
-
-        [Required]
-        [EmailAddress]
-        [StringLength(255)]
-        public string Email { get; set; } = string.Empty;
-
-        [Required]
-        [MinLength(6)]
-        [StringLength(255)]
-        public string Password { get; set; } = string.Empty;
-
-        [Required]
-        public DateTime BirthDate { get; set; }
-
-        [Required]
-        public int ProvinceID { get; set; }
-
-        [Required]
-        public int CantonID { get; set; }
-
-        public int? DistrictID { get; set; }
-
-        [StringLength(500)]
-        public string? Detail { get; set; }
-    }
-
-    public class UserResponseDTO
-    {
+        // Datos básicos del usuario
         public int UserID { get; set; }
-        public string Username { get; set; } = string.Empty;
-        public string FirstName { get; set; } = string.Empty;
-        public string LastSurname { get; set; } = string.Empty;
-        public string? SecondSurname { get; set; }
         public string Email { get; set; } = string.Empty;
-        public DateTime BirthDate { get; set; }
-        public int Age { get; set; }
-        public string UserType { get; set; } = string.Empty;
-        public string ProvinceName { get; set; } = string.Empty;
-        public string CantonName { get; set; } = string.Empty;
-        public string? DistrictName { get; set; }
-        public bool IsActive { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Alias { get; set; }
+        public string LanguageCode { get; set; } = "en";
+        public string? ProfileImageUrl { get; set; }
+        public byte AccountStatus { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
+        public string Role { get; set; } = "MANAGER"; // Rol global inicial
+
+        // Ligas donde soy comisionado (principal o co-comisionado)
+        public List<UserCommissionedLeagueDTO> CommissionedLeagues { get; set; } = new();
+
+        // Mis equipos en cada liga
+        public List<UserTeamDTO> Teams { get; set; } = new();
     }
 
-    public class EngineerResponseDTO : UserResponseDTO
+    /// <summary>
+    /// Liga donde el usuario es comisionado
+    /// </summary>
+    public class UserCommissionedLeagueDTO
     {
-        public string Career { get; set; } = string.Empty;
-        public string? Specialization { get; set; }
+        public int LeagueID { get; set; }
+        public string LeagueName { get; set; } = string.Empty;
+        public byte Status { get; set; }
+        public byte TeamSlots { get; set; }
+        public string RoleCode { get; set; } = string.Empty;
+        public bool IsPrimaryCommissioner { get; set; }
+        public DateTime JoinedAt { get; set; }
     }
 
-    public class AdministratorResponseDTO : UserResponseDTO
+    /// <summary>
+    /// Equipo del usuario en una liga
+    /// </summary>
+    public class UserTeamDTO
     {
-        public string? Detail { get; set; }
+        public int TeamID { get; set; }
+        public int LeagueID { get; set; }
+        public string LeagueName { get; set; } = string.Empty;
+        public string TeamName { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+    }
+
+    /// <summary>
+    /// Información básica del perfil (para vistas simples)
+    /// </summary>
+    public class UserProfileBasicDTO
+    {
+        public int UserID { get; set; }
+        public string Email { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? Alias { get; set; }
+        public string LanguageCode { get; set; } = "en";
+        public string? ProfileImageUrl { get; set; }
+        public short? ProfileImageWidth { get; set; }
+        public short? ProfileImageHeight { get; set; }
+        public int? ProfileImageBytes { get; set; }
+        public byte AccountStatus { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
+        public string Role { get; set; } = "MANAGER";
+    }
+
+    /// <summary>
+    /// Sesión activa del usuario
+    /// </summary>
+    public class UserActiveSessionDTO
+    {
+        public int UserID { get; set; }
+        public Guid SessionID { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime LastActivityAt { get; set; }
+        public DateTime ExpiresAt { get; set; }
+        public bool IsValid { get; set; }
     }
 }

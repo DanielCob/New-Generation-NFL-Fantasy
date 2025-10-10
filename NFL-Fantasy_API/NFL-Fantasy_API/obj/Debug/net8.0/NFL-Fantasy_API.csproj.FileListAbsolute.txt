@@ -178,3 +178,4 @@ D:\Escritorio\Informacion-de-Prioridad\TEC\2025\Semestre2\DisenoYCalidad\Evaluac
 D:\Escritorio\Informacion-de-Prioridad\TEC\2025\Semestre2\DisenoYCalidad\Evaluaciones\Proyecto\New-Generation-NFL-Fantasy\NFL-Fantasy_API\NFL-Fantasy_API\obj\Debug\net8.0\NFL-Fantasy_API.pdb
 D:\Escritorio\Informacion-de-Prioridad\TEC\2025\Semestre2\DisenoYCalidad\Evaluaciones\Proyecto\New-Generation-NFL-Fantasy\NFL-Fantasy_API\NFL-Fantasy_API\obj\Debug\net8.0\NFL-Fantasy_API.genruntimeconfig.cache
 D:\Escritorio\Informacion-de-Prioridad\TEC\2025\Semestre2\DisenoYCalidad\Evaluaciones\Proyecto\New-Generation-NFL-Fantasy\NFL-Fantasy_API\NFL-Fantasy_API\obj\Debug\net8.0\ref\NFL-Fantasy_API.dll
+D:\Escritorio\Informacion-de-Prioridad\TEC\2025\Semestre2\DisenoYCalidad\Evaluaciones\Proyecto\New-Generation-NFL-Fantasy\NFL-Fantasy_API\NFL-Fantasy_API\bin\Debug\net8.0\appsettings.Production.json

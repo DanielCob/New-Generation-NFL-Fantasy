@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("NFL-Fantasy_API")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6b54bdc3cc70314c5606d89cc3f6de1c1b2fee5e")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+368c41e04d791fbd963eac095a3b2694bc13bd2c")]
 [assembly: System.Reflection.AssemblyProductAttribute("NFL-Fantasy_API")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NFL-Fantasy_API")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

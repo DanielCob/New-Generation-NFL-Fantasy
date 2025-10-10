@@ -1,211 +1,219 @@
-﻿// Controllers/AuthController.cs
+﻿using Microsoft.AspNetCore.Mvc;
+using NFL_Fantasy_API.Extensions;
 using NFL_Fantasy_API.Models.DTOs;
 using NFL_Fantasy_API.Services.Interfaces;
-using Microsoft.AspNetCore.Mvc;
 
 namespace NFL_Fantasy_API.Controllers
 {
+    /// <summary>
+    /// Controller de autenticación y gestión de sesiones
+    /// Endpoints: Register, Login, Logout, LogoutAll, RequestReset, ResetWithToken
+    /// Feature 1.1: Registro, autenticación y gestión de sesiones
+    /// </summary>
     [ApiController]
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
+        private readonly ILogger<AuthController> _logger;
 
-        public AuthController(IAuthService authService)
+        public AuthController(IAuthService authService, ILogger<AuthController> logger)
         {
             _authService = authService;
+            _logger = logger;
         }
 
         /// <summary>
-        /// User login endpoint
+        /// Registra un nuevo usuario en el sistema
+        /// POST /api/auth/register
+        /// Feature 1.1 - Registro de usuario
+        /// Público (no requiere autenticación)
         /// </summary>
-        /// <param name="request">Login credentials</param>
-        /// <returns>Login response with session token</returns>
-        [HttpPost("login")]
-        public async Task<ActionResult<LoginResponseDTO>> Login([FromBody] LoginRequestDTO request)
+        [HttpPost("register")]
+        public async Task<ActionResult<ApiResponseDTO>> Register([FromBody] RegisterUserDTO dto)
         {
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors.Select(e => e.ErrorMessage));
+                return BadRequest(ApiResponseDTO.ErrorResponse(string.Join(" ", errors)));
+            }
+
             try
             {
-                if (!ModelState.IsValid)
+                var result = await _authService.RegisterAsync(dto);
+
+                if (result.Success)
                 {
-                    return BadRequest(ModelState);
+                    _logger.LogInformation("User registered successfully: {Email}", dto.Email);
+                    return Ok(result);
                 }
 
-                var response = await _authService.LoginAsync(request);
-
-                if (!response.Success)
-                {
-                    return Unauthorized(response);
-                }
-
-                return Ok(response);
+                _logger.LogWarning("Registration failed for {Email}: {Message}", dto.Email, result.Message);
+                return BadRequest(result);
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new ApiResponseDTO
-                {
-                    Success = false,
-                    Message = $"Internal server error: {ex.Message}"
-                });
+                _logger.LogError(ex, "Error during registration for {Email}", dto.Email);
+                return StatusCode(500, ApiResponseDTO.ErrorResponse("Error interno del servidor."));
             }
         }
 
         /// <summary>
-        /// User logout endpoint
+        /// Inicia sesión de usuario
+        /// POST /api/auth/login
+        /// Feature 1.1 - Inicio de sesión
+        /// Público (no requiere autenticación)
+        /// Retorna SessionID para usar como Bearer token
         /// </summary>
-        /// <returns>Logout confirmation</returns>
+        [HttpPost("login")]
+        public async Task<ActionResult<ApiResponseDTO>> Login([FromBody] LoginDTO dto)
+        {
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors.Select(e => e.ErrorMessage));
+                return BadRequest(ApiResponseDTO.ErrorResponse(string.Join(" ", errors)));
+            }
+
+            try
+            {
+                var result = await _authService.LoginAsync(dto);
+
+                if (result.Success)
+                {
+                    _logger.LogInformation("User logged in successfully: {Email}", dto.Email);
+                    return Ok(result);
+                }
+
+                _logger.LogWarning("Login failed for {Email}: {Message}", dto.Email, result.Message);
+                return Unauthorized(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during login for {Email}", dto.Email);
+                return StatusCode(500, ApiResponseDTO.ErrorResponse("Error interno del servidor."));
+            }
+        }
+
+        /// <summary>
+        /// Cierra la sesión actual
+        /// POST /api/auth/logout
+        /// Feature 1.1 - Cierre de sesión
+        /// Requiere autenticación (Bearer token)
+        /// </summary>
         [HttpPost("logout")]
         public async Task<ActionResult<ApiResponseDTO>> Logout()
         {
+            if (!HttpContext.IsAuthenticated())
+            {
+                return Unauthorized(ApiResponseDTO.ErrorResponse("No autenticado."));
+            }
+
             try
             {
-                // Get session token from middleware
-                if (!HttpContext.Items.TryGetValue("SessionToken", out var tokenObj) ||
-                    tokenObj is not Guid sessionToken)
-                {
-                    return Unauthorized(new ApiResponseDTO
-                    {
-                        Success = false,
-                        Message = "No valid session token found"
-                    });
-                }
+                var sessionId = HttpContext.GetSessionId();
+                var result = await _authService.LogoutAsync(sessionId);
 
-                var response = await _authService.LogoutAsync(sessionToken);
-                return Ok(response);
+                _logger.LogInformation("User {UserID} logged out successfully", HttpContext.GetUserId());
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new ApiResponseDTO
-                {
-                    Success = false,
-                    Message = $"Internal server error: {ex.Message}"
-                });
+                _logger.LogError(ex, "Error during logout for user {UserID}", HttpContext.GetUserId());
+                return StatusCode(500, ApiResponseDTO.ErrorResponse("Error al cerrar sesión."));
             }
         }
 
         /// <summary>
-        /// Change password endpoint for authenticated users
+        /// Cierra todas las sesiones activas del usuario en todos los dispositivos
+        /// POST /api/auth/logout-all
+        /// Feature 1.1 - Cierre de sesión global
+        /// Requiere autenticación (Bearer token)
         /// </summary>
-        /// <param name="request">Password change request</param>
-        /// <returns>Password change confirmation</returns>
-        [HttpPost("change-password")]
-        public async Task<ActionResult<ApiResponseDTO>> ChangePassword([FromBody] ChangePasswordRequestDTO request)
+        [HttpPost("logout-all")]
+        public async Task<ActionResult<ApiResponseDTO>> LogoutAll()
         {
+            if (!HttpContext.IsAuthenticated())
+            {
+                return Unauthorized(ApiResponseDTO.ErrorResponse("No autenticado."));
+            }
+
             try
             {
-                if (!ModelState.IsValid)
-                {
-                    return BadRequest(ModelState);
-                }
+                var userId = HttpContext.GetUserId();
+                var result = await _authService.LogoutAllAsync(userId);
 
-                // Get user ID from middleware
-                if (!HttpContext.Items.TryGetValue("UserId", out var userIdObj) ||
-                    userIdObj is not int userId)
-                {
-                    return Unauthorized(new ApiResponseDTO
-                    {
-                        Success = false,
-                        Message = "User ID not found in session"
-                    });
-                }
-
-                var response = await _authService.ChangePasswordAsync(userId, request);
-
-                if (!response.Success)
-                {
-                    return BadRequest(response);
-                }
-
-                return Ok(response);
+                _logger.LogInformation("User {UserID} closed all sessions", userId);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new ApiResponseDTO
-                {
-                    Success = false,
-                    Message = $"Internal server error: {ex.Message}"
-                });
+                _logger.LogError(ex, "Error during logout-all for user {UserID}", HttpContext.GetUserId());
+                return StatusCode(500, ApiResponseDTO.ErrorResponse("Error al cerrar sesiones."));
             }
         }
 
         /// <summary>
-        /// Reset password endpoint for administrators
+        /// Solicita restablecimiento de contraseña
+        /// POST /api/auth/request-reset
+        /// Feature 1.1 - Desbloqueo de cuenta bloqueada
+        /// Público (no requiere autenticación)
         /// </summary>
-        /// <param name="request">Password reset request</param>
-        /// <returns>Password reset confirmation</returns>
-        [HttpPost("reset-password")]
-        public async Task<ActionResult<ApiResponseDTO>> ResetPassword([FromBody] ResetPasswordRequestDTO request)
+        [HttpPost("request-reset")]
+        public async Task<ActionResult<ApiResponseDTO>> RequestPasswordReset([FromBody] RequestPasswordResetDTO dto)
         {
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors.Select(e => e.ErrorMessage));
+                return BadRequest(ApiResponseDTO.ErrorResponse(string.Join(" ", errors)));
+            }
+
             try
             {
-                if (!ModelState.IsValid)
-                {
-                    return BadRequest(ModelState);
-                }
+                var result = await _authService.RequestPasswordResetAsync(dto);
 
-                // Get admin user ID from middleware
-                if (!HttpContext.Items.TryGetValue("UserId", out var userIdObj) ||
-                    userIdObj is not int adminUserId)
-                {
-                    return Unauthorized(new ApiResponseDTO
-                    {
-                        Success = false,
-                        Message = "Admin user ID not found in session"
-                    });
-                }
-
-                // Verify admin role
-                if (!HttpContext.Items.TryGetValue("UserType", out var userTypeObj) ||
-                    userTypeObj?.ToString() != "ADMIN")
-                {
-                    return Forbid("Only administrators can reset passwords");
-                }
-
-                var response = await _authService.ResetPasswordByAdminAsync(adminUserId, request);
-
-                if (!response.Success)
-                {
-                    return BadRequest(response);
-                }
-
-                return Ok(response);
+                // Siempre retornamos 200 OK con mensaje genérico por seguridad
+                _logger.LogInformation("Password reset requested for {Email}", dto.Email);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new ApiResponseDTO
-                {
-                    Success = false,
-                    Message = $"Internal server error: {ex.Message}"
-                });
+                _logger.LogError(ex, "Error during password reset request for {Email}", dto.Email);
+                return StatusCode(500, ApiResponseDTO.ErrorResponse("Error al solicitar restablecimiento."));
             }
         }
 
         /// <summary>
-        /// Get current user information
+        /// Restablece contraseña usando token válido
+        /// POST /api/auth/reset-with-token
+        /// Feature 1.1 - Desbloqueo de cuenta bloqueada
+        /// Público (no requiere autenticación, usa token)
         /// </summary>
-        /// <returns>Current user session information</returns>
-        [HttpGet("me")]
-        public ActionResult<object> GetCurrentUser()
+        [HttpPost("reset-with-token")]
+        public async Task<ActionResult<ApiResponseDTO>> ResetPasswordWithToken([FromBody] ResetPasswordWithTokenDTO dto)
         {
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors.Select(e => e.ErrorMessage));
+                return BadRequest(ApiResponseDTO.ErrorResponse(string.Join(" ", errors)));
+            }
+
             try
             {
-                var userId = HttpContext.Items["UserId"];
-                var userType = HttpContext.Items["UserType"];
+                var result = await _authService.ResetPasswordWithTokenAsync(dto);
 
-                return Ok(new
+                if (result.Success)
                 {
-                    UserId = userId,
-                    UserType = userType,
-                    Message = "Current user session information"
-                });
+                    _logger.LogInformation("Password reset successfully with token");
+                    return Ok(result);
+                }
+
+                _logger.LogWarning("Password reset failed: {Message}", result.Message);
+                return BadRequest(result);
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new ApiResponseDTO
-                {
-                    Success = false,
-                    Message = $"Internal server error: {ex.Message}"
-                });
+                _logger.LogError(ex, "Error during password reset with token");
+                return StatusCode(500, ApiResponseDTO.ErrorResponse("Error al restablecer contraseña."));
             }
         }
     }

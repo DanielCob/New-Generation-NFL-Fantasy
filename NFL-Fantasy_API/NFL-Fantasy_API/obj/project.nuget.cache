@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "9xk9vnw8R94=",
+  "dgSpecHash": "wD6HRA6ZaOc=",
   "success": true,
   "projectFilePath": "D:\\Escritorio\\Informacion-de-Prioridad\\TEC\\2025\\Semestre2\\DisenoYCalidad\\Evaluaciones\\Proyecto\\New-Generation-NFL-Fantasy\\NFL-Fantasy_API\\NFL-Fantasy_API\\NFL-Fantasy_API.csproj",
   "expectedPackageFiles": [
@@ -8,7 +8,7 @@
     "C:\\Users\\adriel\\.nuget\\packages\\azure.identity\\1.14.2\\azure.identity.1.14.2.nupkg.sha512",
     "C:\\Users\\adriel\\.nuget\\packages\\microsoft.bcl.asyncinterfaces\\8.0.0\\microsoft.bcl.asyncinterfaces.8.0.0.nupkg.sha512",
     "C:\\Users\\adriel\\.nuget\\packages\\microsoft.bcl.cryptography\\8.0.0\\microsoft.bcl.cryptography.8.0.0.nupkg.sha512",
-    "C:\\Users\\adriel\\.nuget\\packages\\microsoft.data.sqlclient\\6.1.1\\microsoft.data.sqlclient.6.1.1.nupkg.sha512",
+    "C:\\Users\\adriel\\.nuget\\packages\\microsoft.data.sqlclient\\6.1.2\\microsoft.data.sqlclient.6.1.2.nupkg.sha512",
     "C:\\Users\\adriel\\.nuget\\packages\\microsoft.data.sqlclient.sni.runtime\\6.0.2\\microsoft.data.sqlclient.sni.runtime.6.0.2.nupkg.sha512",
     "C:\\Users\\adriel\\.nuget\\packages\\microsoft.entityframeworkcore\\9.0.9\\microsoft.entityframeworkcore.9.0.9.nupkg.sha512",
     "C:\\Users\\adriel\\.nuget\\packages\\microsoft.entityframeworkcore.abstractions\\9.0.9\\microsoft.entityframeworkcore.abstractions.9.0.9.nupkg.sha512",

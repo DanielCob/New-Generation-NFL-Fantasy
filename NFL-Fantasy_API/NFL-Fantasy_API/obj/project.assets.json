@@ -68,7 +68,7 @@
           "buildTransitive/net6.0/_._": {}
         }
       },
-      "Microsoft.Data.SqlClient/6.1.1": {
+      "Microsoft.Data.SqlClient/6.1.2": {
         "type": "package",
         "dependencies": {
           "Azure.Core": "1.47.1",
@@ -891,10 +891,10 @@
         "useSharedDesignerContext.txt"
       ]
     },
-    "Microsoft.Data.SqlClient/6.1.1": {
-      "sha512": "syGQmIUPAYYHAHyTD8FCkTNThpQWvoA7crnIQRMfp8dyB5A2cWU3fQexlRTFkVmV7S0TjVmthi0LJEFVjHo8AQ==",
+    "Microsoft.Data.SqlClient/6.1.2": {
+      "sha512": "q0GxRC0fgwfZgU14pU34ro0MW7Gs8S6NDmKCcEqymvZljT8UQa633BbEmk/Rb5upNF9NHZ3/jVm7zLiWbM8uTA==",
       "type": "package",
-      "path": "microsoft.data.sqlclient/6.1.1",
+      "path": "microsoft.data.sqlclient/6.1.2",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -947,7 +947,7 @@
         "lib/net9.0/zh-Hant/Microsoft.Data.SqlClient.resources.dll",
         "lib/netstandard2.0/Microsoft.Data.SqlClient.dll",
         "lib/netstandard2.0/Microsoft.Data.SqlClient.xml",
-        "microsoft.data.sqlclient.6.1.1.nupkg.sha512",
+        "microsoft.data.sqlclient.6.1.2.nupkg.sha512",
         "microsoft.data.sqlclient.nuspec",
         "ref/net462/Microsoft.Data.SqlClient.dll",
         "ref/net462/Microsoft.Data.SqlClient.xml",
@@ -2040,7 +2040,7 @@
   },
   "projectFileDependencyGroups": {
     "net8.0": [
-      "Microsoft.Data.SqlClient >= 6.1.1",
+      "Microsoft.Data.SqlClient >= 6.1.2",
       "Microsoft.EntityFrameworkCore >= 9.0.9",
       "Microsoft.EntityFrameworkCore.Relational >= 9.0.9",
       "Swashbuckle.AspNetCore >= 9.0.6"
@@ -2098,7 +2098,7 @@
         "dependencies": {
           "Microsoft.Data.SqlClient": {
             "target": "Package",
-            "version": "[6.1.1, )"
+            "version": "[6.1.2, )"
           },
           "Microsoft.EntityFrameworkCore": {
             "target": "Package",

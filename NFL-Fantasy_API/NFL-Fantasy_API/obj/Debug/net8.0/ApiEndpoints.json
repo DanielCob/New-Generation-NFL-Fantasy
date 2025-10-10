@@ -1,250 +1,23 @@
 [
   {
-    "ContainingType": "NFL_Fantasy_API.Controllers.AdminController",
-    "Method": "UpdateAdministrator",
-    "RelativePath": "api/Admin/administrators/{id}",
-    "HttpMethod": "PUT",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "id",
-        "Type": "System.Int32",
-        "IsRequired": true
-      },
-      {
-        "Name": "request",
-        "Type": "NFL_Fantasy_API.Models.DTOs.UpdateAdministratorDTO",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "NFL_Fantasy_API.Models.DTOs.ApiResponseDTO",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "NFL_Fantasy_API.Controllers.AdminController",
-    "Method": "DeleteAdministrator",
-    "RelativePath": "api/Admin/administrators/{id}",
-    "HttpMethod": "DELETE",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "id",
-        "Type": "System.Int32",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "NFL_Fantasy_API.Models.DTOs.ApiResponseDTO",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "NFL_Fantasy_API.Controllers.AdminController",
-    "Method": "CleanExpiredTokens",
-    "RelativePath": "api/Admin/clean-expired-tokens",
-    "HttpMethod": "POST",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [],
-    "ReturnTypes": [
-      {
-        "Type": "NFL_Fantasy_API.Models.DTOs.ApiResponseDTO",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "NFL_Fantasy_API.Controllers.AdminController",
-    "Method": "UpdateClient",
-    "RelativePath": "api/Admin/clients/{id}",
-    "HttpMethod": "PUT",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "id",
-        "Type": "System.Int32",
-        "IsRequired": true
-      },
-      {
-        "Name": "request",
-        "Type": "NFL_Fantasy_API.Models.DTOs.UpdateClientDTO",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "NFL_Fantasy_API.Models.DTOs.ApiResponseDTO",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "NFL_Fantasy_API.Controllers.AdminController",
-    "Method": "DeleteClient",
-    "RelativePath": "api/Admin/clients/{id}",
-    "HttpMethod": "DELETE",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "id",
-        "Type": "System.Int32",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "NFL_Fantasy_API.Models.DTOs.ApiResponseDTO",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "NFL_Fantasy_API.Controllers.AdminController",
-    "Method": "UpdateEngineer",
-    "RelativePath": "api/Admin/engineers/{id}",
-    "HttpMethod": "PUT",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "id",
-        "Type": "System.Int32",
-        "IsRequired": true
-      },
-      {
-        "Name": "request",
-        "Type": "NFL_Fantasy_API.Models.DTOs.UpdateEngineerDTO",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "NFL_Fantasy_API.Models.DTOs.ApiResponseDTO",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "NFL_Fantasy_API.Controllers.AdminController",
-    "Method": "DeleteEngineer",
-    "RelativePath": "api/Admin/engineers/{id}",
-    "HttpMethod": "DELETE",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "id",
-        "Type": "System.Int32",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "NFL_Fantasy_API.Models.DTOs.ApiResponseDTO",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "NFL_Fantasy_API.Controllers.AdminController",
-    "Method": "GetSystemStatistics",
-    "RelativePath": "api/Admin/statistics",
+    "ContainingType": "Program\u002B\u003C\u003Ec",
+    "Method": "\u003C\u003CMain\u003E$\u003Eb__0_5",
+    "RelativePath": "",
     "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [],
-    "ReturnTypes": []
-  },
-  {
-    "ContainingType": "NFL_Fantasy_API.Controllers.AdminController",
-    "Method": "SyncActiveStatus",
-    "RelativePath": "api/Admin/sync-active-status",
-    "HttpMethod": "POST",
-    "IsController": true,
+    "IsController": false,
     "Order": 0,
     "Parameters": [],
     "ReturnTypes": [
       {
-        "Type": "NFL_Fantasy_API.Models.DTOs.ApiResponseDTO",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
+        "Type": "System.Void",
+        "MediaTypes": [],
         "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "NFL_Fantasy_API.Controllers.AuthController",
-    "Method": "ChangePassword",
-    "RelativePath": "api/Auth/change-password",
-    "HttpMethod": "POST",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "request",
-        "Type": "NFL_Fantasy_API.Models.DTOs.ChangePasswordRequestDTO",
-        "IsRequired": true
       }
     ],
-    "ReturnTypes": [
-      {
-        "Type": "NFL_Fantasy_API.Models.DTOs.ApiResponseDTO",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
+    "Tags": [
+      "Health"
+    ],
+    "EndpointName": "Root"
   },
   {
     "ContainingType": "NFL_Fantasy_API.Controllers.AuthController",
@@ -255,14 +28,14 @@
     "Order": 0,
     "Parameters": [
       {
-        "Name": "request",
-        "Type": "NFL_Fantasy_API.Models.DTOs.LoginRequestDTO",
+        "Name": "dto",
+        "Type": "NFL_Fantasy_API.Models.DTOs.LoginDTO",
         "IsRequired": true
       }
     ],
     "ReturnTypes": [
       {
-        "Type": "NFL_Fantasy_API.Models.DTOs.LoginResponseDTO",
+        "Type": "NFL_Fantasy_API.Models.DTOs.ApiResponseDTO",
         "MediaTypes": [
           "text/plain",
           "application/json",
@@ -294,25 +67,35 @@
   },
   {
     "ContainingType": "NFL_Fantasy_API.Controllers.AuthController",
-    "Method": "GetCurrentUser",
-    "RelativePath": "api/Auth/me",
-    "HttpMethod": "GET",
+    "Method": "LogoutAll",
+    "RelativePath": "api/Auth/logout-all",
+    "HttpMethod": "POST",
     "IsController": true,
     "Order": 0,
     "Parameters": [],
-    "ReturnTypes": []
+    "ReturnTypes": [
+      {
+        "Type": "NFL_Fantasy_API.Models.DTOs.ApiResponseDTO",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
   },
   {
     "ContainingType": "NFL_Fantasy_API.Controllers.AuthController",
-    "Method": "ResetPassword",
-    "RelativePath": "api/Auth/reset-password",
+    "Method": "Register",
+    "RelativePath": "api/Auth/register",
     "HttpMethod": "POST",
     "IsController": true,
     "Order": 0,
     "Parameters": [
       {
-        "Name": "request",
-        "Type": "NFL_Fantasy_API.Models.DTOs.ResetPasswordRequestDTO",
+        "Name": "dto",
+        "Type": "NFL_Fantasy_API.Models.DTOs.RegisterUserDTO",
         "IsRequired": true
       }
     ],
@@ -329,16 +112,16 @@
     ]
   },
   {
-    "ContainingType": "NFL_Fantasy_API.Controllers.LocationController",
-    "Method": "CreateCanton",
-    "RelativePath": "api/Location/cantons",
+    "ContainingType": "NFL_Fantasy_API.Controllers.AuthController",
+    "Method": "RequestPasswordReset",
+    "RelativePath": "api/Auth/request-reset",
     "HttpMethod": "POST",
     "IsController": true,
     "Order": 0,
     "Parameters": [
       {
-        "Name": "request",
-        "Type": "NFL_Fantasy_API.Models.DTOs.CreateCantonDTO",
+        "Name": "dto",
+        "Type": "NFL_Fantasy_API.Models.DTOs.RequestPasswordResetDTO",
         "IsRequired": true
       }
     ],
@@ -355,9 +138,92 @@
     ]
   },
   {
-    "ContainingType": "NFL_Fantasy_API.Controllers.LocationController",
-    "Method": "GetCantonById",
-    "RelativePath": "api/Location/cantons/{id}",
+    "ContainingType": "NFL_Fantasy_API.Controllers.AuthController",
+    "Method": "ResetPasswordWithToken",
+    "RelativePath": "api/Auth/reset-with-token",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "dto",
+        "Type": "NFL_Fantasy_API.Models.DTOs.ResetPasswordWithTokenDTO",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "NFL_Fantasy_API.Models.DTOs.ApiResponseDTO",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "NFL_Fantasy_API.Controllers.LeagueController",
+    "Method": "CreateLeague",
+    "RelativePath": "api/League",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "dto",
+        "Type": "NFL_Fantasy_API.Models.DTOs.CreateLeagueDTO",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "NFL_Fantasy_API.Models.DTOs.ApiResponseDTO",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "NFL_Fantasy_API.Controllers.LeagueController",
+    "Method": "EditLeagueConfig",
+    "RelativePath": "api/League/{id}/config",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      },
+      {
+        "Name": "dto",
+        "Type": "NFL_Fantasy_API.Models.DTOs.EditLeagueConfigDTO",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "NFL_Fantasy_API.Models.DTOs.ApiResponseDTO",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "NFL_Fantasy_API.Controllers.LeagueController",
+    "Method": "GetLeagueMembers",
+    "RelativePath": "api/League/{id}/members",
     "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,
@@ -368,55 +234,24 @@
         "IsRequired": true
       }
     ],
-    "ReturnTypes": [
-      {
-        "Type": "NFL_Fantasy_API.Models.DTOs.CantonDTO",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
+    "ReturnTypes": []
   },
   {
-    "ContainingType": "NFL_Fantasy_API.Controllers.LocationController",
-    "Method": "GetCantonsByProvince",
-    "RelativePath": "api/Location/cantons/by-province/{provinceId}",
-    "HttpMethod": "GET",
+    "ContainingType": "NFL_Fantasy_API.Controllers.LeagueController",
+    "Method": "SetLeagueStatus",
+    "RelativePath": "api/League/{id}/status",
+    "HttpMethod": "PUT",
     "IsController": true,
     "Order": 0,
     "Parameters": [
       {
-        "Name": "provinceId",
+        "Name": "id",
         "Type": "System.Int32",
         "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
+      },
       {
-        "Type": "System.Collections.Generic.IEnumerable\u00601[[NFL_Fantasy_API.Models.DTOs.CantonDTO, NFL-Fantasy_API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "NFL_Fantasy_API.Controllers.LocationController",
-    "Method": "CreateDistrict",
-    "RelativePath": "api/Location/districts",
-    "HttpMethod": "POST",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "request",
-        "Type": "NFL_Fantasy_API.Models.DTOs.CreateDistrictDTO",
+        "Name": "dto",
+        "Type": "NFL_Fantasy_API.Models.DTOs.SetLeagueStatusDTO",
         "IsRequired": true
       }
     ],
@@ -433,9 +268,9 @@
     ]
   },
   {
-    "ContainingType": "NFL_Fantasy_API.Controllers.LocationController",
-    "Method": "GetDistrictById",
-    "RelativePath": "api/Location/districts/{id}",
+    "ContainingType": "NFL_Fantasy_API.Controllers.LeagueController",
+    "Method": "GetLeagueSummary",
+    "RelativePath": "api/League/{id}/summary",
     "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,
@@ -446,94 +281,58 @@
         "IsRequired": true
       }
     ],
-    "ReturnTypes": [
-      {
-        "Type": "NFL_Fantasy_API.Models.DTOs.DistrictDTO",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
+    "ReturnTypes": []
   },
   {
-    "ContainingType": "NFL_Fantasy_API.Controllers.LocationController",
-    "Method": "GetDistrictsByCanton",
-    "RelativePath": "api/Location/districts/by-canton/{cantonId}",
+    "ContainingType": "NFL_Fantasy_API.Controllers.LeagueController",
+    "Method": "GetLeagueTeams",
+    "RelativePath": "api/League/{id}/teams",
     "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,
     "Parameters": [
       {
-        "Name": "cantonId",
+        "Name": "id",
         "Type": "System.Int32",
         "IsRequired": true
       }
     ],
-    "ReturnTypes": [
-      {
-        "Type": "System.Collections.Generic.IEnumerable\u00601[[NFL_Fantasy_API.Models.DTOs.DistrictDTO, NFL-Fantasy_API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
+    "ReturnTypes": []
   },
   {
-    "ContainingType": "NFL_Fantasy_API.Controllers.LocationController",
-    "Method": "GetProvinces",
-    "RelativePath": "api/Location/provinces",
+    "ContainingType": "NFL_Fantasy_API.Controllers.LeagueController",
+    "Method": "GetLeagueDirectory",
+    "RelativePath": "api/League/directory",
     "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,
     "Parameters": [],
-    "ReturnTypes": [
-      {
-        "Type": "System.Collections.Generic.IEnumerable\u00601[[NFL_Fantasy_API.Models.DTOs.ProvinceDTO, NFL-Fantasy_API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
+    "ReturnTypes": []
   },
   {
-    "ContainingType": "NFL_Fantasy_API.Controllers.LocationController",
-    "Method": "CreateProvince",
-    "RelativePath": "api/Location/provinces",
-    "HttpMethod": "POST",
+    "ContainingType": "NFL_Fantasy_API.Controllers.ReferenceController",
+    "Method": "GetCurrentSeason",
+    "RelativePath": "api/Reference/current-season",
+    "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,
-    "Parameters": [
-      {
-        "Name": "request",
-        "Type": "NFL_Fantasy_API.Models.DTOs.CreateProvinceDTO",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "NFL_Fantasy_API.Models.DTOs.ApiResponseDTO",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
+    "Parameters": [],
+    "ReturnTypes": []
   },
   {
-    "ContainingType": "NFL_Fantasy_API.Controllers.LocationController",
-    "Method": "GetProvinceById",
-    "RelativePath": "api/Location/provinces/{id}",
+    "ContainingType": "NFL_Fantasy_API.Controllers.ReferenceController",
+    "Method": "ListPositionFormats",
+    "RelativePath": "api/Reference/position-formats",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "NFL_Fantasy_API.Controllers.ReferenceController",
+    "Method": "GetPositionFormatSlots",
+    "RelativePath": "api/Reference/position-formats/{id}/slots",
     "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,
@@ -544,48 +343,22 @@
         "IsRequired": true
       }
     ],
-    "ReturnTypes": [
-      {
-        "Type": "NFL_Fantasy_API.Models.DTOs.ProvinceDTO",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
+    "ReturnTypes": []
   },
   {
-    "ContainingType": "NFL_Fantasy_API.Controllers.UserController",
-    "Method": "CreateAdministrator",
-    "RelativePath": "api/User/administrators",
-    "HttpMethod": "POST",
+    "ContainingType": "NFL_Fantasy_API.Controllers.ScoringController",
+    "Method": "ListSchemas",
+    "RelativePath": "api/Scoring/schemas",
+    "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,
-    "Parameters": [
-      {
-        "Name": "request",
-        "Type": "NFL_Fantasy_API.Models.DTOs.CreateAdministratorDTO",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "NFL_Fantasy_API.Models.DTOs.ApiResponseDTO",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
+    "Parameters": [],
+    "ReturnTypes": []
   },
   {
-    "ContainingType": "NFL_Fantasy_API.Controllers.UserController",
-    "Method": "GetAdministratorById",
-    "RelativePath": "api/User/administrators/{id}",
+    "ContainingType": "NFL_Fantasy_API.Controllers.ScoringController",
+    "Method": "GetSchemaRules",
+    "RelativePath": "api/Scoring/schemas/{id}/rules",
     "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,
@@ -596,29 +369,39 @@
         "IsRequired": true
       }
     ],
-    "ReturnTypes": [
-      {
-        "Type": "NFL_Fantasy_API.Models.DTOs.AdministratorResponseDTO",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
+    "ReturnTypes": []
   },
   {
     "ContainingType": "NFL_Fantasy_API.Controllers.UserController",
-    "Method": "CreateClient",
-    "RelativePath": "api/User/clients",
-    "HttpMethod": "POST",
+    "Method": "GetHeader",
+    "RelativePath": "api/User/header",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "NFL_Fantasy_API.Controllers.UserController",
+    "Method": "GetProfile",
+    "RelativePath": "api/User/profile",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "NFL_Fantasy_API.Controllers.UserController",
+    "Method": "UpdateProfile",
+    "RelativePath": "api/User/profile",
+    "HttpMethod": "PUT",
     "IsController": true,
     "Order": 0,
     "Parameters": [
       {
-        "Name": "request",
-        "Type": "NFL_Fantasy_API.Models.DTOs.CreateClientDTO",
+        "Name": "dto",
+        "Type": "NFL_Fantasy_API.Models.DTOs.UpdateUserProfileDTO",
         "IsRequired": true
       }
     ],
@@ -636,86 +419,8 @@
   },
   {
     "ContainingType": "NFL_Fantasy_API.Controllers.UserController",
-    "Method": "GetClientById",
-    "RelativePath": "api/User/clients/{id}",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "id",
-        "Type": "System.Int32",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "NFL_Fantasy_API.Models.DTOs.UserResponseDTO",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "NFL_Fantasy_API.Controllers.UserController",
-    "Method": "CreateEngineer",
-    "RelativePath": "api/User/engineers",
-    "HttpMethod": "POST",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "request",
-        "Type": "NFL_Fantasy_API.Models.DTOs.CreateEngineerDTO",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "NFL_Fantasy_API.Models.DTOs.ApiResponseDTO",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "NFL_Fantasy_API.Controllers.UserController",
-    "Method": "GetEngineerById",
-    "RelativePath": "api/User/engineers/{id}",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "id",
-        "Type": "System.Int32",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": [
-      {
-        "Type": "NFL_Fantasy_API.Models.DTOs.EngineerResponseDTO",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "NFL_Fantasy_API.Controllers.UserController",
-    "Method": "GetCurrentUserDetails",
-    "RelativePath": "api/User/me/details",
+    "Method": "GetActiveSessions",
+    "RelativePath": "api/User/sessions",
     "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,
@@ -724,148 +429,68 @@
   },
   {
     "ContainingType": "NFL_Fantasy_API.Controllers.ViewsController",
-    "Method": "GetActiveAdministrators",
-    "RelativePath": "api/Views/active-administrators",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [],
-    "ReturnTypes": [
-      {
-        "Type": "System.Collections.Generic.IEnumerable\u00601[[NFL_Fantasy_API.Models.ViewModels.AdministratorViewModel, NFL-Fantasy_API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "NFL_Fantasy_API.Controllers.ViewsController",
-    "Method": "GetActiveClients",
-    "RelativePath": "api/Views/active-clients",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [],
-    "ReturnTypes": [
-      {
-        "Type": "System.Collections.Generic.IEnumerable\u00601[[NFL_Fantasy_API.Models.ViewModels.ClientViewModel, NFL-Fantasy_API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "NFL_Fantasy_API.Controllers.ViewsController",
-    "Method": "GetActiveEngineers",
-    "RelativePath": "api/Views/active-engineers",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [],
-    "ReturnTypes": [
-      {
-        "Type": "System.Collections.Generic.IEnumerable\u00601[[NFL_Fantasy_API.Models.ViewModels.EngineerViewModel, NFL-Fantasy_API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "NFL_Fantasy_API.Controllers.ViewsController",
-    "Method": "GetAllAdministrators",
-    "RelativePath": "api/Views/all-administrators",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [],
-    "ReturnTypes": [
-      {
-        "Type": "System.Collections.Generic.IEnumerable\u00601[[NFL_Fantasy_API.Models.ViewModels.AdministratorViewModel, NFL-Fantasy_API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "NFL_Fantasy_API.Controllers.ViewsController",
-    "Method": "GetAllClients",
-    "RelativePath": "api/Views/all-clients",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [],
-    "ReturnTypes": [
-      {
-        "Type": "System.Collections.Generic.IEnumerable\u00601[[NFL_Fantasy_API.Models.ViewModels.ClientViewModel, NFL-Fantasy_API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "NFL_Fantasy_API.Controllers.ViewsController",
-    "Method": "GetAllEngineers",
-    "RelativePath": "api/Views/all-engineers",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [],
-    "ReturnTypes": [
-      {
-        "Type": "System.Collections.Generic.IEnumerable\u00601[[NFL_Fantasy_API.Models.ViewModels.EngineerViewModel, NFL-Fantasy_API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
-  },
-  {
-    "ContainingType": "NFL_Fantasy_API.Controllers.ViewsController",
-    "Method": "GetRecentActivity",
-    "RelativePath": "api/Views/recent-activity",
+    "Method": "GetLeagueSummaryView",
+    "RelativePath": "api/Views/leagues/{id}/summary",
     "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,
     "Parameters": [
       {
-        "Name": "days",
+        "Name": "id",
         "Type": "System.Int32",
-        "IsRequired": false
+        "IsRequired": true
       }
     ],
     "ReturnTypes": []
   },
   {
     "ContainingType": "NFL_Fantasy_API.Controllers.ViewsController",
-    "Method": "GetUserSummary",
-    "RelativePath": "api/Views/summary",
+    "Method": "GetAllLeagues",
+    "RelativePath": "api/Views/leagues/directory",
     "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,
     "Parameters": [],
     "ReturnTypes": []
+  },
+  {
+    "ContainingType": "NFL_Fantasy_API.Controllers.ViewsController",
+    "Method": "GetSystemStats",
+    "RelativePath": "api/Views/system/stats",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "NFL_Fantasy_API.Controllers.ViewsController",
+    "Method": "GetActiveUsers",
+    "RelativePath": "api/Views/users/active",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Program\u002B\u003C\u003Ec",
+    "Method": "\u003C\u003CMain\u003E$\u003Eb__0_6",
+    "RelativePath": "health",
+    "HttpMethod": "GET",
+    "IsController": false,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "System.Void",
+        "MediaTypes": [],
+        "StatusCode": 200
+      }
+    ],
+    "Tags": [
+      "Health"
+    ],
+    "EndpointName": "HealthCheck"
   }
 ]

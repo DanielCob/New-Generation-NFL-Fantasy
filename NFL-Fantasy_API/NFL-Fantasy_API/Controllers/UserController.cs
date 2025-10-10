@@ -1,286 +1,162 @@
-﻿// Controllers/UserController.cs
+﻿using Microsoft.AspNetCore.Mvc;
+using NFL_Fantasy_API.Extensions;
 using NFL_Fantasy_API.Models.DTOs;
 using NFL_Fantasy_API.Services.Interfaces;
-using Microsoft.AspNetCore.Mvc;
 
 namespace NFL_Fantasy_API.Controllers
 {
+    /// <summary>
+    /// Controller de gestión de perfiles de usuario
+    /// Endpoints: GetProfile, GetHeader, GetSessions, UpdateProfile
+    /// Feature 1.1: Gestión de perfiles de usuarios
+    /// Todos los endpoints requieren autenticación
+    /// </summary>
     [ApiController]
     [Route("api/[controller]")]
     public class UserController : ControllerBase
     {
         private readonly IUserService _userService;
+        private readonly ILogger<UserController> _logger;
 
-        public UserController(IUserService userService)
+        public UserController(IUserService userService, ILogger<UserController> logger)
         {
             _userService = userService;
-        }
-
-        #region Create Users
-        /// <summary>
-        /// Create a new client
-        /// </summary>
-        /// <param name="request">Client creation data</param>
-        /// <returns>Creation result</returns>
-        [HttpPost("clients")]
-        public async Task<ActionResult<ApiResponseDTO>> CreateClient([FromBody] CreateClientDTO request)
-        {
-            try
-            {
-                if (!ModelState.IsValid)
-                {
-                    return BadRequest(ModelState);
-                }
-
-                var response = await _userService.CreateClientAsync(request);
-
-                if (!response.Success)
-                {
-                    return BadRequest(response);
-                }
-
-                return CreatedAtAction(nameof(GetClientById), new { id = 0 }, response);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new ApiResponseDTO
-                {
-                    Success = false,
-                    Message = $"Internal server error: {ex.Message}"
-                });
-            }
+            _logger = logger;
         }
 
         /// <summary>
-        /// Create a new engineer
+        /// Obtiene el perfil completo del usuario autenticado
+        /// GET /api/user/profile
+        /// Feature 1.1 - Ver perfil de usuario
+        /// Retorna: datos del usuario + ligas como comisionado + equipos
         /// </summary>
-        /// <param name="request">Engineer creation data</param>
-        /// <returns>Creation result</returns>
-        [HttpPost("engineers")]
-        public async Task<ActionResult<ApiResponseDTO>> CreateEngineer([FromBody] CreateEngineerDTO request)
+        [HttpGet("profile")]
+        public async Task<ActionResult> GetProfile()
         {
+            if (!HttpContext.IsAuthenticated())
+            {
+                return Unauthorized(ApiResponseDTO.ErrorResponse("No autenticado."));
+            }
+
             try
             {
-                if (!ModelState.IsValid)
+                var userId = HttpContext.GetUserId();
+                var profile = await _userService.GetUserProfileAsync(userId);
+
+                if (profile == null)
                 {
-                    return BadRequest(ModelState);
+                    return NotFound(ApiResponseDTO.ErrorResponse("Perfil no encontrado."));
                 }
 
-                var response = await _userService.CreateEngineerAsync(request);
-
-                if (!response.Success)
-                {
-                    return BadRequest(response);
-                }
-
-                return CreatedAtAction(nameof(GetEngineerById), new { id = 0 }, response);
+                return Ok(ApiResponseDTO.SuccessResponse("Perfil obtenido exitosamente.", profile));
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new ApiResponseDTO
-                {
-                    Success = false,
-                    Message = $"Internal server error: {ex.Message}"
-                });
+                _logger.LogError(ex, "Error getting profile for user {UserID}", HttpContext.GetUserId());
+                return StatusCode(500, ApiResponseDTO.ErrorResponse("Error al obtener perfil."));
             }
         }
 
         /// <summary>
-        /// Create a new administrator
+        /// Obtiene información básica del encabezado del perfil
+        /// GET /api/user/header
+        /// Vista ligera del perfil
         /// </summary>
-        /// <param name="request">Administrator creation data</param>
-        /// <returns>Creation result</returns>
-        [HttpPost("administrators")]
-        public async Task<ActionResult<ApiResponseDTO>> CreateAdministrator([FromBody] CreateAdministratorDTO request)
+        [HttpGet("header")]
+        public async Task<ActionResult> GetHeader()
         {
+            if (!HttpContext.IsAuthenticated())
+            {
+                return Unauthorized(ApiResponseDTO.ErrorResponse("No autenticado."));
+            }
+
             try
             {
-                if (!ModelState.IsValid)
+                var userId = HttpContext.GetUserId();
+                var header = await _userService.GetUserHeaderAsync(userId);
+
+                if (header == null)
                 {
-                    return BadRequest(ModelState);
+                    return NotFound(ApiResponseDTO.ErrorResponse("Usuario no encontrado."));
                 }
 
-                var response = await _userService.CreateAdministratorAsync(request);
-
-                if (!response.Success)
-                {
-                    return BadRequest(response);
-                }
-
-                return CreatedAtAction(nameof(GetAdministratorById), new { id = 0 }, response);
+                return Ok(ApiResponseDTO.SuccessResponse("Header obtenido exitosamente.", header));
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new ApiResponseDTO
-                {
-                    Success = false,
-                    Message = $"Internal server error: {ex.Message}"
-                });
-            }
-        }
-        #endregion
-
-        #region Get Users by ID
-        /// <summary>
-        /// Get client by ID
-        /// </summary>
-        /// <param name="id">Client ID</param>
-        /// <returns>Client information</returns>
-        [HttpGet("clients/{id}")]
-        public async Task<ActionResult<UserResponseDTO>> GetClientById(int id)
-        {
-            try
-            {
-                var client = await _userService.GetClientByIdAsync(id);
-
-                if (client == null)
-                {
-                    return NotFound(new ApiResponseDTO
-                    {
-                        Success = false,
-                        Message = "Client not found"
-                    });
-                }
-
-                return Ok(client);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new ApiResponseDTO
-                {
-                    Success = false,
-                    Message = $"Internal server error: {ex.Message}"
-                });
+                _logger.LogError(ex, "Error getting header for user {UserID}", HttpContext.GetUserId());
+                return StatusCode(500, ApiResponseDTO.ErrorResponse("Error al obtener header."));
             }
         }
 
         /// <summary>
-        /// Get engineer by ID
+        /// Obtiene todas las sesiones activas del usuario
+        /// GET /api/user/sessions
+        /// Feature 1.1 - Ver sesiones activas
+        /// Útil para ver desde qué dispositivos está conectado
         /// </summary>
-        /// <param name="id">Engineer ID</param>
-        /// <returns>Engineer information</returns>
-        [HttpGet("engineers/{id}")]
-        public async Task<ActionResult<EngineerResponseDTO>> GetEngineerById(int id)
+        [HttpGet("sessions")]
+        public async Task<ActionResult> GetActiveSessions()
         {
+            if (!HttpContext.IsAuthenticated())
+            {
+                return Unauthorized(ApiResponseDTO.ErrorResponse("No autenticado."));
+            }
+
             try
             {
-                var engineer = await _userService.GetEngineerByIdAsync(id);
+                var userId = HttpContext.GetUserId();
+                var sessions = await _userService.GetActiveSessionsAsync(userId);
 
-                if (engineer == null)
-                {
-                    return NotFound(new ApiResponseDTO
-                    {
-                        Success = false,
-                        Message = "Engineer not found"
-                    });
-                }
-
-                return Ok(engineer);
+                return Ok(ApiResponseDTO.SuccessResponse("Sesiones activas obtenidas.", sessions));
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new ApiResponseDTO
-                {
-                    Success = false,
-                    Message = $"Internal server error: {ex.Message}"
-                });
+                _logger.LogError(ex, "Error getting sessions for user {UserID}", HttpContext.GetUserId());
+                return StatusCode(500, ApiResponseDTO.ErrorResponse("Error al obtener sesiones."));
             }
         }
 
         /// <summary>
-        /// Get administrator by ID
+        /// Actualiza el perfil del usuario autenticado
+        /// PUT /api/user/profile
+        /// Feature 1.1 - Gestión de perfil de usuario
+        /// IMPORTANTE: No permite editar Email, UserID, CreatedAt, AccountStatus, Role
         /// </summary>
-        /// <param name="id">Administrator ID</param>
-        /// <returns>Administrator information</returns>
-        [HttpGet("administrators/{id}")]
-        public async Task<ActionResult<AdministratorResponseDTO>> GetAdministratorById(int id)
+        [HttpPut("profile")]
+        public async Task<ActionResult<ApiResponseDTO>> UpdateProfile([FromBody] UpdateUserProfileDTO dto)
         {
+            if (!HttpContext.IsAuthenticated())
+            {
+                return Unauthorized(ApiResponseDTO.ErrorResponse("No autenticado."));
+            }
+
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors.Select(e => e.ErrorMessage));
+                return BadRequest(ApiResponseDTO.ErrorResponse(string.Join(" ", errors)));
+            }
+
             try
             {
-                var administrator = await _userService.GetAdministratorByIdAsync(id);
+                var userId = HttpContext.GetUserId();
 
-                if (administrator == null)
+                // El actor y el target son el mismo (el usuario solo puede editar su propio perfil)
+                var result = await _userService.UpdateProfileAsync(userId, userId, dto);
+
+                if (result.Success)
                 {
-                    return NotFound(new ApiResponseDTO
-                    {
-                        Success = false,
-                        Message = "Administrator not found"
-                    });
+                    _logger.LogInformation("User {UserID} updated profile successfully", userId);
+                    return Ok(result);
                 }
 
-                return Ok(administrator);
+                return BadRequest(result);
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new ApiResponseDTO
-                {
-                    Success = false,
-                    Message = $"Internal server error: {ex.Message}"
-                });
+                _logger.LogError(ex, "Error updating profile for user {UserID}", HttpContext.GetUserId());
+                return StatusCode(500, ApiResponseDTO.ErrorResponse("Error al actualizar perfil."));
             }
         }
-        #endregion
-
-        #region Get Current User Information
-        /// <summary>
-        /// Get current user's complete information
-        /// </summary>
-        /// <returns>Current user's detailed information</returns>
-        [HttpGet("me/details")]
-        public async Task<ActionResult> GetCurrentUserDetails()
-        {
-            try
-            {
-                // Get user information from middleware
-                if (!HttpContext.Items.TryGetValue("UserId", out var userIdObj) ||
-                    userIdObj is not int userId)
-                {
-                    return Unauthorized(new ApiResponseDTO
-                    {
-                        Success = false,
-                        Message = "User ID not found in session"
-                    });
-                }
-
-                if (!HttpContext.Items.TryGetValue("UserType", out var userTypeObj) ||
-                    userTypeObj?.ToString() is not string userType)
-                {
-                    return Unauthorized(new ApiResponseDTO
-                    {
-                        Success = false,
-                        Message = "User type not found in session"
-                    });
-                }
-
-                // Get detailed information based on user type
-                object? userDetails = userType switch
-                {
-                    "CLIENT" => await _userService.GetClientByIdAsync(userId),
-                    "ENGINEER" => await _userService.GetEngineerByIdAsync(userId),
-                    "ADMIN" => await _userService.GetAdministratorByIdAsync(userId),
-                    _ => null
-                };
-
-                if (userDetails == null)
-                {
-                    return NotFound(new ApiResponseDTO
-                    {
-                        Success = false,
-                        Message = "User details not found"
-                    });
-                }
-
-                return Ok(userDetails);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new ApiResponseDTO
-                {
-                    Success = false,
-                    Message = $"Internal server error: {ex.Message}"
-                });
-            }
-        }
-        #endregion
     }
 }
