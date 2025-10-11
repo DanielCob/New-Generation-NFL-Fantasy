@@ -27,7 +27,7 @@ namespace NFL_Fantasy_API.Services.Implementations
         /// SP: app.sp_UpdateUserProfile
         /// Feature 1.1 - Gestión de perfil de usuario
         /// </summary>
-        public async Task<ApiResponseDTO> UpdateProfileAsync(int actorUserId, int targetUserId, UpdateUserProfileDTO dto)
+        public async Task<ApiResponseDTO> UpdateProfileAsync(int actorUserId, int targetUserId, UpdateUserProfileDTO dto, string? sourceIp = null, string? userAgent = null)
         {
             try
             {
@@ -65,7 +65,9 @@ namespace NFL_Fantasy_API.Services.Implementations
                     new SqlParameter("@ProfileImageUrl", DatabaseHelper.DbNullIfNull(dto.ProfileImageUrl)),
                     new SqlParameter("@ProfileImageWidth", DatabaseHelper.DbNullIfNull(dto.ProfileImageWidth)),
                     new SqlParameter("@ProfileImageHeight", DatabaseHelper.DbNullIfNull(dto.ProfileImageHeight)),
-                    new SqlParameter("@ProfileImageBytes", DatabaseHelper.DbNullIfNull(dto.ProfileImageBytes))
+                    new SqlParameter("@ProfileImageBytes", DatabaseHelper.DbNullIfNull(dto.ProfileImageBytes)),
+                    new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
+                    new SqlParameter("@UserAgent", DatabaseHelper.DbNullIfNull(userAgent))
                 };
 
                 var message = await _db.ExecuteStoredProcedureForMessageAsync(

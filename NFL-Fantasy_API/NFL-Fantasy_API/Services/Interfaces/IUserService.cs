@@ -20,7 +20,7 @@ namespace NFL_Fantasy_API.Services.Interfaces
         /// <param name="targetUserId">ID del usuario a modificar</param>
         /// <param name="dto">Campos a actualizar (todos opcionales)</param>
         /// <returns>Mensaje de confirmación</returns>
-        Task<ApiResponseDTO> UpdateProfileAsync(int actorUserId, int targetUserId, UpdateUserProfileDTO dto);
+        Task<ApiResponseDTO> UpdateProfileAsync(int actorUserId, int targetUserId, UpdateUserProfileDTO dto, string? sourceIp = null, string? userAgent = null);
 
         /// <summary>
         /// Obtiene el perfil completo de un usuario

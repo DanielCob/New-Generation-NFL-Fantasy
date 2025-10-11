@@ -40,11 +40,14 @@ namespace NFL_Fantasy_API.Controllers
 
             try
             {
-                var result = await _authService.RegisterAsync(dto);
+                var sourceIp = HttpContext.GetClientIpAddress();
+                var userAgent = HttpContext.GetUserAgent();
+
+                var result = await _authService.RegisterAsync(dto, sourceIp, userAgent);
 
                 if (result.Success)
                 {
-                    _logger.LogInformation("User registered successfully: {Email}", dto.Email);
+                    _logger.LogInformation("User registered successfully: {Email} from {IP}", dto.Email, sourceIp);
                     return Ok(result);
                 }
 
@@ -76,11 +79,13 @@ namespace NFL_Fantasy_API.Controllers
 
             try
             {
-                var result = await _authService.LoginAsync(dto);
+                var sourceIp = HttpContext.GetClientIpAddress();
+                var userAgent = HttpContext.GetUserAgent();
+                var result = await _authService.LoginAsync(dto, sourceIp, userAgent);
 
                 if (result.Success)
                 {
-                    _logger.LogInformation("User logged in successfully: {Email}", dto.Email);
+                    _logger.LogInformation("User logged in successfully: {Email} from {IP}", dto.Email, sourceIp);
                     return Ok(result);
                 }
 
@@ -111,9 +116,12 @@ namespace NFL_Fantasy_API.Controllers
             try
             {
                 var sessionId = HttpContext.GetSessionId();
-                var result = await _authService.LogoutAsync(sessionId);
+                var sourceIp = HttpContext.GetClientIpAddress();
+                var userAgent = HttpContext.GetUserAgent();
+                var result = await _authService.LogoutAsync(sessionId, sourceIp, userAgent);
 
-                _logger.LogInformation("User {UserID} logged out successfully", HttpContext.GetUserId());
+                _logger.LogInformation("User {UserID} logged out successfully from {IP}",
+                    HttpContext.GetUserId(), sourceIp);
                 return Ok(result);
             }
             catch (Exception ex)
@@ -140,9 +148,11 @@ namespace NFL_Fantasy_API.Controllers
             try
             {
                 var userId = HttpContext.GetUserId();
-                var result = await _authService.LogoutAllAsync(userId);
+                var sourceIp = HttpContext.GetClientIpAddress();
+                var userAgent = HttpContext.GetUserAgent();
+                var result = await _authService.LogoutAllAsync(userId, sourceIp, userAgent);
 
-                _logger.LogInformation("User {UserID} closed all sessions", userId);
+                _logger.LogInformation("User {UserID} closed all sessions from {IP}", userId, sourceIp);
                 return Ok(result);
             }
             catch (Exception ex)
@@ -169,10 +179,10 @@ namespace NFL_Fantasy_API.Controllers
 
             try
             {
-                var result = await _authService.RequestPasswordResetAsync(dto);
+                var sourceIp = HttpContext.GetClientIpAddress();
+                var result = await _authService.RequestPasswordResetAsync(dto, sourceIp);
 
-                // Siempre retornamos 200 OK con mensaje genérico por seguridad
-                _logger.LogInformation("Password reset requested for {Email}", dto.Email);
+                _logger.LogInformation("Password reset requested for {Email} from {IP}", dto.Email, sourceIp);
                 return Ok(result);
             }
             catch (Exception ex)
@@ -199,11 +209,13 @@ namespace NFL_Fantasy_API.Controllers
 
             try
             {
-                var result = await _authService.ResetPasswordWithTokenAsync(dto);
+                var sourceIp = HttpContext.GetClientIpAddress();
+                var userAgent = HttpContext.GetUserAgent();
+                var result = await _authService.ResetPasswordWithTokenAsync(dto, sourceIp, userAgent);
 
                 if (result.Success)
                 {
-                    _logger.LogInformation("Password reset successfully with token");
+                    _logger.LogInformation("Password reset successfully with token from {IP}", sourceIp);
                     return Ok(result);
                 }
 

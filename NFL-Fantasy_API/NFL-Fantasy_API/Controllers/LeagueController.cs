@@ -47,11 +47,15 @@ namespace NFL_Fantasy_API.Controllers
             try
             {
                 var creatorUserId = HttpContext.GetUserId();
-                var result = await _leagueService.CreateLeagueAsync(dto, creatorUserId);
+                var sourceIp = HttpContext.GetClientIpAddress();
+                var userAgent = HttpContext.GetUserAgent();
+
+                var result = await _leagueService.CreateLeagueAsync(dto, creatorUserId, sourceIp, userAgent);
 
                 if (result.Success)
                 {
-                    _logger.LogInformation("User {UserID} created league: {LeagueName}", creatorUserId, dto.Name);
+                    _logger.LogInformation("User {UserID} created league: {LeagueName} from {IP}",
+                        creatorUserId, dto.Name, sourceIp);
                     return CreatedAtAction(nameof(GetLeagueSummary),
                         new { id = ((CreateLeagueResponseDTO?)result.Data)?.LeagueID ?? 0 },
                         result);
@@ -90,11 +94,15 @@ namespace NFL_Fantasy_API.Controllers
             try
             {
                 var actorUserId = HttpContext.GetUserId();
-                var result = await _leagueService.EditLeagueConfigAsync(id, dto, actorUserId);
+                var sourceIp = HttpContext.GetClientIpAddress();
+                var userAgent = HttpContext.GetUserAgent();
+
+                var result = await _leagueService.EditLeagueConfigAsync(id, dto, actorUserId, sourceIp, userAgent);
 
                 if (result.Success)
                 {
-                    _logger.LogInformation("User {UserID} edited config for league {LeagueID}", actorUserId, id);
+                    _logger.LogInformation("User {UserID} edited config for league {LeagueID} from {IP}",
+                        actorUserId, id, sourceIp);
                     return Ok(result);
                 }
 
@@ -132,12 +140,15 @@ namespace NFL_Fantasy_API.Controllers
             try
             {
                 var actorUserId = HttpContext.GetUserId();
-                var result = await _leagueService.SetLeagueStatusAsync(id, dto, actorUserId);
+                var sourceIp = HttpContext.GetClientIpAddress();
+                var userAgent = HttpContext.GetUserAgent();
+
+                var result = await _leagueService.SetLeagueStatusAsync(id, dto, actorUserId, sourceIp, userAgent);
 
                 if (result.Success)
                 {
-                    _logger.LogInformation("User {UserID} changed status of league {LeagueID} to {NewStatus}",
-                        actorUserId, id, dto.NewStatus);
+                    _logger.LogInformation("User {UserID} changed status of league {LeagueID} to {NewStatus} from {IP}",
+                        actorUserId, id, dto.NewStatus, sourceIp);
                     return Ok(result);
                 }
 

@@ -237,6 +237,38 @@ namespace NFL_Fantasy_API.Data
             return value ?? DBNull.Value;
         }
 
+        /// <summary>
+        /// Lee un Int64 (BigInt) de forma segura
+        /// </summary>
+        public static long GetSafeInt64(SqlDataReader reader, string columnName)
+        {
+            try
+            {
+                int ordinal = reader.GetOrdinal(columnName);
+                return reader.IsDBNull(ordinal) ? 0L : reader.GetInt64(ordinal);
+            }
+            catch
+            {
+                return 0L;
+            }
+        }
+
+        /// <summary>
+        /// Lee un Int64? nullable de forma segura
+        /// </summary>
+        public static long? GetSafeNullableInt64(SqlDataReader reader, string columnName)
+        {
+            try
+            {
+                int ordinal = reader.GetOrdinal(columnName);
+                return reader.IsDBNull(ordinal) ? null : reader.GetInt64(ordinal);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         #endregion
 
         #region Stored Procedure Execution Methods

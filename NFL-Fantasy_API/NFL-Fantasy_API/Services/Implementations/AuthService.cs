@@ -28,7 +28,7 @@ namespace NFL_Fantasy_API.Services.Implementations
         /// SP: app.sp_RegisterUser
         /// Feature 1.1 - Registro de usuario
         /// </summary>
-        public async Task<ApiResponseDTO> RegisterAsync(RegisterUserDTO dto)
+        public async Task<ApiResponseDTO> RegisterAsync(RegisterUserDTO dto, string? sourceIp = null, string? userAgent = null)
         {
             try
             {
@@ -65,7 +65,9 @@ namespace NFL_Fantasy_API.Services.Implementations
                     new SqlParameter("@ProfileImageUrl", DatabaseHelper.DbNullIfNull(dto.ProfileImageUrl)),
                     new SqlParameter("@ProfileImageWidth", DatabaseHelper.DbNullIfNull(dto.ProfileImageWidth)),
                     new SqlParameter("@ProfileImageHeight", DatabaseHelper.DbNullIfNull(dto.ProfileImageHeight)),
-                    new SqlParameter("@ProfileImageBytes", DatabaseHelper.DbNullIfNull(dto.ProfileImageBytes))
+                    new SqlParameter("@ProfileImageBytes", DatabaseHelper.DbNullIfNull(dto.ProfileImageBytes)),
+                    new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
+                    new SqlParameter("@UserAgent", DatabaseHelper.DbNullIfNull(userAgent))
                 };
 
                 var result = await _db.ExecuteStoredProcedureAsync<RegisterResponseDTO>(
@@ -105,7 +107,7 @@ namespace NFL_Fantasy_API.Services.Implementations
         /// SP: app.sp_Login (usa OUTPUT parameters)
         /// Feature 1.1 - Inicio de sesión
         /// </summary>
-        public async Task<ApiResponseDTO> LoginAsync(LoginDTO dto)
+        public async Task<ApiResponseDTO> LoginAsync(LoginDTO dto, string? sourceIp = null, string? userAgent = null)
         {
             try
             {
@@ -113,6 +115,8 @@ namespace NFL_Fantasy_API.Services.Implementations
                 {
                     new SqlParameter("@Email", dto.Email),
                     new SqlParameter("@Password", dto.Password),
+                    new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
+                    new SqlParameter("@UserAgent", DatabaseHelper.DbNullIfNull(userAgent)),
                     new SqlParameter("@SessionID", SqlDbType.UniqueIdentifier) { Direction = ParameterDirection.Output },
                     new SqlParameter("@Message", SqlDbType.NVarChar, 200) { Direction = ParameterDirection.Output }
                 };
@@ -214,13 +218,15 @@ namespace NFL_Fantasy_API.Services.Implementations
         /// SP: app.sp_Logout
         /// Feature 1.1 - Cierre de sesión
         /// </summary>
-        public async Task<ApiResponseDTO> LogoutAsync(Guid sessionId)
+        public async Task<ApiResponseDTO> LogoutAsync(Guid sessionId, string? sourceIp = null, string? userAgent = null)
         {
             try
             {
                 var parameters = new SqlParameter[]
                 {
-                    new SqlParameter("@SessionID", sessionId)
+                    new SqlParameter("@SessionID", sessionId),
+                    new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
+                    new SqlParameter("@UserAgent", DatabaseHelper.DbNullIfNull(userAgent))
                 };
 
                 var message = await _db.ExecuteStoredProcedureForMessageAsync(
@@ -241,13 +247,15 @@ namespace NFL_Fantasy_API.Services.Implementations
         /// SP: app.sp_LogoutAllSessions
         /// Feature 1.1 - Cierre de sesión global
         /// </summary>
-        public async Task<ApiResponseDTO> LogoutAllAsync(int userId)
+        public async Task<ApiResponseDTO> LogoutAllAsync(int userId, string? sourceIp = null, string? userAgent = null)
         {
             try
             {
                 var parameters = new SqlParameter[]
                 {
-                    new SqlParameter("@ActorUserID", userId)
+                    new SqlParameter("@ActorUserID", userId),
+                    new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
+                    new SqlParameter("@UserAgent", DatabaseHelper.DbNullIfNull(userAgent))
                 };
 
                 var message = await _db.ExecuteStoredProcedureForMessageAsync(
@@ -272,13 +280,14 @@ namespace NFL_Fantasy_API.Services.Implementations
         /// SP: app.sp_RequestPasswordReset
         /// Feature 1.1 - Desbloqueo de cuenta bloqueada
         /// </summary>
-        public async Task<ApiResponseDTO> RequestPasswordResetAsync(RequestPasswordResetDTO dto)
+        public async Task<ApiResponseDTO> RequestPasswordResetAsync(RequestPasswordResetDTO dto, string? sourceIp = null)
         {
             try
             {
                 var parameters = new SqlParameter[]
                 {
                     new SqlParameter("@Email", dto.Email),
+                    new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
                     new SqlParameter("@Token", SqlDbType.NVarChar, 100) { Direction = ParameterDirection.Output },
                     new SqlParameter("@ExpiresAt", SqlDbType.DateTime2) { Direction = ParameterDirection.Output }
                 };
@@ -314,7 +323,7 @@ namespace NFL_Fantasy_API.Services.Implementations
         /// SP: app.sp_ResetPasswordWithToken
         /// Feature 1.1 - Desbloqueo de cuenta bloqueada
         /// </summary>
-        public async Task<ApiResponseDTO> ResetPasswordWithTokenAsync(ResetPasswordWithTokenDTO dto)
+        public async Task<ApiResponseDTO> ResetPasswordWithTokenAsync(ResetPasswordWithTokenDTO dto, string? sourceIp = null, string? userAgent = null)
         {
             try
             {
@@ -329,7 +338,9 @@ namespace NFL_Fantasy_API.Services.Implementations
                 {
                     new SqlParameter("@Token", dto.Token),
                     new SqlParameter("@NewPassword", dto.NewPassword),
-                    new SqlParameter("@ConfirmPassword", dto.ConfirmPassword)
+                    new SqlParameter("@ConfirmPassword", dto.ConfirmPassword),
+                    new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
+            new SqlParameter("@UserAgent", DatabaseHelper.DbNullIfNull(userAgent))
                 };
 
                 await _db.ExecuteStoredProcedureNonQueryAsync(

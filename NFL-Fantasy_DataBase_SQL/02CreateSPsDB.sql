@@ -11,6 +11,9 @@ IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'app_executor
     CREATE ROLE app_executor AUTHORIZATION dbo;
 GO
 
+-- ============================================================================
+-- sp_RegisterUser
+-- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_RegisterUser
   @Name               NVARCHAR(50),
   @Email              NVARCHAR(50),
@@ -21,12 +24,14 @@ CREATE OR ALTER PROCEDURE app.sp_RegisterUser
   @ProfileImageUrl    NVARCHAR(400) = NULL,
   @ProfileImageWidth  SMALLINT = NULL,
   @ProfileImageHeight SMALLINT = NULL,
-  @ProfileImageBytes  INT = NULL
+  @ProfileImageBytes  INT = NULL,
+  @SourceIp           NVARCHAR(45) = NULL,      -- NUEVO
+  @UserAgent          NVARCHAR(300) = NULL      -- NUEVO
 AS
 BEGIN
   SET NOCOUNT ON;
   BEGIN TRY
-    -- Validaciones de campos
+    -- Validaciones de campos (mantener las existentes)
     IF @Name IS NULL OR LEN(@Name) < 1 OR LEN(@Name) > 50
       THROW 50001, 'Nombre inválido: debe tener entre 1 y 50 caracteres.', 1;
 
@@ -39,11 +44,9 @@ BEGIN
     IF @Password IS NULL OR @PasswordConfirm IS NULL OR @Password <> @PasswordConfirm
       THROW 50004, 'La confirmación de contraseña no coincide.', 1;
 
-    -- Complejidad de contraseña (8-12, alfanumérica, min1 mayús, min1 minús, min1 dígito)
     IF LEN(@Password) < 8 OR LEN(@Password) > 12
       THROW 50005, 'Contraseña inválida: longitud 8-12.', 1;
 
-    -- case-sensitive checks con collate binario
     IF PATINDEX('%[A-Z]%', @Password COLLATE Latin1_General_BIN2) = 0
       THROW 50006, 'Contraseña debe incluir al menos una mayúscula.', 1;
     IF PATINDEX('%[a-z]%', @Password COLLATE Latin1_General_BIN2) = 0
@@ -53,7 +56,6 @@ BEGIN
     IF @Password LIKE '%[^0-9A-Za-z]%'
       THROW 50009, 'Contraseña debe ser alfanumérica (sin caracteres especiales).', 1;
 
-    -- Imagen (opcional) reglas: bytes <= 5MB, dims 300-1024 si vienen
     IF @ProfileImageBytes IS NOT NULL AND @ProfileImageBytes > 5242880
       THROW 50010, 'Imagen supera 5MB.', 1;
     IF @ProfileImageWidth IS NOT NULL AND (@ProfileImageWidth < 300 OR @ProfileImageWidth > 1024)
@@ -61,7 +63,6 @@ BEGIN
     IF @ProfileImageHeight IS NOT NULL AND (@ProfileImageHeight < 300 OR @ProfileImageHeight > 1024)
       THROW 50012, 'Alto de imagen fuera de rango (300-1024).', 1;
 
-    -- Unicidad de email
     IF EXISTS (SELECT 1 FROM auth.UserAccount WHERE Email = @Email)
       THROW 50013, 'Correo duplicado.', 1;
 
@@ -83,9 +84,10 @@ BEGIN
 
       SET @UserID = SCOPE_IDENTITY();
 
-      -- Auditoría: alta de usuario
-      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details)
-      VALUES(@UserID, N'USER_PROFILE', CAST(@UserID AS NVARCHAR(50)), N'CREATE', N'Registro exitoso');
+      -- Auditoría con IP y UserAgent
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+      VALUES(@UserID, N'USER_PROFILE', CAST(@UserID AS NVARCHAR(50)), N'CREATE', 
+             N'Registro exitoso', @SourceIp, @UserAgent);
 
     COMMIT;
 
@@ -101,9 +103,14 @@ GO
 GRANT EXECUTE ON OBJECT::app.sp_RegisterUser TO app_executor;
 GO
 
+-- ============================================================================
+-- sp_Login
+-- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_Login
   @Email       NVARCHAR(50),
   @Password    NVARCHAR(50),
+  @SourceIp    NVARCHAR(45) = NULL,      -- NUEVO
+  @UserAgent   NVARCHAR(300) = NULL,     -- NUEVO
   @SessionID   UNIQUEIDENTIFIER OUTPUT,
   @Message     NVARCHAR(200) OUTPUT
 AS
@@ -126,30 +133,27 @@ BEGIN
   FROM auth.UserAccount
   WHERE Email = @Email;
 
-  -- Log intentos (con o sin usuario) al final, para uniformidad.
-
   IF @UserID IS NULL
   BEGIN
     SET @Message = N'Credenciales inválidas.';
-    INSERT INTO auth.LoginAttempt(UserID, Email, Success) VALUES(NULL, @Email, 0);
+    INSERT INTO auth.LoginAttempt(UserID, Email, Success, Ip, UserAgent)
+    VALUES(NULL, @Email, 0, @SourceIp, @UserAgent);
     RETURN;
   END
 
-  -- Cuenta bloqueada
   IF @Status = 2 AND (@LockedUntil IS NULL OR @LockedUntil > SYSUTCDATETIME())
   BEGIN
     SET @Message = N'Cuenta bloqueada. Solicite restablecer.';
-    INSERT INTO auth.LoginAttempt(UserID, Email, Success) VALUES(@UserID, @Email, 0);
+    INSERT INTO auth.LoginAttempt(UserID, Email, Success, Ip, UserAgent)
+    VALUES(@UserID, @Email, 0, @SourceIp, @UserAgent);
     RETURN;
   END
 
-  -- Verificar contraseña
   DECLARE @PwdBytes VARBINARY(4000) = CONVERT(VARBINARY(4000), @Password);
   DECLARE @Check VARBINARY(64) = HASHBYTES('SHA2_256', @PwdBytes + @Salt);
 
   IF @Check <> @Hash
   BEGIN
-    -- fallo: incrementar contador y bloquear si llega a 5
     BEGIN TRY
       BEGIN TRAN;
         UPDATE auth.UserAccount
@@ -159,7 +163,8 @@ BEGIN
                UpdatedAt = SYSUTCDATETIME()
          WHERE UserID = @UserID;
 
-        INSERT INTO auth.LoginAttempt(UserID, Email, Success) VALUES(@UserID, @Email, 0);
+        INSERT INTO auth.LoginAttempt(UserID, Email, Success, Ip, UserAgent)
+        VALUES(@UserID, @Email, 0, @SourceIp, @UserAgent);
       COMMIT;
     END TRY
     BEGIN CATCH
@@ -174,25 +179,27 @@ BEGIN
     RETURN;
   END
 
-  -- Éxito: resetear fallos y crear sesión (12 horas de inactividad)
+  -- Éxito: crear sesión CON IP y UserAgent
   BEGIN TRY
     BEGIN TRAN;
 
       UPDATE auth.UserAccount
          SET FailedLoginCount = 0,
-             AccountStatus = 1,       -- Active
+             AccountStatus = 1,
              LockedUntil = NULL,
              UpdatedAt = SYSUTCDATETIME()
        WHERE UserID = @UserID;
 
       SET @SessionID = NEWID();
-      INSERT INTO auth.Session(SessionID, UserID, ExpiresAt)
-      VALUES(@SessionID, @UserID, DATEADD(HOUR, 12, SYSUTCDATETIME()));
+      INSERT INTO auth.Session(SessionID, UserID, ExpiresAt, Ip, UserAgent)
+      VALUES(@SessionID, @UserID, DATEADD(HOUR, 12, SYSUTCDATETIME()), @SourceIp, @UserAgent);
 
-      INSERT INTO auth.LoginAttempt(UserID, Email, Success) VALUES(@UserID, @Email, 1);
+      INSERT INTO auth.LoginAttempt(UserID, Email, Success, Ip, UserAgent)
+      VALUES(@UserID, @Email, 1, @SourceIp, @UserAgent);
 
-      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details)
-      VALUES(@UserID, N'USER_PROFILE', CAST(@UserID AS NVARCHAR(50)), N'LOGIN', N'Inicio de sesión exitoso');
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+      VALUES(@UserID, N'USER_PROFILE', CAST(@UserID AS NVARCHAR(50)), N'LOGIN', 
+             N'Inicio de sesión exitoso', @SourceIp, @UserAgent);
 
     COMMIT;
 
@@ -246,19 +253,30 @@ GO
 GRANT EXECUTE ON OBJECT::app.sp_ValidateAndRefreshSession TO app_executor;
 GO
 
+-- ============================================================================
+-- sp_Logout
+-- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_Logout
-  @SessionID UNIQUEIDENTIFIER
+  @SessionID  UNIQUEIDENTIFIER,
+  @SourceIp   NVARCHAR(45) = NULL,      -- NUEVO
+  @UserAgent  NVARCHAR(300) = NULL      -- NUEVO
 AS
 BEGIN
   SET NOCOUNT ON;
+
+  DECLARE @UserID INT;
+  SELECT @UserID = UserID FROM auth.Session WHERE SessionID = @SessionID;
 
   UPDATE auth.Session
      SET IsValid = 0
    WHERE SessionID = @SessionID AND IsValid = 1;
 
-  INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details)
-  SELECT s.UserID, N'USER_PROFILE', CAST(s.UserID AS NVARCHAR(50)), N'LOGOUT', N'Cierre de sesión'
-  FROM auth.Session s WHERE s.SessionID = @SessionID;
+  IF @UserID IS NOT NULL
+  BEGIN
+    INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+    VALUES(@UserID, N'USER_PROFILE', CAST(@UserID AS NVARCHAR(50)), N'LOGOUT', 
+           N'Cierre de sesión', @SourceIp, @UserAgent);
+  END
 
   SELECT N'Sesión cerrada.' AS Message;
 END
@@ -267,10 +285,14 @@ GO
 GRANT EXECUTE ON OBJECT::app.sp_Logout TO app_executor;
 GO
 
+-- ============================================================================
+-- sp_RequestPasswordReset
+-- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_RequestPasswordReset
-  @Email    NVARCHAR(50),
-  @Token    NVARCHAR(100) OUTPUT,
-  @ExpiresAt DATETIME2(0) OUTPUT
+  @Email      NVARCHAR(50),
+  @SourceIp   NVARCHAR(45) = NULL,      -- NUEVO
+  @Token      NVARCHAR(100) OUTPUT,
+  @ExpiresAt  DATETIME2(0) OUTPUT
 AS
 BEGIN
   SET NOCOUNT ON;
@@ -279,25 +301,24 @@ BEGIN
   DECLARE @UserID INT;
   SELECT @UserID = UserID FROM auth.UserAccount WHERE Email = @Email;
 
-  -- Respuesta genérica para no filtrar existencia
   IF @UserID IS NULL
   BEGIN
     SET @Token = NULL; SET @ExpiresAt = NULL;
     RETURN;
   END
 
-  -- Generar token opaco (GUID + aleatorio base36 simple)
   DECLARE @guid NVARCHAR(36) = CONVERT(NVARCHAR(36), NEWID());
   DECLARE @rand NVARCHAR(12) = REPLACE(CONVERT(NVARCHAR(12), NEWID()),'-','');
   SET @Token = @guid + N'-' + @rand;
 
-  SET @ExpiresAt = DATEADD(MINUTE, 60, SYSUTCDATETIME()); -- 60 minutos
+  SET @ExpiresAt = DATEADD(MINUTE, 60, SYSUTCDATETIME());
 
-  INSERT INTO auth.PasswordResetRequest(UserID, Token, ExpiresAt)
-  VALUES(@UserID, @Token, @ExpiresAt);
+  INSERT INTO auth.PasswordResetRequest(UserID, Token, ExpiresAt, FromIp)
+  VALUES(@UserID, @Token, @ExpiresAt, @SourceIp);
 
-  INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details)
-  VALUES(@UserID, N'USER_PROFILE', CAST(@UserID AS NVARCHAR(50)), N'RESET_REQUEST', N'Solicitud de restablecimiento');
+  INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+  VALUES(@UserID, N'USER_PROFILE', CAST(@UserID AS NVARCHAR(50)), N'RESET_REQUEST', 
+         N'Solicitud de restablecimiento', @SourceIp, NULL);
 
 END
 GO
@@ -305,10 +326,15 @@ GO
 GRANT EXECUTE ON OBJECT::app.sp_RequestPasswordReset TO app_executor;
 GO
 
+-- ============================================================================
+-- sp_ResetPasswordWithToken
+-- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_ResetPasswordWithToken
   @Token            NVARCHAR(100),
   @NewPassword      NVARCHAR(50),
-  @ConfirmPassword  NVARCHAR(50)
+  @ConfirmPassword  NVARCHAR(50),
+  @SourceIp         NVARCHAR(45) = NULL,      -- NUEVO
+  @UserAgent        NVARCHAR(300) = NULL      -- NUEVO
 AS
 BEGIN
   SET NOCOUNT ON;
@@ -316,7 +342,6 @@ BEGIN
   IF @NewPassword IS NULL OR @ConfirmPassword IS NULL OR @NewPassword <> @ConfirmPassword
     THROW 50020, 'La confirmación de contraseña no coincide.', 1;
 
-  -- Complejidad
   IF LEN(@NewPassword) < 8 OR LEN(@NewPassword) > 12
     THROW 50021, 'Contraseña inválida: longitud 8-12.', 1;
   IF PATINDEX('%[A-Z]%', @NewPassword COLLATE Latin1_General_BIN2) = 0
@@ -345,11 +370,10 @@ BEGIN
   BEGIN TRY
     BEGIN TRAN;
 
-      -- Actualizar contraseña + desbloquear + resetear contadores + invalidar sesiones
       UPDATE auth.UserAccount
          SET PasswordHash = @Hash,
              PasswordSalt = @Salt,
-             AccountStatus = 1,      -- Active
+             AccountStatus = 1,
              FailedLoginCount = 0,
              LockedUntil = NULL,
              UpdatedAt = @Now
@@ -361,8 +385,9 @@ BEGIN
 
       UPDATE auth.Session SET IsValid = 0 WHERE UserID = @UserID AND IsValid = 1;
 
-      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details)
-      VALUES(@UserID, N'USER_PROFILE', CAST(@UserID AS NVARCHAR(50)), N'RESET_PASSWORD', N'Password restablecida');
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+      VALUES(@UserID, N'USER_PROFILE', CAST(@UserID AS NVARCHAR(50)), N'RESET_PASSWORD', 
+             N'Password restablecida', @SourceIp, @UserAgent);
 
     COMMIT;
   END TRY
@@ -376,8 +401,11 @@ GO
 GRANT EXECUTE ON OBJECT::app.sp_ResetPasswordWithToken TO app_executor;
 GO
 
+-- ============================================================================
+-- sp_UpdateUserProfile
+-- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_UpdateUserProfile
-  @ActorUserID        INT,            -- quién hace el cambio (mismo usuario o admin en el futuro)
+  @ActorUserID        INT,
   @TargetUserID       INT,
   @Name               NVARCHAR(50) = NULL,
   @Alias              NVARCHAR(50) = NULL,
@@ -385,12 +413,13 @@ CREATE OR ALTER PROCEDURE app.sp_UpdateUserProfile
   @ProfileImageUrl    NVARCHAR(400) = NULL,
   @ProfileImageWidth  SMALLINT = NULL,
   @ProfileImageHeight SMALLINT = NULL,
-  @ProfileImageBytes  INT = NULL
+  @ProfileImageBytes  INT = NULL,
+  @SourceIp           NVARCHAR(45) = NULL,      -- NUEVO
+  @UserAgent          NVARCHAR(300) = NULL      -- NUEVO
 AS
 BEGIN
   SET NOCOUNT ON;
 
-  -- Validaciones de formato
   IF @Name IS NOT NULL AND (LEN(@Name) < 1 OR LEN(@Name) > 50)
     THROW 50030, 'Nombre inválido (1-50).', 1;
   IF @Alias IS NOT NULL AND LEN(@Alias) > 50
@@ -435,37 +464,38 @@ BEGIN
              UpdatedAt = SYSUTCDATETIME()
        WHERE UserID = @TargetUserID;
 
-      -- Log por campo cambiado
+      -- Log por campo cambiado (con SourceIp)
       IF @Name IS NOT NULL AND @Name <> @OldName
-        INSERT INTO auth.ProfileChangeLog(UserID, ChangedByUserID, FieldName, OldValue, NewValue)
-        VALUES(@TargetUserID, @ActorUserID, N'Name', @OldName, @Name);
+        INSERT INTO auth.ProfileChangeLog(UserID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp)
+        VALUES(@TargetUserID, @ActorUserID, N'Name', @OldName, @Name, @SourceIp);
 
       IF @Alias IS NOT NULL AND @Alias <> @OldAlias
-        INSERT INTO auth.ProfileChangeLog(UserID, ChangedByUserID, FieldName, OldValue, NewValue)
-        VALUES(@TargetUserID, @ActorUserID, N'Alias', @OldAlias, @Alias);
+        INSERT INTO auth.ProfileChangeLog(UserID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp)
+        VALUES(@TargetUserID, @ActorUserID, N'Alias', @OldAlias, @Alias, @SourceIp);
 
       IF @LanguageCode IS NOT NULL AND @LanguageCode <> @OldLang
-        INSERT INTO auth.ProfileChangeLog(UserID, ChangedByUserID, FieldName, OldValue, NewValue)
-        VALUES(@TargetUserID, @ActorUserID, N'LanguageCode', @OldLang, @LanguageCode);
+        INSERT INTO auth.ProfileChangeLog(UserID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp)
+        VALUES(@TargetUserID, @ActorUserID, N'LanguageCode', @OldLang, @LanguageCode, @SourceIp);
 
       IF @ProfileImageUrl IS NOT NULL AND @ProfileImageUrl <> @OldUrl
-        INSERT INTO auth.ProfileChangeLog(UserID, ChangedByUserID, FieldName, OldValue, NewValue)
-        VALUES(@TargetUserID, @ActorUserID, N'ProfileImageUrl', @OldUrl, @ProfileImageUrl);
+        INSERT INTO auth.ProfileChangeLog(UserID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp)
+        VALUES(@TargetUserID, @ActorUserID, N'ProfileImageUrl', @OldUrl, @ProfileImageUrl, @SourceIp);
 
       IF @ProfileImageWidth IS NOT NULL AND @ProfileImageWidth <> @OldW
-        INSERT INTO auth.ProfileChangeLog(UserID, ChangedByUserID, FieldName, OldValue, NewValue)
-        VALUES(@TargetUserID, @ActorUserID, N'ProfileImageWidth', CONVERT(NVARCHAR(50), @OldW), CONVERT(NVARCHAR(50), @ProfileImageWidth));
+        INSERT INTO auth.ProfileChangeLog(UserID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp)
+        VALUES(@TargetUserID, @ActorUserID, N'ProfileImageWidth', CONVERT(NVARCHAR(50), @OldW), CONVERT(NVARCHAR(50), @ProfileImageWidth), @SourceIp);
 
       IF @ProfileImageHeight IS NOT NULL AND @ProfileImageHeight <> @OldH
-        INSERT INTO auth.ProfileChangeLog(UserID, ChangedByUserID, FieldName, OldValue, NewValue)
-        VALUES(@TargetUserID, @ActorUserID, N'ProfileImageHeight', CONVERT(NVARCHAR(50), @OldH), CONVERT(NVARCHAR(50), @ProfileImageHeight));
+        INSERT INTO auth.ProfileChangeLog(UserID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp)
+        VALUES(@TargetUserID, @ActorUserID, N'ProfileImageHeight', CONVERT(NVARCHAR(50), @OldH), CONVERT(NVARCHAR(50), @ProfileImageHeight), @SourceIp);
 
       IF @ProfileImageBytes IS NOT NULL AND @ProfileImageBytes <> @OldB
-        INSERT INTO auth.ProfileChangeLog(UserID, ChangedByUserID, FieldName, OldValue, NewValue)
-        VALUES(@TargetUserID, @ActorUserID, N'ProfileImageBytes', CONVERT(NVARCHAR(50), @OldB), CONVERT(NVARCHAR(50), @ProfileImageBytes));
+        INSERT INTO auth.ProfileChangeLog(UserID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp)
+        VALUES(@TargetUserID, @ActorUserID, N'ProfileImageBytes', CONVERT(NVARCHAR(50), @OldB), CONVERT(NVARCHAR(50), @ProfileImageBytes), @SourceIp);
 
-      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details)
-      VALUES(@ActorUserID, N'USER_PROFILE', CAST(@TargetUserID AS NVARCHAR(50)), N'UPDATE', N'Actualización de perfil');
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+      VALUES(@ActorUserID, N'USER_PROFILE', CAST(@TargetUserID AS NVARCHAR(50)), N'UPDATE', 
+             N'Actualización de perfil', @SourceIp, @UserAgent);
 
     COMMIT;
 
@@ -518,6 +548,9 @@ GO
 GRANT EXECUTE ON OBJECT::app.sp_GetUserProfile TO app_executor;
 GO
 
+-- ============================================================================
+-- sp_CreateLeague
+-- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_CreateLeague
   @CreatorUserID        INT,
   @Name                 NVARCHAR(100),
@@ -525,15 +558,17 @@ CREATE OR ALTER PROCEDURE app.sp_CreateLeague
   @TeamSlots            TINYINT,
   @LeaguePassword       NVARCHAR(50),
   @InitialTeamName      NVARCHAR(50),
-  @PlayoffTeams         TINYINT = 4,          -- 4 o 6
+  @PlayoffTeams         TINYINT = 4,
   @AllowDecimals        BIT = 1,
-  @PositionFormatID     INT = NULL,           -- si NULL, usa 'Default'
-  @ScoringSchemaID      INT = NULL            -- si NULL, usa 'Default', Version 1
+  @PositionFormatID     INT = NULL,
+  @ScoringSchemaID      INT = NULL,
+  @SourceIp             NVARCHAR(45) = NULL,
+  @UserAgent            NVARCHAR(300) = NULL
 AS
 BEGIN
   SET NOCOUNT ON;
 
-  -- Validaciones
+  -- Validaciones (mantener las existentes)
   IF @Name IS NULL OR LEN(@Name) < 1 OR LEN(@Name) > 100
     THROW 50040, 'Nombre de liga inválido (1-100).', 1;
 
@@ -546,7 +581,6 @@ BEGIN
   IF @InitialTeamName IS NULL OR LEN(@InitialTeamName) < 1 OR LEN(@InitialTeamName) > 50
     THROW 50043, 'Nombre de equipo inválido (1-50).', 1;
 
-  -- Password de liga con mismas reglas de cuenta
   IF @LeaguePassword IS NULL OR LEN(@LeaguePassword) < 8 OR LEN(@LeaguePassword) > 12
     THROW 50044, 'Contraseña de liga inválida: longitud 8-12.', 1;
   IF PATINDEX('%[A-Z]%', @LeaguePassword COLLATE Latin1_General_BIN2) = 0
@@ -563,7 +597,6 @@ BEGIN
   IF @SeasonID IS NULL
     THROW 50049, 'No hay temporada actual configurada.', 1;
 
-  -- Defaults para formatos/score si vienen NULL
   IF @PositionFormatID IS NULL
     SELECT TOP 1 @PositionFormatID = PositionFormatID FROM ref.PositionFormat WHERE Name = N'Default';
   IF @PositionFormatID IS NULL
@@ -574,11 +607,9 @@ BEGIN
   IF @ScoringSchemaID IS NULL
     THROW 50051, 'No existe ScoringSchema por defecto.', 1;
 
-  -- Creator debe existir
   IF NOT EXISTS (SELECT 1 FROM auth.UserAccount WHERE UserID = @CreatorUserID)
     THROW 50052, 'Usuario creador no existe.', 1;
 
-  -- Validar unicidad (SeasonID, Name)
   IF EXISTS (SELECT 1 FROM league.League WHERE SeasonID = @SeasonID AND Name = @Name)
     THROW 50053, 'Ya existe liga con ese nombre en la temporada actual.', 1;
 
@@ -610,22 +641,19 @@ BEGIN
 
       SET @LeagueID = SCOPE_IDENTITY();
 
-      -- Miembro comisionado principal
       INSERT INTO league.LeagueMember(LeagueID, UserID, RoleCode, IsPrimaryCommissioner)
       VALUES(@LeagueID, @CreatorUserID, N'COMMISSIONER', 1);
 
-      -- Equipo del comisionado
       INSERT INTO league.Team(LeagueID, OwnerUserID, TeamName)
       VALUES(@LeagueID, @CreatorUserID, @InitialTeamName);
 
-      -- Auditoría
-      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details)
+      -- Auditoría con IP y UserAgent
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
       VALUES(@CreatorUserID, N'LEAGUE', CAST(@LeagueID AS NVARCHAR(50)), N'CREATE',
-             N'Liga creada en Pre-Draft con equipo del comisionado');
+             N'Liga creada en Pre-Draft con equipo del comisionado', @SourceIp, @UserAgent);
 
     COMMIT;
 
-    -- Cupos disponibles = TeamSlots - equipos
     SELECT
       l.LeagueID, l.Name, l.TeamSlots,
       (l.TeamSlots - (SELECT COUNT(*) FROM league.Team t WHERE t.LeagueID = l.LeagueID)) AS AvailableSlots,
@@ -643,16 +671,20 @@ GO
 GRANT EXECUTE ON OBJECT::app.sp_CreateLeague TO app_executor;
 GO
 
+-- ============================================================================
+-- sp_SetLeagueStatus
+-- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_SetLeagueStatus
   @ActorUserID INT,
   @LeagueID    INT,
-  @NewStatus   TINYINT,       -- 0=PreDraft, 1=Active, 2=Inactive, 3=Closed
-  @Reason      NVARCHAR(300) = NULL
+  @NewStatus   TINYINT,
+  @Reason      NVARCHAR(300) = NULL,
+  @SourceIp    NVARCHAR(45) = NULL,
+  @UserAgent   NVARCHAR(300) = NULL
 AS
 BEGIN
   SET NOCOUNT ON;
 
-  -- Validación rol
   IF NOT EXISTS (
     SELECT 1 FROM league.LeagueMember
     WHERE LeagueID = @LeagueID AND UserID = @ActorUserID
@@ -668,7 +700,6 @@ BEGIN
 
   IF @OldStatus = @NewStatus
   BEGIN
-    -- Nada que hacer, pero registramos
     INSERT INTO league.LeagueStatusHistory(LeagueID, OldStatus, NewStatus, ChangedByUserID, Reason)
     VALUES(@LeagueID, @OldStatus, @NewStatus, @ActorUserID, ISNULL(@Reason, N'Sin cambios'));
     RETURN;
@@ -685,9 +716,9 @@ BEGIN
       INSERT INTO league.LeagueStatusHistory(LeagueID, OldStatus, NewStatus, ChangedByUserID, Reason)
       VALUES(@LeagueID, @OldStatus, @NewStatus, @ActorUserID, @Reason);
 
-      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details)
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
       VALUES(@ActorUserID, N'LEAGUE', CAST(@LeagueID AS NVARCHAR(50)), N'STATUS_CHANGE',
-             CONCAT(N'De ', @OldStatus, N' a ', @NewStatus, N'. ', ISNULL(@Reason, N'')));
+             CONCAT(N'De ', @OldStatus, N' a ', @NewStatus, N'. ', ISNULL(@Reason, N'')), @SourceIp, @UserAgent);
 
     COMMIT;
   END TRY
@@ -701,25 +732,29 @@ GO
 GRANT EXECUTE ON OBJECT::app.sp_SetLeagueStatus TO app_executor;
 GO
 
+-- ============================================================================
+-- sp_EditLeagueConfig
+-- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_EditLeagueConfig
   @ActorUserID              INT,
   @LeagueID                 INT,
-  @Name                     NVARCHAR(100) = NULL,  -- editable siempre (con reglas)
-  @Description              NVARCHAR(500) = NULL,  -- opcional
-  @TeamSlots                TINYINT = NULL,        -- sólo Pre-Draft
-  @PositionFormatID         INT = NULL,            -- sólo Pre-Draft
-  @ScoringSchemaID          INT = NULL,            -- sólo Pre-Draft
-  @PlayoffTeams             TINYINT = NULL,        -- sólo Pre-Draft (4/6)
-  @AllowDecimals            BIT = NULL,            -- sólo Pre-Draft
-  @TradeDeadlineEnabled     BIT = NULL,            -- sólo Pre-Draft
-  @TradeDeadlineDate        DATE = NULL,           -- sólo Pre-Draft (si enabled)
-  @MaxRosterChangesPerTeam  INT = NULL,            -- 1-100 o NULL (sin límite) -- editable siempre
-  @MaxFreeAgentAddsPerTeam  INT = NULL             -- 1-100 o NULL (sin límite) -- editable siempre
+  @Name                     NVARCHAR(100) = NULL,
+  @Description              NVARCHAR(500) = NULL,
+  @TeamSlots                TINYINT = NULL,
+  @PositionFormatID         INT = NULL,
+  @ScoringSchemaID          INT = NULL,
+  @PlayoffTeams             TINYINT = NULL,
+  @AllowDecimals            BIT = NULL,
+  @TradeDeadlineEnabled     BIT = NULL,
+  @TradeDeadlineDate        DATE = NULL,
+  @MaxRosterChangesPerTeam  INT = NULL,
+  @MaxFreeAgentAddsPerTeam  INT = NULL,
+  @SourceIp                 NVARCHAR(45) = NULL,
+  @UserAgent                NVARCHAR(300) = NULL
 AS
 BEGIN
   SET NOCOUNT ON;
 
-  -- Validación de permisos (comisionado principal)
   IF NOT EXISTS (
     SELECT 1 FROM league.LeagueMember
     WHERE LeagueID = @LeagueID AND UserID = @ActorUserID
@@ -747,7 +782,6 @@ BEGIN
   IF @SeasonID IS NULL
     THROW 50071, 'Liga no existe.', 1;
 
-  -- Validaciones específicas de campos
   IF @Name IS NOT NULL AND (LEN(@Name) < 1 OR LEN(@Name) > 100)
     THROW 50072, 'Nombre de liga inválido (1-100).', 1;
 
@@ -763,7 +797,6 @@ BEGIN
   IF @MaxFreeAgentAddsPerTeam IS NOT NULL AND (@MaxFreeAgentAddsPerTeam < 1 OR @MaxFreeAgentAddsPerTeam > 100)
     THROW 50076, 'MaxFreeAgentAddsPerTeam fuera de rango (1-100 o NULL).', 1;
 
-  -- Si se pretende editar campos restringidos y NO está en Pre-Draft -> rechazo
   IF @Status <> 0 AND (
        @TeamSlots IS NOT NULL OR @PositionFormatID IS NOT NULL OR @ScoringSchemaID IS NOT NULL
     OR @PlayoffTeams IS NOT NULL OR @AllowDecimals IS NOT NULL
@@ -771,12 +804,10 @@ BEGIN
   )
     THROW 50077, 'Esas configuraciones solo se pueden editar en estado Pre-Draft.', 1;
 
-  -- Nombre: unicidad por temporada
   IF @Name IS NOT NULL AND @Name <> @OldName
     IF EXISTS (SELECT 1 FROM league.League WHERE SeasonID = @SeasonID AND Name = @Name)
       THROW 50078, 'Ya existe una liga con ese nombre en la temporada.', 1;
 
-  -- TeamSlots: no reducir por debajo de equipos actuales
   IF @TeamSlots IS NOT NULL
   BEGIN
     DECLARE @Teams INT = (SELECT COUNT(*) FROM league.Team WHERE LeagueID = @LeagueID);
@@ -784,7 +815,6 @@ BEGIN
       THROW 50079, 'No se puede reducir TeamSlots por debajo de los equipos ya registrados.', 1;
   END
 
-  -- Trade deadline: si enabled, fecha dentro de temporada
   IF @TradeDeadlineEnabled = 1
   BEGIN
     DECLARE @Start DATE, @End DATE;
@@ -795,14 +825,12 @@ BEGIN
   END
   ELSE IF @TradeDeadlineEnabled = 0
   BEGIN
-    -- Si se desactiva, ignoramos la fecha
     SET @TradeDeadlineDate = NULL;
   END
 
   BEGIN TRY
     BEGIN TRAN;
 
-      -- Actualización
       UPDATE league.League
          SET Name = COALESCE(@Name, Name),
              Description = COALESCE(@Description, Description),
@@ -822,7 +850,7 @@ BEGIN
              UpdatedAt = SYSUTCDATETIME()
        WHERE LeagueID = @LeagueID;
 
-      -- Historial por cada cambio relevante
+      -- Historial por cada cambio (mantener los existentes, sin agregar SourceIp a LeagueConfigHistory ya que no tiene esa columna)
       IF @Name IS NOT NULL AND @Name <> @OldName
         INSERT INTO league.LeagueConfigHistory(LeagueID, ChangedByUserID, FieldName, OldValue, NewValue)
         VALUES(@LeagueID, @ActorUserID, N'Name', @OldName, @Name);
@@ -867,8 +895,9 @@ BEGIN
         INSERT INTO league.LeagueConfigHistory(LeagueID, ChangedByUserID, FieldName, OldValue, NewValue)
         VALUES(@LeagueID, @ActorUserID, N'MaxFreeAgentAddsPerTeam', CONVERT(NVARCHAR(50), @OldMaxFA), CONVERT(NVARCHAR(50), @MaxFreeAgentAddsPerTeam));
 
-      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details)
-      VALUES(@ActorUserID, N'LEAGUE', CAST(@LeagueID AS NVARCHAR(50)), N'UPDATE', N'Edición de configuración de liga');
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+      VALUES(@ActorUserID, N'LEAGUE', CAST(@LeagueID AS NVARCHAR(50)), N'UPDATE', 
+             N'Edición de configuración de liga', @SourceIp, @UserAgent);
 
     COMMIT;
 
@@ -957,8 +986,13 @@ GO
 USE XNFLFantasyDB;
 GO
 
+-- ============================================================================
+-- sp_LogoutAllSessions
+-- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_LogoutAllSessions
-  @ActorUserID INT
+  @ActorUserID INT,
+  @SourceIp    NVARCHAR(45) = NULL,      -- NUEVO
+  @UserAgent   NVARCHAR(300) = NULL      -- NUEVO
 AS
 BEGIN
   SET NOCOUNT ON;
@@ -966,15 +1000,14 @@ BEGIN
   BEGIN TRY
     BEGIN TRAN;
 
-      -- invalidar todas las sesiones activas del usuario
       UPDATE auth.Session
          SET IsValid = 0
        WHERE UserID = @ActorUserID
          AND IsValid = 1;
 
-      -- auditoría
-      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details)
-      VALUES(@ActorUserID, N'USER_PROFILE', CAST(@ActorUserID AS NVARCHAR(50)), N'LOGOUT_ALL', N'Cierre de sesión global');
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+      VALUES(@ActorUserID, N'USER_PROFILE', CAST(@ActorUserID AS NVARCHAR(50)), N'LOGOUT_ALL', 
+             N'Cierre de sesión global', @SourceIp, @UserAgent);
 
     COMMIT;
 
@@ -988,6 +1021,197 @@ END
 GO
 
 GRANT EXECUTE ON OBJECT::app.sp_LogoutAllSessions TO app_executor;
+GO
+
+-- ============================================================================
+-- SP para consultar logs de auditoría con filtros
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_GetAuditLogs
+  @EntityType     NVARCHAR(50) = NULL,
+  @EntityID       NVARCHAR(50) = NULL,
+  @ActorUserID    INT = NULL,
+  @ActionCode     NVARCHAR(50) = NULL,
+  @StartDate      DATETIME2(0) = NULL,
+  @EndDate        DATETIME2(0) = NULL,
+  @Top            INT = 100  -- Limitar resultados por defecto
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  -- Validar Top
+  IF @Top > 1000 SET @Top = 1000;  -- Máximo 1000 registros
+  IF @Top < 1 SET @Top = 100;
+
+  SELECT TOP (@Top)
+    ual.ActionLogID,
+    ual.ActorUserID,
+    actor.Name AS ActorName,
+    actor.Email AS ActorEmail,
+    ual.ImpersonatedByUserID,
+    imp.Name AS ImpersonatedByName,
+    ual.EntityType,
+    ual.EntityID,
+    ual.ActionCode,
+    ual.ActionAt,
+    ual.SourceIp,
+    ual.UserAgent,
+    ual.Details
+  FROM audit.UserActionLog ual
+  LEFT JOIN auth.UserAccount actor ON actor.UserID = ual.ActorUserID
+  LEFT JOIN auth.UserAccount imp ON imp.UserID = ual.ImpersonatedByUserID
+  WHERE 
+    (@EntityType IS NULL OR ual.EntityType = @EntityType)
+    AND (@EntityID IS NULL OR ual.EntityID = @EntityID)
+    AND (@ActorUserID IS NULL OR ual.ActorUserID = @ActorUserID)
+    AND (@ActionCode IS NULL OR ual.ActionCode = @ActionCode)
+    AND (@StartDate IS NULL OR ual.ActionAt >= @StartDate)
+    AND (@EndDate IS NULL OR ual.ActionAt <= @EndDate)
+  ORDER BY ual.ActionAt DESC;
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_GetAuditLogs TO app_executor;
+GO
+
+-- ============================================================================
+-- SP para obtener auditoría de un usuario específico
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_GetUserAuditHistory
+  @UserID   INT,
+  @Top      INT = 50
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  IF @Top > 500 SET @Top = 500;
+  IF @Top < 1 SET @Top = 50;
+
+  SELECT TOP (@Top)
+    ual.ActionLogID,
+    ual.EntityType,
+    ual.EntityID,
+    ual.ActionCode,
+    ual.ActionAt,
+    ual.SourceIp,
+    ual.UserAgent,
+    ual.Details
+  FROM audit.UserActionLog ual
+  WHERE ual.ActorUserID = @UserID
+  ORDER BY ual.ActionAt DESC;
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_GetUserAuditHistory TO app_executor;
+GO
+
+-- ============================================================================
+-- SP para limpieza de sesiones y tokens expirados
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_CleanupExpiredSessions
+  @RetentionDays INT = 30  -- Mantener sesiones inválidas por 30 días para auditoría
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  DECLARE @CutoffDate DATETIME2(0) = DATEADD(DAY, -@RetentionDays, SYSUTCDATETIME());
+  DECLARE @DeletedSessions INT = 0;
+  DECLARE @DeletedResets INT = 0;
+
+  BEGIN TRY
+    BEGIN TRAN;
+
+      -- Marcar sesiones expiradas como inválidas
+      UPDATE auth.Session
+      SET IsValid = 0
+      WHERE IsValid = 1 
+        AND ExpiresAt < SYSUTCDATETIME();
+
+      -- Eliminar sesiones inválidas antiguas
+      DELETE FROM auth.Session
+      WHERE IsValid = 0 
+        AND CreatedAt < @CutoffDate;
+
+      SET @DeletedSessions = @@ROWCOUNT;
+
+      -- Eliminar tokens de reset usados o expirados antiguos
+      DELETE FROM auth.PasswordResetRequest
+      WHERE (UsedAt IS NOT NULL OR ExpiresAt < SYSUTCDATETIME())
+        AND RequestedAt < @CutoffDate;
+
+      SET @DeletedResets = @@ROWCOUNT;
+
+      -- Auditoría de limpieza
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details)
+      VALUES(
+        NULL, 
+        N'SYSTEM_MAINTENANCE', 
+        N'CLEANUP', 
+        N'CLEANUP_SESSIONS',
+        CONCAT(N'Sesiones eliminadas: ', @DeletedSessions, N', Tokens eliminados: ', @DeletedResets)
+      );
+
+    COMMIT;
+
+    SELECT 
+      @DeletedSessions AS DeletedSessions,
+      @DeletedResets AS DeletedResetTokens,
+      N'Limpieza completada exitosamente.' AS Message;
+  END TRY
+  BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK;
+    THROW;
+  END CATCH
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_CleanupExpiredSessions TO app_executor;
+GO
+
+-- ============================================================================
+-- SP para obtener estadísticas de auditoría
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_GetAuditStats
+  @Days INT = 30
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  DECLARE @StartDate DATETIME2(0) = DATEADD(DAY, -@Days, SYSUTCDATETIME());
+
+  -- Total de acciones por tipo
+  SELECT 
+    EntityType,
+    COUNT(*) AS ActionCount
+  FROM audit.UserActionLog
+  WHERE ActionAt >= @StartDate
+  GROUP BY EntityType
+  ORDER BY ActionCount DESC;
+
+  -- Total de acciones por código
+  SELECT 
+    ActionCode,
+    COUNT(*) AS ActionCount
+  FROM audit.UserActionLog
+  WHERE ActionAt >= @StartDate
+  GROUP BY ActionCode
+  ORDER BY ActionCount DESC;
+
+  -- Usuarios más activos
+  SELECT TOP 10
+    ual.ActorUserID,
+    u.Name,
+    u.Email,
+    COUNT(*) AS ActionCount
+  FROM audit.UserActionLog ual
+  LEFT JOIN auth.UserAccount u ON u.UserID = ual.ActorUserID
+  WHERE ual.ActionAt >= @StartDate
+    AND ual.ActorUserID IS NOT NULL
+  GROUP BY ual.ActorUserID, u.Name, u.Email
+  ORDER BY ActionCount DESC;
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_GetAuditStats TO app_executor;
 GO
 
 GRANT EXECUTE ON SCHEMA::app TO app_executor;

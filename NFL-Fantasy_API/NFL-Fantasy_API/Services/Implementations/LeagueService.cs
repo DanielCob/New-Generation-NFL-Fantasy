@@ -29,7 +29,7 @@ namespace NFL_Fantasy_API.Services.Implementations
         /// SP: app.sp_CreateLeague
         /// Feature 1.2 - Crear liga
         /// </summary>
-        public async Task<ApiResponseDTO> CreateLeagueAsync(CreateLeagueDTO dto, int creatorUserId)
+        public async Task<ApiResponseDTO> CreateLeagueAsync(CreateLeagueDTO dto, int creatorUserId, string? sourceIp = null, string? userAgent = null)
         {
             try
             {
@@ -62,7 +62,9 @@ namespace NFL_Fantasy_API.Services.Implementations
                     new SqlParameter("@PlayoffTeams", dto.PlayoffTeams),
                     new SqlParameter("@AllowDecimals", dto.AllowDecimals),
                     new SqlParameter("@PositionFormatID", DatabaseHelper.DbNullIfNull(dto.PositionFormatID)),
-                    new SqlParameter("@ScoringSchemaID", DatabaseHelper.DbNullIfNull(dto.ScoringSchemaID))
+                    new SqlParameter("@ScoringSchemaID", DatabaseHelper.DbNullIfNull(dto.ScoringSchemaID)),
+                    new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
+                    new SqlParameter("@UserAgent", DatabaseHelper.DbNullIfNull(userAgent))
                 };
 
                 // sp_CreateLeague retorna un result set con información de la liga creada
@@ -110,7 +112,7 @@ namespace NFL_Fantasy_API.Services.Implementations
         /// SP: app.sp_EditLeagueConfig
         /// Feature 1.2 - Editar configuración de liga
         /// </summary>
-        public async Task<ApiResponseDTO> EditLeagueConfigAsync(int leagueId, EditLeagueConfigDTO dto, int actorUserId)
+        public async Task<ApiResponseDTO> EditLeagueConfigAsync(int leagueId, EditLeagueConfigDTO dto, int actorUserId, string? sourceIp = null, string? userAgent = null)
         {
             try
             {
@@ -155,7 +157,9 @@ namespace NFL_Fantasy_API.Services.Implementations
                     new SqlParameter("@TradeDeadlineEnabled", DatabaseHelper.DbNullIfNull(dto.TradeDeadlineEnabled)),
                     new SqlParameter("@TradeDeadlineDate", DatabaseHelper.DbNullIfNull(dto.TradeDeadlineDate)),
                     new SqlParameter("@MaxRosterChangesPerTeam", DatabaseHelper.DbNullIfNull(dto.MaxRosterChangesPerTeam)),
-                    new SqlParameter("@MaxFreeAgentAddsPerTeam", DatabaseHelper.DbNullIfNull(dto.MaxFreeAgentAddsPerTeam))
+                    new SqlParameter("@MaxFreeAgentAddsPerTeam", DatabaseHelper.DbNullIfNull(dto.MaxFreeAgentAddsPerTeam)),
+                    new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
+                    new SqlParameter("@UserAgent", DatabaseHelper.DbNullIfNull(userAgent))
                 };
 
                 var message = await _db.ExecuteStoredProcedureForMessageAsync(
@@ -185,7 +189,7 @@ namespace NFL_Fantasy_API.Services.Implementations
         /// SP: app.sp_SetLeagueStatus
         /// Feature 1.2 - Administrar estado de liga
         /// </summary>
-        public async Task<ApiResponseDTO> SetLeagueStatusAsync(int leagueId, SetLeagueStatusDTO dto, int actorUserId)
+        public async Task<ApiResponseDTO> SetLeagueStatusAsync(int leagueId, SetLeagueStatusDTO dto, int actorUserId, string? sourceIp = null, string? userAgent = null)
         {
             try
             {
@@ -200,7 +204,9 @@ namespace NFL_Fantasy_API.Services.Implementations
                     new SqlParameter("@ActorUserID", actorUserId),
                     new SqlParameter("@LeagueID", leagueId),
                     new SqlParameter("@NewStatus", dto.NewStatus),
-                    new SqlParameter("@Reason", DatabaseHelper.DbNullIfNull(dto.Reason))
+                    new SqlParameter("@Reason", DatabaseHelper.DbNullIfNull(dto.Reason)),
+                    new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
+                    new SqlParameter("@UserAgent", DatabaseHelper.DbNullIfNull(userAgent))
                 };
 
                 await _db.ExecuteStoredProcedureNonQueryAsync(

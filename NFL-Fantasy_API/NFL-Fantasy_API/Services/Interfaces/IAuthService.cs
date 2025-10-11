@@ -16,7 +16,7 @@ namespace NFL_Fantasy_API.Services.Interfaces
         /// </summary>
         /// <param name="dto">Datos del nuevo usuario</param>
         /// <returns>Respuesta con UserID creado</returns>
-        Task<ApiResponseDTO> RegisterAsync(RegisterUserDTO dto);
+        Task<ApiResponseDTO> RegisterAsync(RegisterUserDTO dto, string? sourceIp = null, string? userAgent = null);
 
         /// <summary>
         /// Inicia sesión y genera un SessionID (Bearer token)
@@ -25,7 +25,7 @@ namespace NFL_Fantasy_API.Services.Interfaces
         /// </summary>
         /// <param name="dto">Email y contraseña</param>
         /// <returns>SessionID si exitoso, mensaje de error si falla</returns>
-        Task<ApiResponseDTO> LoginAsync(LoginDTO dto);
+        Task<ApiResponseDTO> LoginAsync(LoginDTO dto, string? sourceIp = null, string? userAgent = null);
 
         /// <summary>
         /// Valida y refresca una sesión existente (sliding expiration)
@@ -43,7 +43,7 @@ namespace NFL_Fantasy_API.Services.Interfaces
         /// </summary>
         /// <param name="sessionId">GUID de la sesión a cerrar</param>
         /// <returns>Mensaje de confirmación</returns>
-        Task<ApiResponseDTO> LogoutAsync(Guid sessionId);
+        Task<ApiResponseDTO> LogoutAsync(Guid sessionId, string? sourceIp = null, string? userAgent = null);
 
         /// <summary>
         /// Cierra todas las sesiones activas de un usuario
@@ -52,7 +52,7 @@ namespace NFL_Fantasy_API.Services.Interfaces
         /// </summary>
         /// <param name="userId">ID del usuario</param>
         /// <returns>Mensaje de confirmación</returns>
-        Task<ApiResponseDTO> LogoutAllAsync(int userId);
+        Task<ApiResponseDTO> LogoutAllAsync(int userId, string? sourceIp = null, string? userAgent = null);
 
         /// <summary>
         /// Solicita un token de restablecimiento de contraseña
@@ -61,7 +61,7 @@ namespace NFL_Fantasy_API.Services.Interfaces
         /// </summary>
         /// <param name="dto">Email del usuario</param>
         /// <returns>Token y fecha de expiración (o mensaje genérico si el email no existe)</returns>
-        Task<ApiResponseDTO> RequestPasswordResetAsync(RequestPasswordResetDTO dto);
+        Task<ApiResponseDTO> RequestPasswordResetAsync(RequestPasswordResetDTO dto, string? sourceIp = null);
 
         /// <summary>
         /// Restablece contraseña usando un token válido
@@ -71,7 +71,7 @@ namespace NFL_Fantasy_API.Services.Interfaces
         /// </summary>
         /// <param name="dto">Token, nueva contraseña y confirmación</param>
         /// <returns>Mensaje de confirmación o error</returns>
-        Task<ApiResponseDTO> ResetPasswordWithTokenAsync(ResetPasswordWithTokenDTO dto);
+        Task<ApiResponseDTO> ResetPasswordWithTokenAsync(ResetPasswordWithTokenDTO dto, string? sourceIp = null, string? userAgent = null);
 
         /// <summary>
         /// Validación de complejidad de contraseña según reglas del sistema

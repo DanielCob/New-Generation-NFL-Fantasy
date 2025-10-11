@@ -22,7 +22,7 @@ namespace NFL_Fantasy_API.Services.Interfaces
         /// <param name="dto">Datos de la nueva liga</param>
         /// <param name="creatorUserId">ID del usuario creador (del contexto auth)</param>
         /// <returns>Datos de la liga creada con cupos disponibles</returns>
-        Task<ApiResponseDTO> CreateLeagueAsync(CreateLeagueDTO dto, int creatorUserId);
+        Task<ApiResponseDTO> CreateLeagueAsync(CreateLeagueDTO dto, int creatorUserId, string? sourceIp = null, string? userAgent = null);
 
         /// <summary>
         /// Edita la configuración de una liga
@@ -38,7 +38,7 @@ namespace NFL_Fantasy_API.Services.Interfaces
         /// <param name="dto">Campos a actualizar (todos opcionales)</param>
         /// <param name="actorUserId">ID del usuario que realiza el cambio</param>
         /// <returns>Mensaje de confirmación o error</returns>
-        Task<ApiResponseDTO> EditLeagueConfigAsync(int leagueId, EditLeagueConfigDTO dto, int actorUserId);
+        Task<ApiResponseDTO> EditLeagueConfigAsync(int leagueId, EditLeagueConfigDTO dto, int actorUserId, string? sourceIp = null, string? userAgent = null);
 
         /// <summary>
         /// Cambia el estado de una liga
@@ -51,7 +51,7 @@ namespace NFL_Fantasy_API.Services.Interfaces
         /// <param name="dto">Nuevo estado y razón opcional</param>
         /// <param name="actorUserId">ID del usuario que realiza el cambio</param>
         /// <returns>Mensaje de confirmación</returns>
-        Task<ApiResponseDTO> SetLeagueStatusAsync(int leagueId, SetLeagueStatusDTO dto, int actorUserId);
+        Task<ApiResponseDTO> SetLeagueStatusAsync(int leagueId, SetLeagueStatusDTO dto, int actorUserId, string? sourceIp = null, string? userAgent = null);
 
         /// <summary>
         /// Obtiene el resumen completo de una liga

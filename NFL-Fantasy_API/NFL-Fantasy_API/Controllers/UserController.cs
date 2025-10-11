@@ -140,13 +140,15 @@ namespace NFL_Fantasy_API.Controllers
             try
             {
                 var userId = HttpContext.GetUserId();
+                var sourceIp = HttpContext.GetClientIpAddress();
+                var userAgent = HttpContext.GetUserAgent();
 
                 // El actor y el target son el mismo (el usuario solo puede editar su propio perfil)
-                var result = await _userService.UpdateProfileAsync(userId, userId, dto);
+                var result = await _userService.UpdateProfileAsync(userId, userId, dto, sourceIp, userAgent);
 
                 if (result.Success)
                 {
-                    _logger.LogInformation("User {UserID} updated profile successfully", userId);
+                    _logger.LogInformation("User {UserID} updated profile successfully from {IP}", userId, sourceIp);
                     return Ok(result);
                 }
 

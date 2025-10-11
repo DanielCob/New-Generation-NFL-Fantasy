@@ -89,6 +89,9 @@ builder.Services.AddScoped<IScoringService, ScoringService>();
 // Servicios de vistas/reportes
 builder.Services.AddScoped<IViewsService, ViewsService>();
 
+// Servicio de auditoría y mantenimiento
+builder.Services.AddScoped<IAuditService, AuditService>();
+
 #endregion
 
 #region Swagger Configuration
@@ -281,6 +284,14 @@ app.MapGet("/", () => Results.Ok(new
             schemas = "GET /api/scoring/schemas",
             schemaRules = "GET /api/scoring/schemas/{id}/rules"
         },
+        audit = new
+        {
+            logs = "GET /api/audit/logs",
+            myHistory = "GET /api/audit/my-history",
+            userHistory = "GET /api/audit/users/{userId}/history",
+            stats = "GET /api/audit/stats",
+            cleanup = "POST /api/audit/cleanup"
+        },
         views = new
         {
             leagueSummary = "GET /api/views/leagues/{id}/summary",
@@ -292,7 +303,9 @@ app.MapGet("/", () => Results.Ok(new
     features = new
     {
         feature_1_1 = "Registro, autenticación y gestión de perfiles de usuarios",
-        feature_1_2 = "Creación y administración de ligas de fantasy"
+        feature_1_2 = "Creación y administración de ligas de fantasy",
+        audit = "Sistema de auditoría completo con captura de IP y UserAgent",
+        maintenance = "Limpieza automática de sesiones y tokens expirados"
     }
 }))
 .WithName("Root")
