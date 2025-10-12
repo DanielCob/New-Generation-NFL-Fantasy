@@ -1,30 +1,27 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace NFL_Fantasy_API.Models.Entities.League
+namespace NFL_Fantasy_API.Models.Entities.Ref
 {
     /// <summary>
-    /// Entidad que refleja la tabla league.Team
-    /// Equipos de fantasy dentro de una liga
-    /// ACTUALIZADA: Incluye campos de imagen y branding
+    /// Entidad que refleja la tabla ref.NFLTeam
+    /// Equipos de la NFL
     /// </summary>
-    [Table("Team", Schema = "league")]
-    public class Team
+    [Table("NFLTeam", Schema = "ref")]
+    public class NFLTeam
     {
         [Key]
-        public int TeamID { get; set; }
+        public int NFLTeamID { get; set; }
 
         [Required]
-        public int LeagueID { get; set; }
-
-        [Required]
-        public int OwnerUserID { get; set; }
-
-        [Required]
-        [MaxLength(100)] // Expandido de 50 a 100
+        [MaxLength(100)]
         public string TeamName { get; set; } = string.Empty;
 
-        // NUEVOS CAMPOS: Imagen del equipo
+        [Required]
+        [MaxLength(100)]
+        public string City { get; set; } = string.Empty;
+
+        // Imagen del equipo
         [MaxLength(400)]
         public string? TeamImageUrl { get; set; }
 
@@ -34,7 +31,7 @@ namespace NFL_Fantasy_API.Models.Entities.League
 
         public int? TeamImageBytes { get; set; } // <= 5MB
 
-        // NUEVOS CAMPOS: Thumbnail
+        // Thumbnail
         [MaxLength(400)]
         public string? ThumbnailUrl { get; set; }
 
@@ -44,19 +41,21 @@ namespace NFL_Fantasy_API.Models.Entities.League
 
         public int? ThumbnailBytes { get; set; }
 
-        // NUEVO CAMPO: Estado
         public bool IsActive { get; set; } = true;
+
+        public int? CreatedByUserID { get; set; }
+
+        public int? UpdatedByUserID { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-        // NUEVO CAMPO: UpdatedAt
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
         // Navigation
-        [ForeignKey("LeagueID")]
-        public virtual League? League { get; set; }
+        [ForeignKey("CreatedByUserID")]
+        public virtual Auth.UserAccount? CreatedBy { get; set; }
 
-        [ForeignKey("OwnerUserID")]
-        public virtual Auth.UserAccount? Owner { get; set; }
+        [ForeignKey("UpdatedByUserID")]
+        public virtual Auth.UserAccount? UpdatedBy { get; set; }
     }
 }

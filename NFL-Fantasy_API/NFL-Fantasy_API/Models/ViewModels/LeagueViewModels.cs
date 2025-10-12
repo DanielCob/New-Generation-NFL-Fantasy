@@ -87,6 +87,12 @@
         public string TeamName { get; set; } = string.Empty;
         public int OwnerUserID { get; set; }
         public string OwnerName { get; set; } = string.Empty;
+        public string? TeamImageUrl { get; set; }
+        public string? ThumbnailUrl { get; set; }
+        public bool IsActive { get; set; }
+        public DateTime UpdatedAt { get; set; }
+        public int RosterCount { get; set; }
+
         public DateTime CreatedAt { get; set; }
     }
 
@@ -119,6 +125,10 @@
         public int LeagueID { get; set; }
         public string LeagueName { get; set; } = string.Empty;
         public string TeamName { get; set; } = string.Empty;
+        public string? TeamImageUrl { get; set; }
+        public string? ThumbnailUrl { get; set; }
+        public bool IsActive { get; set; }
+        public int RosterCount { get; set; }
         public DateTime TeamCreatedAt { get; set; }
         public byte LeagueStatus { get; set; }
     }

@@ -86,6 +86,11 @@ builder.Services.AddScoped<ILeagueService, LeagueService>();
 builder.Services.AddScoped<IReferenceService, ReferenceService>();
 builder.Services.AddScoped<IScoringService, ScoringService>();
 
+// NUEVOS SERVICIOS - Features 3.1 y 10.1:
+builder.Services.AddScoped<INFLTeamService, NFLTeamService>();
+builder.Services.AddScoped<ITeamService, TeamService>();
+builder.Services.AddScoped<IPlayerService, PlayerService>();
+
 // Servicios de vistas/reportes
 builder.Services.AddScoped<IViewsService, ViewsService>();
 
@@ -108,7 +113,9 @@ builder.Services.AddSwaggerGen(options =>
                       "**Features implementados:**\n" +
                       "- Feature 1.1: Registro, autenticación y gestión de perfiles de usuarios\n" +
                       "- Feature 1.2: Creación y administración de ligas de fantasy\n\n" +
-                      "**Autenticación:**\n" +
+                      "- Feature 3.1: Creación y administración de equipos fantasy (branding, roster, distribución)\n\n" +
+                      "- Feature 10.1: Gestión de Equipos NFL (CRUD completo con validaciones)\n\n" +
+        "**Autenticación:**\n" +
                       "La mayoría de endpoints requieren autenticación Bearer token.\n" +
                       "1. Registrarse en POST /api/auth/register\n" +
                       "2. Iniciar sesión en POST /api/auth/login (retorna SessionID)\n" +
@@ -273,6 +280,30 @@ app.MapGet("/", () => Results.Ok(new
             members = "GET /api/league/{id}/members",
             teams = "GET /api/league/{id}/teams"
         },
+        nflteam = new
+        {
+            create = "POST /api/nflteam",
+            list = "GET /api/nflteam",
+            details = "GET /api/nflteam/{id}",
+            update = "PUT /api/nflteam/{id}",
+            deactivate = "POST /api/nflteam/{id}/deactivate",
+            reactivate = "POST /api/nflteam/{id}/reactivate",
+            active = "GET /api/nflteam/active"
+        },
+        team = new
+        {
+            updateBranding = "PUT /api/team/{id}/branding",
+            getMyTeam = "GET /api/team/{id}/my-team",
+            distribution = "GET /api/team/{id}/roster/distribution",
+            addPlayer = "POST /api/team/{id}/roster/add",
+            removePlayer = "POST /api/team/roster/{rosterId}/remove"
+        },
+        player = new
+        {
+            list = "GET /api/player",
+            available = "GET /api/player/available",
+            byNFLTeam = "GET /api/player/by-nfl-team/{nflTeamId}"
+        },
         reference = new
         {
             currentSeason = "GET /api/reference/current-season",
@@ -304,6 +335,8 @@ app.MapGet("/", () => Results.Ok(new
     {
         feature_1_1 = "Registro, autenticación y gestión de perfiles de usuarios",
         feature_1_2 = "Creación y administración de ligas de fantasy",
+        feature_3_1 = "Creación y administración de equipos fantasy (branding, roster, distribución)",
+        feature_10_1 = "Gestión de Equipos NFL (CRUD completo con validaciones)",
         audit = "Sistema de auditoría completo con captura de IP y UserAgent",
         maintenance = "Limpieza automática de sesiones y tokens expirados"
     }

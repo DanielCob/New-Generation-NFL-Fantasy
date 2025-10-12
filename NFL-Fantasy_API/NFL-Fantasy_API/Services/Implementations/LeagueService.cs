@@ -397,7 +397,7 @@ namespace NFL_Fantasy_API.Services.Implementations
 
         /// <summary>
         /// Obtiene equipos de una liga
-        /// VIEW: vw_LeagueTeams
+        /// VIEW: vw_LeagueTeams (ACTUALIZADA)
         /// </summary>
         public async Task<List<LeagueTeamVM>> GetLeagueTeamsAsync(int leagueId)
         {
@@ -412,6 +412,11 @@ namespace NFL_Fantasy_API.Services.Implementations
                         TeamName = DatabaseHelper.GetSafeString(reader, "TeamName"),
                         OwnerUserID = DatabaseHelper.GetSafeInt32(reader, "OwnerUserID"),
                         OwnerName = DatabaseHelper.GetSafeString(reader, "OwnerName"),
+                        TeamImageUrl = DatabaseHelper.GetSafeNullableString(reader, "TeamImageUrl"),
+                        ThumbnailUrl = DatabaseHelper.GetSafeNullableString(reader, "ThumbnailUrl"),
+                        IsActive = DatabaseHelper.GetSafeBool(reader, "IsActive"),
+                        RosterCount = DatabaseHelper.GetSafeInt32(reader, "RosterCount"),
+                        UpdatedAt = DatabaseHelper.GetSafeDateTime(reader, "UpdatedAt"),
                         CreatedAt = DatabaseHelper.GetSafeDateTime(reader, "CreatedAt")
                     },
                     whereClause: $"LeagueID = {leagueId}",
@@ -459,7 +464,7 @@ namespace NFL_Fantasy_API.Services.Implementations
 
         /// <summary>
         /// Obtiene equipos del usuario en todas sus ligas
-        /// VIEW: vw_UserTeams
+        /// VIEW: vw_UserTeams (ACTUALIZADA)
         /// </summary>
         public async Task<List<UserTeamVM>> GetUserTeamsAsync(int userId)
         {
@@ -474,6 +479,10 @@ namespace NFL_Fantasy_API.Services.Implementations
                         LeagueID = DatabaseHelper.GetSafeInt32(reader, "LeagueID"),
                         LeagueName = DatabaseHelper.GetSafeString(reader, "LeagueName"),
                         TeamName = DatabaseHelper.GetSafeString(reader, "TeamName"),
+                        TeamImageUrl = DatabaseHelper.GetSafeNullableString(reader, "TeamImageUrl"),
+                        ThumbnailUrl = DatabaseHelper.GetSafeNullableString(reader, "ThumbnailUrl"),
+                        IsActive = DatabaseHelper.GetSafeBool(reader, "IsActive"),
+                        RosterCount = DatabaseHelper.GetSafeInt32(reader, "RosterCount"),
                         TeamCreatedAt = DatabaseHelper.GetSafeDateTime(reader, "TeamCreatedAt"),
                         LeagueStatus = DatabaseHelper.GetSafeByte(reader, "LeagueStatus")
                     },
