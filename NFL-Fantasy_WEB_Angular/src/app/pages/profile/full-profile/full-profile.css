@@ -1,0 +1,9 @@
+.fp-loading { display:flex; justify-content:center; align-items:center; height:200px; }
+.error-box { display:flex; gap:.75rem; align-items:center; }
+.fp-card { margin-bottom: 16px; }
+.fp-grid .row { display:grid; grid-template-columns: 160px 1fr; padding: 6px 0; }
+.fp-grid .label { opacity:.7; }
+.fp-grid .value { font-weight:500; }
+.right { margin-left:auto; }
+.empty-hint { display:flex; gap:.5rem; align-items:center; opacity:.75; }
+.fp-actions { display:flex; justify-content:flex-end; margin-top: 8px; }

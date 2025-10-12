@@ -1,0 +1,7 @@
+/* src/app/pages/profile/sessions/sessions.css */
+.full-width { width: 100%; }
+.ph-card { margin: 16px; }
+.ph-loading { display:flex; align-items:center; justify-content:center; height: 240px; }
+.empty { display:flex; gap:8px; align-items:center; padding:16px; opacity:.75; }
+.ok { color: #2e7d32; }     /* verde */
+.bad { color: #c62828; }    /* rojo */

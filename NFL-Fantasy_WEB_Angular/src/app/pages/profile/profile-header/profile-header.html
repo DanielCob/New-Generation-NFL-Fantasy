@@ -1,1 +1,113 @@
-<p>profile-header works!</p>
+<mat-card class="ph-card" *ngIf="!loading(); else loadingTpl">
+  <mat-card-header>
+    <mat-card-title>
+      <mat-icon>badge</mat-icon>
+      <span>Profile Header</span>
+    </mat-card-title>
+    <mat-card-subtitle>Información básica de tu cuenta</mat-card-subtitle>
+  </mat-card-header>
+
+  <mat-card-content>
+    @if (profile(); as p) {
+      <div class="grid">
+        <!-- No editables -->
+        <div class="row">
+          <div class="label">User ID</div>
+          <div class="value">{{ p.UserID }}</div>
+        </div>
+        <div class="row">
+          <div class="label">Email</div>
+          <div class="value">{{ p.Email }}</div>
+        </div>
+        <div class="row">
+          <div class="label">Account Status</div>
+          <div class="value">{{ p.AccountStatus }}</div>
+        </div>
+        <div class="row">
+          <div class="label">Created</div>
+          <div class="value">{{ p.CreatedAt | date:'medium' }}</div>
+        </div>
+        <div class="row">
+          <div class="label">Updated</div>
+          <div class="value">{{ p.UpdatedAt | date:'medium' }}</div>
+        </div>
+
+        <mat-divider class="my-16"></mat-divider>
+
+        <!-- Editables -->
+        @if (!editing()) {
+          <div class="row">
+            <div class="label">Name</div>
+            <div class="value">{{ p.Name }}</div>
+          </div>
+          <div class="row">
+            <div class="label">Alias</div>
+            <div class="value">{{ p.Alias }}</div>
+          </div>
+          <div class="row">
+            <div class="label">Language</div>
+            <div class="value">{{ p.LanguageCode }}</div>
+          </div>
+
+          <div class="actions">
+            <button mat-raised-button color="primary" (click)="enableEdit()">
+              <mat-icon>edit</mat-icon> Editar perfil
+            </button>
+          </div>
+        } @else {
+          <form [formGroup]="form" (ngSubmit)="save()">
+            <mat-form-field appearance="outline" class="full">
+              <mat-label>Name</mat-label>
+              <input matInput formControlName="name" />
+              <mat-icon matPrefix>person</mat-icon>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="full">
+              <mat-label>Alias</mat-label>
+              <input matInput formControlName="alias" />
+              <mat-icon matPrefix>badge</mat-icon>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="full">
+              <mat-label>Language</mat-label>
+              <mat-select formControlName="languageCode">
+                @for (lang of languages; track lang.code) {
+                  <mat-option [value]="lang.code">{{ lang.label }}</mat-option>
+                }
+              </mat-select>
+              <mat-icon matPrefix>translate</mat-icon>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="full">
+              <mat-label>Profile image URL (opcional)</mat-label>
+              <input matInput formControlName="profileImageUrl" />
+              <mat-icon matPrefix>image</mat-icon>
+            </mat-form-field>
+
+            <div class="actions">
+              <button mat-button type="button" (click)="cancelEdit()">Cancelar</button>
+              <button
+                mat-raised-button
+                color="primary"
+                type="submit"
+                [disabled]="form.invalid || saving()"
+              >
+                @if (saving()) {
+                  <mat-spinner diameter="18"></mat-spinner>
+                } @else {
+                  Guardar
+                }
+              </button>
+            </div>
+          </form>
+        }
+      </div>
+    }
+  </mat-card-content>
+</mat-card>
+
+<ng-template #loadingTpl>
+  <div class="ph-loading">
+    <mat-spinner></mat-spinner>
+  </div>
+</ng-template>

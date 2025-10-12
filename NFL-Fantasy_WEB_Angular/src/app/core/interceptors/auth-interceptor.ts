@@ -1,42 +1,53 @@
 // src/app/core/interceptors/auth-interceptor.ts
-import { HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { Storage } from '../services/storage';
+import {
+  HttpEvent, HttpHandlerFn, HttpInterceptorFn, HttpRequest, HttpErrorResponse
+} from '@angular/common/http';
+import { Router } from '@angular/router';
+import { Observable, catchError, throwError } from 'rxjs';
+import { AuthService } from '../services/auth.service';
 
-export const authInterceptor: HttpInterceptorFn = (req, next) => {
-  const storage = inject(Storage);
-  
-  // List of public endpoints that don't need authentication
-  const publicEndpoints = [
-    '/api/User/clients',
-    '/api/User/engineers', 
-    '/api/User/administrators',
+/** Endpoints públicos: NO llevan Authorization */
+function isPublicRequest(url: string): boolean {
+  // Nota: el req.url viene completo (https://host:port/api/...).
+  // Usamos includes() con los paths en el casing exacto del backend.
+  const whitelist = [
     '/api/Auth/login',
-    '/api/Location/provinces',
-    '/api/Location/cantons',
-    '/api/Location/districts'
+    '/api/Auth/register',
+    '/api/Auth/request-reset',
+    '/api/Auth/reset-with-token',
+    '/api/Reference/',    // catálogos
+    '/api/Scoring/'       // catálogos
   ];
-  
-  // Check if this is a public endpoint
-  const isPublicEndpoint = publicEndpoints.some(endpoint => 
-    req.url.toLowerCase().includes(endpoint.toLowerCase())
-  );
-  
-  // Only add auth header for protected endpoints AND if we have a token
-  if (!isPublicEndpoint) {
-    const token = storage.getToken();
-    
+  return whitelist.some(p => url.includes(p));
+}
+
+export const authInterceptor: HttpInterceptorFn = (
+  req: HttpRequest<unknown>,
+  next: HttpHandlerFn
+): Observable<HttpEvent<unknown>> => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+
+  // No añadimos token a requests públicos ni a OPTIONS (CORS preflight)
+  let request = req;
+  if (req.method !== 'OPTIONS' && !isPublicRequest(req.url)) {
+    const token = auth.session?.SessionID;
     if (token) {
-      // The token is just the GUID, add "Bearer " prefix for the API
-      const clonedRequest = req.clone({
-        setHeaders: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      return next(clonedRequest);
+      request = req.clone({ setHeaders: { Authorization: `Bearer ${token}` } });
     }
   }
-  
-  // For public endpoints or when no token, send request without auth header
-  return next(req);
+
+  // Si el backend responde 401 => sesión inválida/expirada
+  return next(request).pipe(
+    catchError((err: HttpErrorResponse) => {
+      if (err.status === 401) {
+        // limpiamos sesión local y enviamos a /login manteniendo returnUrl
+        auth.clearLocalSession();
+        const returnUrl = location.pathname + location.search;
+        router.navigate(['/login'], { queryParams: { returnUrl } });
+      }
+      return throwError(() => err);
+    })
+  );
 };

@@ -5,7 +5,7 @@ import { map, Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 import { ApiResponse } from '../models/auth.model'; // tu envoltorio genérico
-import { UserProfile, UserSession } from '../models/user.model';
+import { UserProfile, UserSession, EditUserProfileRequest, EditUserProfileResponse } from '../models/user.model';
 // ^^^ Si tu interfaz para sesiones se llama diferente (p. ej. ActiveSession),
 // cámbiala aquí y listo.
 
@@ -34,5 +34,9 @@ export class UserService {
     return this.http
       .get<ApiResponse<UserSession[]>>(`${this.userUrl}/sessions`)
       .pipe(map(res => (res.data ?? (res as any).Data) as UserSession[]));
+  }
+    /** PUT /api/User/profile (actor = yo) */
+  updateProfile(body: EditUserProfileRequest): Observable<EditUserProfileResponse> {
+    return this.http.put<EditUserProfileResponse>(`${this.userUrl}/profile`, body);
   }
 }

@@ -1,0 +1,127 @@
+<!-- src/app/pages/profile/full-profile/full-profile.html -->
+
+<!-- Loading -->
+<div class="fp-loading" *ngIf="loading()">
+  <mat-spinner></mat-spinner>
+</div>
+
+<!-- Error -->
+<mat-card *ngIf="!loading() && error()">
+  <mat-card-content class="error-box">
+    <mat-icon>error</mat-icon>
+    <div>{{ error() }}</div>
+    <button mat-stroked-button color="primary" (click)="load()">Reintentar</button>
+  </mat-card-content>
+</mat-card>
+
+<!-- Content -->
+<ng-container *ngIf="!loading() && !error() && profile() as p">
+
+  <!-- Header básico -->
+  <mat-card class="fp-card">
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon>account_circle</mat-icon>
+        <span>Mi perfil</span>
+      </mat-card-title>
+      <mat-card-subtitle>
+        {{ p.Email }} · Creado: {{ p.CreatedAt | date:'medium' }}
+      </mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <div class="fp-grid">
+        <div class="row">
+          <div class="label">Nombre</div>
+          <div class="value">{{ p.Name }}</div>
+        </div>
+        <div class="row">
+          <div class="label">Alias</div>
+          <div class="value">{{ p.Alias }}</div>
+        </div>
+        <div class="row">
+          <div class="label">Idioma</div>
+          <div class="value">{{ p.LanguageCode }}</div>
+        </div>
+        <div class="row">
+          <div class="label">Estado de cuenta</div>
+          <div class="value">{{ p.AccountStatus }}</div>
+        </div>
+        <div class="row">
+          <div class="label">Actualizado</div>
+          <div class="value">{{ p.UpdatedAt | date:'medium' }}</div>
+        </div>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Ligas como comisionado -->
+  <mat-card class="fp-card">
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon>emoji_events</mat-icon>
+        <span>Ligas como comisionado</span>
+      </mat-card-title>
+      <mat-card-subtitle>
+        (de sp_GetUserProfile) – LeagueName, Status, TeamSlots, IsPrimaryCommissioner, JoinedAt
+      </mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <mat-list *ngIf="p.CommissionedLeagues?.length; else noLeagues">
+        <mat-list-item *ngFor="let l of p.CommissionedLeagues">
+          <mat-icon matListItemIcon>sports_football</mat-icon>
+          <div matListItemTitle>{{ l.LeagueName }}</div>
+          <div matListItemLine>
+            Slots: {{ l.TeamSlots }} · Ingresó: {{ l.JoinedAt | date:'mediumDate' }}
+          </div>
+          <div class="right">
+            <mat-chip-set>
+              <mat-chip [color]="statusChipColor(l.Status)" selected>Status: {{ l.Status }}</mat-chip>
+              <mat-chip color="accent" *ngIf="l.IsPrimaryCommissioner" selected>Primary</mat-chip>
+            </mat-chip-set>
+          </div>
+        </mat-list-item>
+      </mat-list>
+      <ng-template #noLeagues>
+        <div class="empty-hint">
+          <mat-icon>info</mat-icon> No figuras como comisionado en ninguna liga.
+        </div>
+      </ng-template>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Mis equipos -->
+  <mat-card class="fp-card">
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon>groups</mat-icon>
+        <span>Mis equipos</span>
+      </mat-card-title>
+      <mat-card-subtitle>
+        (de sp_GetUserProfile) – LeagueName, TeamName, CreatedAt
+      </mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <mat-list *ngIf="p.Teams?.length; else noTeams">
+        <mat-list-item *ngFor="let t of p.Teams">
+          <mat-icon matListItemIcon>flag</mat-icon>
+          <div matListItemTitle>{{ t.TeamName }}</div>
+          <div matListItemLine> Liga: {{ t.LeagueName }} · Desde: {{ t.CreatedAt | date:'mediumDate' }} </div>
+        </mat-list-item>
+      </mat-list>
+      <ng-template #noTeams>
+        <div class="empty-hint">
+          <mat-icon>info</mat-icon> Aún no tienes equipos asociados.
+        </div>
+      </ng-template>
+    </mat-card-content>
+  </mat-card>
+
+  <div class="fp-actions">
+    <button mat-stroked-button (click)="load()">
+      <mat-icon>refresh</mat-icon> Recargar
+    </button>
+  </div>
+</ng-container>

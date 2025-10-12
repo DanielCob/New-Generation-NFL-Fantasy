@@ -1,8 +1,7 @@
-// src/app/pages/login/login.ts
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -36,14 +35,16 @@ export class Login {
   private fb = inject(FormBuilder);
   private auth = inject(AuthService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
   private snackBar = inject(MatSnackBar);
 
   hidePassword = signal(true);
   isLoading = signal(false);
 
+  // Validaciones mínimas: email válido + password presente (>=6)
   loginForm: FormGroup = this.fb.group<LoginRequest>({
-    email: this.fb.control('', { nonNullable: true, validators: [Validators.required, Validators.email] }),
-    password: this.fb.control('', { nonNullable: true, validators: [Validators.required, Validators.minLength(6)] })
+    email: this.fb.control('', { nonNullable: true, validators: [Validators.required, Validators.email] }) as any,
+    password: this.fb.control('', { nonNullable: true, validators: [Validators.required, Validators.minLength(6)] }) as any
   } as any);
 
   togglePasswordVisibility(): void {
@@ -60,26 +61,31 @@ export class Login {
     }
 
     const payload: LoginRequest = this.loginForm.value as LoginRequest;
+    const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl') || '/profile/header';
 
     this.isLoading.set(true);
     this.auth.login(payload).subscribe({
       next: (res: LoginResponse) => {
+        // El AuthService ya persiste la sesión si Success && SessionID
         if (res.Success) {
-          // El servicio ya persiste la sesión internamente.
           this.snackBar.open(res.Message || 'Inicio de sesión exitoso', 'Cerrar', {
             duration: 2500, panelClass: ['success-snackbar']
           });
-          // Navega a donde corresponda tras login
-          this.router.navigateByUrl('/profile/header'); // ajusta la ruta si usas otra
+          this.router.navigateByUrl(returnUrl);
         } else {
-          this.snackBar.open(res.Message || 'Credenciales inválidas', 'Cerrar', {
+          // Mensajes típicos: credenciales inválidas / cuenta bloqueada
+          this.snackBar.open(res.Message || 'No se pudo iniciar sesión', 'Cerrar', {
             duration: 4500, panelClass: ['error-snackbar']
           });
         }
         this.isLoading.set(false);
       },
       error: (err) => {
-        const msg = err?.error?.Message || err?.error?.message || 'No se pudo iniciar sesión';
+        const msg =
+          err?.error?.Message ||
+          err?.error?.message ||
+          (typeof err?.error === 'string' ? err.error : null) ||
+          'No se pudo iniciar sesión';
         this.snackBar.open(msg, 'Cerrar', { duration: 5000, panelClass: ['error-snackbar'] });
         this.isLoading.set(false);
       }

@@ -1,7 +1,7 @@
 // src/app/core/services/auth.service.ts
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, tap, map } from 'rxjs';
+import { BehaviorSubject, Observable, tap, map, finalize } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 import {
@@ -54,15 +54,17 @@ export class AuthService {
     );
   }
 
+  // ✅ Siempre limpia sesión (éxito o error)
   logout(): Observable<SimpleOkResponse> {
     return this.http.post<SimpleOkResponse>(`${this.authUrl}/logout`, {}).pipe(
-      tap(() => this.clearSession())
+      finalize(() => this.clearSession())
     );
   }
 
+  // ✅ Siempre limpia sesión (éxito o error)
   logoutAll(): Observable<SimpleOkResponse> {
     return this.http.post<SimpleOkResponse>(`${this.authUrl}/logout-all`, {}).pipe(
-      tap(() => this.clearSession())
+      finalize(() => this.clearSession())
     );
   }
 
@@ -111,4 +113,6 @@ export class AuthService {
     localStorage.removeItem(this.SESSION_KEY);
     this._session$.next(null);
   }
+  clearLocalSession(): void { (this as any).clearSession?.(); }
+
 }

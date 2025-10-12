@@ -7,12 +7,13 @@
         <mat-icon class="logo-icon">person_add</mat-icon>
         <span>Create Account</span>
       </mat-card-title>
-      <mat-card-subtitle>Fill the required information to create your account</mat-card-subtitle>
+      <mat-card-subtitle>Only the required fields are mandatory</mat-card-subtitle>
     </mat-card-header>
 
     <mat-card-content>
       <form [formGroup]="registerForm" (ngSubmit)="onSubmit()">
-        <!-- Name -->
+
+        <!-- Name (required) -->
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Name</mat-label>
           <input matInput formControlName="name" />
@@ -22,17 +23,7 @@
           }
         </mat-form-field>
 
-        <!-- Alias -->
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Alias</mat-label>
-          <input matInput formControlName="alias" />
-          <mat-icon matPrefix>badge</mat-icon>
-          @if (registerForm.get('alias')?.invalid && registerForm.get('alias')?.touched) {
-            <mat-error>Alias is required (min 3 chars)</mat-error>
-          }
-        </mat-form-field>
-
-        <!-- Email -->
+        <!-- Email (required) -->
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Email</mat-label>
           <input matInput type="email" formControlName="email" />
@@ -42,18 +33,7 @@
           }
         </mat-form-field>
 
-        <!-- Language -->
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Language</mat-label>
-          <mat-select formControlName="languageCode">
-            @for (lang of languages; track lang.code) {
-              <mat-option [value]="lang.code">{{ lang.label }}</mat-option>
-            }
-          </mat-select>
-          <mat-icon matPrefix>translate</mat-icon>
-        </mat-form-field>
-
-        <!-- Password -->
+        <!-- Password (required) -->
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Password</mat-label>
           <input
@@ -72,11 +52,11 @@
             <mat-icon>{{ hidePassword() ? 'visibility_off' : 'visibility' }}</mat-icon>
           </button>
           @if (registerForm.get('password')?.invalid && registerForm.get('password')?.touched) {
-            <mat-error>Min 6 characters</mat-error>
+            <mat-error>Password is required</mat-error>
           }
         </mat-form-field>
 
-        <!-- Confirm Password -->
+        <!-- Confirm Password (required) -->
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Confirm Password</mat-label>
           <input
@@ -90,33 +70,32 @@
           }
         </mat-form-field>
 
-        <!-- Optional: Profile image metadata -->
+        <!-- Alias (optional) -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Alias (optional)</mat-label>
+          <input matInput formControlName="alias" />
+          <mat-icon matPrefix>badge</mat-icon>
+        </mat-form-field>
+
+        <!-- Language (optional) -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Language (optional)</mat-label>
+          <mat-select formControlName="languageCode">
+            @for (lang of languages; track lang.code) {
+              <mat-option [value]="lang.code">{{ lang.label }}</mat-option>
+            }
+          </mat-select>
+          <mat-icon matPrefix>translate</mat-icon>
+        </mat-form-field>
+
+        <!-- Profile image (optional) -->
         <div class="optional-section">
           <h4>Profile image (optional)</h4>
-
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Image URL</mat-label>
-            <input matInput formControlName="profileImageUrl" />
-            <mat-icon matPrefix>image</mat-icon>
-            <mat-hint>Leave empty if you don't want to set one now</mat-hint>
-          </mat-form-field>
-
           <div class="row">
-            <mat-form-field appearance="outline" class="third-width">
-              <mat-label>Width (px)</mat-label>
-              <input matInput type="number" formControlName="profileImageWidth" />
-            </mat-form-field>
+            <input matInput formControlName="profileImageUrl" (blur)="onProfileImageUrlChanged()" />
 
-            <mat-form-field appearance="outline" class="third-width">
-              <mat-label>Height (px)</mat-label>
-              <input matInput type="number" formControlName="profileImageHeight" />
-            </mat-form-field>
-
-            <mat-form-field appearance="outline" class="third-width">
-              <mat-label>Bytes</mat-label>
-              <input matInput type="number" formControlName="profileImageBytes" />
-            </mat-form-field>
           </div>
+          <mat-hint>We will read width/height/bytes automatically if you select an image.</mat-hint>
         </div>
 
         <!-- Actions -->

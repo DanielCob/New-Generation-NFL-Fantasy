@@ -9,17 +9,20 @@ export interface ApiResponse<T> {
 
 // /api/Auth/register  (cuerpo según Swagger)
 export interface RegisterRequest {
-  name: string;
-  email: string;
-  alias: string;
-  password: string;
-  passwordConfirm: string;
-  languageCode: string;
-  profileImageUrl: string;
-  profileImageWidth: number;
-  profileImageHeight: number;
-  profileImageBytes: number;
+  Name: string;
+  Email: string;
+  Password: string;
+  PasswordConfirm: string;
+
+  Alias?: string;
+  LanguageCode?: string;
+  ProfileImageUrl?: string;
+  ProfileImageWidth?: number;
+  ProfileImageHeight?: number;
+  ProfileImageBytes?: number;
 }
+
+
 
 // /api/Auth/login
 export interface LoginRequest {
