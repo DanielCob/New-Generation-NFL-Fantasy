@@ -210,6 +210,99 @@ IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_PositionSlot_Format
   ADD CONSTRAINT FK_PositionSlot_Format FOREIGN KEY(PositionFormatID) REFERENCES ref.PositionFormat(PositionFormatID) ON DELETE CASCADE;
 GO
 
+IF OBJECT_ID('ref.NFLTeam','U') IS NULL
+BEGIN
+  CREATE TABLE ref.NFLTeam(
+    NFLTeamID             INT IDENTITY(1,1) CONSTRAINT PK_NFLTeam PRIMARY KEY,
+    
+    -- Información básica
+    TeamName              NVARCHAR(100) NOT NULL CONSTRAINT UQ_NFLTeam_Name UNIQUE,
+    City                  NVARCHAR(100) NOT NULL,
+    
+    -- Imagen del equipo
+    TeamImageUrl          NVARCHAR(400) NULL,
+    TeamImageWidth        SMALLINT      NULL,
+    TeamImageHeight       SMALLINT      NULL,
+    TeamImageBytes        INT           NULL,
+    
+    -- Thumbnail generado
+    ThumbnailUrl          NVARCHAR(400) NULL,
+    ThumbnailWidth        SMALLINT      NULL,
+    ThumbnailHeight       SMALLINT      NULL,
+    ThumbnailBytes        INT           NULL,
+    
+    -- Estado y metadata
+    IsActive              BIT           NOT NULL CONSTRAINT DF_NFLTeam_IsActive DEFAULT(1),
+    CreatedByUserID       INT           NULL,
+    CreatedAt             DATETIME2(0)  NOT NULL CONSTRAINT DF_NFLTeam_CreatedAt DEFAULT(SYSUTCDATETIME()),
+    UpdatedByUserID       INT           NULL,
+    UpdatedAt             DATETIME2(0)  NOT NULL CONSTRAINT DF_NFLTeam_UpdatedAt DEFAULT(SYSUTCDATETIME()),
+    
+    -- Constraints de imagen (mismas reglas que perfil de usuario)
+    CONSTRAINT CK_NFLTeam_ImageDims CHECK (
+      (TeamImageWidth  IS NULL OR (TeamImageWidth  BETWEEN 300 AND 1024)) AND
+      (TeamImageHeight IS NULL OR (TeamImageHeight BETWEEN 300 AND 1024))
+    ),
+    CONSTRAINT CK_NFLTeam_ImageSize CHECK (TeamImageBytes IS NULL OR TeamImageBytes <= 5242880),
+    
+    CONSTRAINT CK_NFLTeam_ThumbnailDims CHECK (
+      (ThumbnailWidth  IS NULL OR (ThumbnailWidth  BETWEEN 300 AND 1024)) AND
+      (ThumbnailHeight IS NULL OR (ThumbnailHeight BETWEEN 300 AND 1024))
+    ),
+    CONSTRAINT CK_NFLTeam_ThumbnailSize CHECK (ThumbnailBytes IS NULL OR ThumbnailBytes <= 5242880)
+  );
+END
+GO
+
+-- FKs para auditoría
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLTeam_Creator')
+  ALTER TABLE ref.NFLTeam
+  ADD CONSTRAINT FK_NFLTeam_Creator FOREIGN KEY(CreatedByUserID) REFERENCES auth.UserAccount(UserID) ON DELETE NO ACTION;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLTeam_Updater')
+  ALTER TABLE ref.NFLTeam
+  ADD CONSTRAINT FK_NFLTeam_Updater FOREIGN KEY(UpdatedByUserID) REFERENCES auth.UserAccount(UserID) ON DELETE NO ACTION;
+GO
+
+-- Índices
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLTeam_IsActive' AND object_id=OBJECT_ID('ref.NFLTeam'))
+  CREATE NONCLUSTERED INDEX IX_NFLTeam_IsActive ON ref.NFLTeam(IsActive);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLTeam_City' AND object_id=OBJECT_ID('ref.NFLTeam'))
+  CREATE NONCLUSTERED INDEX IX_NFLTeam_City ON ref.NFLTeam(City);
+GO
+
+IF OBJECT_ID('ref.NFLTeamChangeLog','U') IS NULL
+BEGIN
+  CREATE TABLE ref.NFLTeamChangeLog(
+    ChangeID          BIGINT IDENTITY(1,1) CONSTRAINT PK_NFLTeamChangeLog PRIMARY KEY,
+    NFLTeamID         INT NOT NULL,
+    ChangedByUserID   INT NOT NULL,
+    FieldName         NVARCHAR(100) NOT NULL,
+    OldValue          NVARCHAR(1000) NULL,
+    NewValue          NVARCHAR(1000) NULL,
+    ChangedAt         DATETIME2(0) NOT NULL CONSTRAINT DF_NFLTeamChangeLog_At DEFAULT(SYSUTCDATETIME()),
+    SourceIp          NVARCHAR(45) NULL,
+    UserAgent         NVARCHAR(300) NULL
+  );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLTeamChangeLog_Team')
+  ALTER TABLE ref.NFLTeamChangeLog
+  ADD CONSTRAINT FK_NFLTeamChangeLog_Team FOREIGN KEY(NFLTeamID) REFERENCES ref.NFLTeam(NFLTeamID) ON DELETE CASCADE;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLTeamChangeLog_User')
+  ALTER TABLE ref.NFLTeamChangeLog
+  ADD CONSTRAINT FK_NFLTeamChangeLog_User FOREIGN KEY(ChangedByUserID) REFERENCES auth.UserAccount(UserID) ON DELETE NO ACTION;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLTeamChangeLog_Team_At' AND object_id=OBJECT_ID('ref.NFLTeamChangeLog'))
+  CREATE NONCLUSTERED INDEX IX_NFLTeamChangeLog_Team_At ON ref.NFLTeamChangeLog(NFLTeamID, ChangedAt DESC);
+GO
 
 IF OBJECT_ID('scoring.ScoringSchema','U') IS NULL
 BEGIN
@@ -374,28 +467,252 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='UQ_LeagueMember_PrimaryComm
   WHERE IsPrimaryCommissioner = 1;
 GO
 
-
-IF OBJECT_ID('league.Team','U') IS NULL
-BEGIN
-  CREATE TABLE league.Team(
-    TeamID        INT IDENTITY(1,1) CONSTRAINT PK_Team PRIMARY KEY,
-    LeagueID      INT NOT NULL,
-    OwnerUserID   INT NOT NULL,            -- dueño del equipo (manager/comisionado)
-    TeamName      NVARCHAR(50) NOT NULL,
-    CreatedAt     DATETIME2(0) NOT NULL CONSTRAINT DF_Team_CreatedAt DEFAULT(SYSUTCDATETIME()),
-
-    CONSTRAINT UQ_Team_League_TeamName UNIQUE(LeagueID, TeamName),
-    CONSTRAINT UQ_Team_League_Owner    UNIQUE(LeagueID, OwnerUserID)
-  );
-END
+IF OBJECT_ID('league.Team','U') IS NOT NULL
+  DROP TABLE league.Team;
 GO
+
+CREATE TABLE league.Team(
+  TeamID                INT IDENTITY(1,1) CONSTRAINT PK_Team PRIMARY KEY,
+  LeagueID              INT NOT NULL,
+  OwnerUserID           INT NOT NULL,
+  
+  -- Branding del equipo (NUEVO)
+  TeamName              NVARCHAR(100) NOT NULL,  -- Cambiado de 50 a 100 para consistencia
+  
+  -- Imagen del equipo (NUEVO)
+  TeamImageUrl          NVARCHAR(400) NULL,
+  TeamImageWidth        SMALLINT      NULL,
+  TeamImageHeight       SMALLINT      NULL,
+  TeamImageBytes        INT           NULL,
+  
+  -- Thumbnail generado (NUEVO)
+  ThumbnailUrl          NVARCHAR(400) NULL,
+  ThumbnailWidth        SMALLINT      NULL,
+  ThumbnailHeight       SMALLINT      NULL,
+  ThumbnailBytes        INT           NULL,
+  
+  -- Estado (NUEVO)
+  IsActive              BIT           NOT NULL CONSTRAINT DF_Team_IsActive DEFAULT(1),
+  
+  -- Timestamps
+  CreatedAt             DATETIME2(0)  NOT NULL CONSTRAINT DF_Team_CreatedAt DEFAULT(SYSUTCDATETIME()),
+  UpdatedAt             DATETIME2(0)  NOT NULL CONSTRAINT DF_Team_UpdatedAt DEFAULT(SYSUTCDATETIME()),  -- NUEVO
+  
+  -- Constraints originales
+  CONSTRAINT UQ_Team_League_TeamName UNIQUE(LeagueID, TeamName),
+  CONSTRAINT UQ_Team_League_Owner    UNIQUE(LeagueID, OwnerUserID),
+  
+  -- Constraints de imagen (NUEVO)
+  CONSTRAINT CK_Team_ImageDims CHECK (
+    (TeamImageWidth  IS NULL OR (TeamImageWidth  BETWEEN 300 AND 1024)) AND
+    (TeamImageHeight IS NULL OR (TeamImageHeight BETWEEN 300 AND 1024))
+  ),
+  CONSTRAINT CK_Team_ImageSize CHECK (TeamImageBytes IS NULL OR TeamImageBytes <= 5242880),
+  
+  CONSTRAINT CK_Team_ThumbnailDims CHECK (
+    (ThumbnailWidth  IS NULL OR (ThumbnailWidth  BETWEEN 300 AND 1024)) AND
+    (ThumbnailHeight IS NULL OR (ThumbnailHeight BETWEEN 300 AND 1024))
+  ),
+  CONSTRAINT CK_Team_ThumbnailSize CHECK (ThumbnailBytes IS NULL OR ThumbnailBytes <= 5242880)
+);
+GO
+
+-- Recrear FKs originales
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_Team_League')
-  ALTER TABLE league.Team ADD CONSTRAINT FK_Team_League FOREIGN KEY(LeagueID)    REFERENCES league.League(LeagueID) ON DELETE CASCADE;
+  ALTER TABLE league.Team ADD CONSTRAINT FK_Team_League FOREIGN KEY(LeagueID) REFERENCES league.League(LeagueID) ON DELETE CASCADE;
 GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_Team_Owner')
   ALTER TABLE league.Team ADD CONSTRAINT FK_Team_Owner FOREIGN KEY(OwnerUserID) REFERENCES auth.UserAccount(UserID) ON DELETE NO ACTION;
 GO
 
+-- Índices
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_Team_IsActive' AND object_id=OBJECT_ID('league.Team'))
+  CREATE NONCLUSTERED INDEX IX_Team_IsActive ON league.Team(IsActive);
+GO
+
+IF OBJECT_ID('league.Player','U') IS NULL
+BEGIN
+  CREATE TABLE league.Player(
+    PlayerID              INT IDENTITY(1,1) CONSTRAINT PK_Player PRIMARY KEY,
+    
+    -- Información básica
+    FirstName             NVARCHAR(50) NOT NULL,
+    LastName              NVARCHAR(50) NOT NULL,
+    FullName              AS (FirstName + N' ' + LastName) PERSISTED,
+    
+    -- Posición y equipo
+    Position              NVARCHAR(20) NOT NULL,  -- 'QB','RB','WR','TE','K','DEF', etc.
+    NFLTeamID             INT NULL,               -- Puede estar sin equipo (free agent)
+    
+    -- Estado del jugador
+    InjuryStatus          NVARCHAR(50) NULL,      -- 'Healthy','Questionable','Doubtful','Out','IR','PUP','Suspended'
+    InjuryDescription     NVARCHAR(300) NULL,
+    
+    -- Foto del jugador
+    PhotoUrl              NVARCHAR(400) NULL,
+    PhotoThumbnailUrl     NVARCHAR(400) NULL,
+    
+    -- Metadata
+    IsActive              BIT NOT NULL CONSTRAINT DF_Player_IsActive DEFAULT(1),
+    CreatedAt             DATETIME2(0) NOT NULL CONSTRAINT DF_Player_CreatedAt DEFAULT(SYSUTCDATETIME()),
+    UpdatedAt             DATETIME2(0) NOT NULL CONSTRAINT DF_Player_UpdatedAt DEFAULT(SYSUTCDATETIME())
+  );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_Player_NFLTeam')
+  ALTER TABLE league.Player
+  ADD CONSTRAINT FK_Player_NFLTeam FOREIGN KEY(NFLTeamID) REFERENCES ref.NFLTeam(NFLTeamID) ON DELETE SET NULL;
+GO
+
+-- Índices
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_Player_Position' AND object_id=OBJECT_ID('league.Player'))
+  CREATE NONCLUSTERED INDEX IX_Player_Position ON league.Player(Position);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_Player_NFLTeam' AND object_id=OBJECT_ID('league.Player'))
+  CREATE NONCLUSTERED INDEX IX_Player_NFLTeam ON league.Player(NFLTeamID);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_Player_LastName' AND object_id=OBJECT_ID('league.Player'))
+  CREATE NONCLUSTERED INDEX IX_Player_LastName ON league.Player(LastName);
+GO
+
+IF OBJECT_ID('league.TeamRoster','U') IS NULL
+BEGIN
+  CREATE TABLE league.TeamRoster(
+    RosterID              BIGINT IDENTITY(1,1) CONSTRAINT PK_TeamRoster PRIMARY KEY,
+    TeamID                INT NOT NULL,
+    PlayerID              INT NOT NULL,
+    
+    -- Forma de adquisición
+    AcquisitionType       NVARCHAR(20) NOT NULL,  -- 'Draft','Trade','FreeAgent','Waiver'
+    AcquisitionDate       DATETIME2(0) NOT NULL CONSTRAINT DF_TeamRoster_AcqDate DEFAULT(SYSUTCDATETIME()),
+    
+    -- Estado en el roster
+    IsActive              BIT NOT NULL CONSTRAINT DF_TeamRoster_IsActive DEFAULT(1),
+    DroppedDate           DATETIME2(0) NULL,
+    
+    -- Auditoría
+    AddedByUserID         INT NOT NULL,
+    
+    CONSTRAINT UQ_TeamRoster_Team_Player UNIQUE(TeamID, PlayerID),
+    CONSTRAINT CK_TeamRoster_AcqType CHECK (AcquisitionType IN (N'Draft',N'Trade',N'FreeAgent',N'Waiver'))
+  );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_TeamRoster_Team')
+  ALTER TABLE league.TeamRoster
+  ADD CONSTRAINT FK_TeamRoster_Team FOREIGN KEY(TeamID) REFERENCES league.Team(TeamID) ON DELETE CASCADE;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_TeamRoster_Player')
+  ALTER TABLE league.TeamRoster
+  ADD CONSTRAINT FK_TeamRoster_Player FOREIGN KEY(PlayerID) REFERENCES league.Player(PlayerID) ON DELETE CASCADE;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_TeamRoster_AddedBy')
+  ALTER TABLE league.TeamRoster
+  ADD CONSTRAINT FK_TeamRoster_AddedBy FOREIGN KEY(AddedByUserID) REFERENCES auth.UserAccount(UserID) ON DELETE NO ACTION;
+GO
+
+-- Índices
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_TeamRoster_Team_Active' AND object_id=OBJECT_ID('league.TeamRoster'))
+  CREATE NONCLUSTERED INDEX IX_TeamRoster_Team_Active ON league.TeamRoster(TeamID, IsActive);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_TeamRoster_Player' AND object_id=OBJECT_ID('league.TeamRoster'))
+  CREATE NONCLUSTERED INDEX IX_TeamRoster_Player ON league.Player(PlayerID);
+GO
+
+IF OBJECT_ID('league.TeamChangeLog','U') IS NULL
+BEGIN
+  CREATE TABLE league.TeamChangeLog(
+    ChangeID          BIGINT IDENTITY(1,1) CONSTRAINT PK_TeamChangeLog PRIMARY KEY,
+    TeamID            INT NOT NULL,
+    ChangedByUserID   INT NOT NULL,
+    FieldName         NVARCHAR(100) NOT NULL,  -- 'TeamName','TeamImageUrl','ThumbnailUrl', etc.
+    OldValue          NVARCHAR(1000) NULL,
+    NewValue          NVARCHAR(1000) NULL,
+    ChangedAt         DATETIME2(0) NOT NULL CONSTRAINT DF_TeamChangeLog_At DEFAULT(SYSUTCDATETIME()),
+    SourceIp          NVARCHAR(45) NULL,
+    UserAgent         NVARCHAR(300) NULL
+  );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_TeamChangeLog_Team')
+  ALTER TABLE league.TeamChangeLog
+  ADD CONSTRAINT FK_TeamChangeLog_Team FOREIGN KEY(TeamID) REFERENCES league.Team(TeamID) ON DELETE CASCADE;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_TeamChangeLog_User')
+  ALTER TABLE league.TeamChangeLog
+  ADD CONSTRAINT FK_TeamChangeLog_User FOREIGN KEY(ChangedByUserID) REFERENCES auth.UserAccount(UserID) ON DELETE NO ACTION;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_TeamChangeLog_Team_At' AND object_id=OBJECT_ID('league.TeamChangeLog'))
+  CREATE NONCLUSTERED INDEX IX_TeamChangeLog_Team_At ON league.TeamChangeLog(TeamID, ChangedAt DESC);
+GO
+
+IF OBJECT_ID('league.NFLGame','U') IS NULL
+BEGIN
+  CREATE TABLE league.NFLGame(
+    NFLGameID         INT IDENTITY(1,1) CONSTRAINT PK_NFLGame PRIMARY KEY,
+    SeasonID          INT NOT NULL,
+    Week              TINYINT NOT NULL,
+    
+    -- Equipos
+    HomeTeamID        INT NOT NULL,
+    AwayTeamID        INT NOT NULL,
+    
+    -- Fecha y hora
+    GameDate          DATE NOT NULL,
+    GameTime          TIME(0) NULL,
+    
+    -- Estado del partido
+    GameStatus        NVARCHAR(20) NOT NULL,  -- 'Scheduled','InProgress','Final','Postponed','Cancelled'
+    
+    -- Metadata
+    CreatedAt         DATETIME2(0) NOT NULL CONSTRAINT DF_NFLGame_CreatedAt DEFAULT(SYSUTCDATETIME()),
+    UpdatedAt         DATETIME2(0) NOT NULL CONSTRAINT DF_NFLGame_UpdatedAt DEFAULT(SYSUTCDATETIME()),
+    
+    CONSTRAINT CK_NFLGame_Teams CHECK (HomeTeamID <> AwayTeamID),
+    CONSTRAINT CK_NFLGame_Week CHECK (Week BETWEEN 1 AND 22),  -- Regular + Playoffs
+    CONSTRAINT CK_NFLGame_Status CHECK (GameStatus IN (N'Scheduled',N'InProgress',N'Final',N'Postponed',N'Cancelled'))
+  );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLGame_Season')
+  ALTER TABLE league.NFLGame
+  ADD CONSTRAINT FK_NFLGame_Season FOREIGN KEY(SeasonID) REFERENCES league.Season(SeasonID) ON DELETE CASCADE;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLGame_HomeTeam')
+  ALTER TABLE league.NFLGame
+  ADD CONSTRAINT FK_NFLGame_HomeTeam FOREIGN KEY(HomeTeamID) REFERENCES ref.NFLTeam(NFLTeamID) ON DELETE NO ACTION;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLGame_AwayTeam')
+  ALTER TABLE league.NFLGame
+  ADD CONSTRAINT FK_NFLGame_AwayTeam FOREIGN KEY(AwayTeamID) REFERENCES ref.NFLTeam(NFLTeamID) ON DELETE NO ACTION;
+GO
+
+-- Índices
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLGame_Season_Week' AND object_id=OBJECT_ID('league.NFLGame'))
+  CREATE NONCLUSTERED INDEX IX_NFLGame_Season_Week ON league.NFLGame(SeasonID, Week);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLGame_HomeTeam' AND object_id=OBJECT_ID('league.NFLGame'))
+  CREATE NONCLUSTERED INDEX IX_NFLGame_HomeTeam ON league.NFLGame(HomeTeamID);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLGame_AwayTeam' AND object_id=OBJECT_ID('league.NFLGame'))
+  CREATE NONCLUSTERED INDEX IX_NFLGame_AwayTeam ON league.NFLGame(AwayTeamID);
+GO
 
 IF OBJECT_ID('league.LeagueStatusHistory','U') IS NULL
 BEGIN

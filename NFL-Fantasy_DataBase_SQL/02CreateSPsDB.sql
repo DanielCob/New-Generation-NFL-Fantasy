@@ -549,7 +549,8 @@ GRANT EXECUTE ON OBJECT::app.sp_GetUserProfile TO app_executor;
 GO
 
 -- ============================================================================
--- sp_CreateLeague
+-- sp_CreateLeague - VERSIÓN ACTUALIZADA
+-- Ahora valida nombre contra equipos NFL reales y desactiva ligas activas
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_CreateLeague
   @CreatorUserID        INT,
@@ -581,37 +582,45 @@ BEGIN
   IF @InitialTeamName IS NULL OR LEN(@InitialTeamName) < 1 OR LEN(@InitialTeamName) > 50
     THROW 50043, 'Nombre de equipo inválido (1-50).', 1;
 
+  -- *** NUEVA VALIDACIÓN: El nombre del equipo debe corresponder a un equipo NFL real ***
+  IF NOT EXISTS (
+    SELECT 1 FROM ref.NFLTeam 
+    WHERE TeamName = @InitialTeamName 
+      AND IsActive = 1
+  )
+    THROW 50044, 'El nombre del equipo debe corresponder a un equipo NFL activo existente.', 1;
+
   IF @LeaguePassword IS NULL OR LEN(@LeaguePassword) < 8 OR LEN(@LeaguePassword) > 12
-    THROW 50044, 'Contraseña de liga inválida: longitud 8-12.', 1;
+    THROW 50045, 'Contraseña de liga inválida: longitud 8-12.', 1;
   IF PATINDEX('%[A-Z]%', @LeaguePassword COLLATE Latin1_General_BIN2) = 0
-    THROW 50045, 'Contraseña de liga debe incluir al menos una mayúscula.', 1;
+    THROW 50046, 'Contraseña de liga debe incluir al menos una mayúscula.', 1;
   IF PATINDEX('%[a-z]%', @LeaguePassword COLLATE Latin1_General_BIN2) = 0
-    THROW 50046, 'Contraseña de liga debe incluir al menos una minúscula.', 1;
+    THROW 50047, 'Contraseña de liga debe incluir al menos una minúscula.', 1;
   IF PATINDEX('%[0-9]%', @LeaguePassword) = 0
-    THROW 50047, 'Contraseña de liga debe incluir al menos un dígito.', 1;
+    THROW 50048, 'Contraseña de liga debe incluir al menos un dígito.', 1;
   IF @LeaguePassword LIKE '%[^0-9A-Za-z]%'
-    THROW 50048, 'Contraseña de liga debe ser alfanumérica.', 1;
+    THROW 50049, 'Contraseña de liga debe ser alfanumérica.', 1;
 
   DECLARE @SeasonID INT;
   SELECT @SeasonID = SeasonID FROM league.Season WHERE IsCurrent = 1;
   IF @SeasonID IS NULL
-    THROW 50049, 'No hay temporada actual configurada.', 1;
+    THROW 50050, 'No hay temporada actual configurada.', 1;
 
   IF @PositionFormatID IS NULL
     SELECT TOP 1 @PositionFormatID = PositionFormatID FROM ref.PositionFormat WHERE Name = N'Default';
   IF @PositionFormatID IS NULL
-    THROW 50050, 'No existe PositionFormat por defecto.', 1;
+    THROW 50051, 'No existe PositionFormat por defecto.', 1;
 
   IF @ScoringSchemaID IS NULL
     SELECT TOP 1 @ScoringSchemaID = ScoringSchemaID FROM scoring.ScoringSchema WHERE Name = N'Default' AND Version = 1;
   IF @ScoringSchemaID IS NULL
-    THROW 50051, 'No existe ScoringSchema por defecto.', 1;
+    THROW 50052, 'No existe ScoringSchema por defecto.', 1;
 
   IF NOT EXISTS (SELECT 1 FROM auth.UserAccount WHERE UserID = @CreatorUserID)
-    THROW 50052, 'Usuario creador no existe.', 1;
+    THROW 50053, 'Usuario creador no existe.', 1;
 
   IF EXISTS (SELECT 1 FROM league.League WHERE SeasonID = @SeasonID AND Name = @Name)
-    THROW 50053, 'Ya existe liga con ese nombre en la temporada actual.', 1;
+    THROW 50054, 'Ya existe liga con ese nombre en la temporada actual.', 1;
 
   DECLARE @Salt VARBINARY(16) = CRYPT_GEN_RANDOM(16);
   DECLARE @PwdBytes VARBINARY(4000) = CONVERT(VARBINARY(4000), @LeaguePassword);
@@ -622,6 +631,22 @@ BEGIN
   BEGIN TRY
     BEGIN TRAN;
 
+      -- *** NUEVO: Desactivar cualquier liga activa (Status=1) antes de crear la nueva ***
+      UPDATE league.League
+         SET Status = 2,  -- Inactive
+             UpdatedAt = SYSUTCDATETIME()
+       WHERE SeasonID = @SeasonID
+         AND Status = 1;  -- Active
+
+      -- Si hubo ligas desactivadas, registrar en historial
+      IF @@ROWCOUNT > 0
+      BEGIN
+        INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+        VALUES(@CreatorUserID, N'LEAGUE', N'SYSTEM', N'AUTO_DEACTIVATE',
+               N'Ligas activas desactivadas automáticamente al crear nueva liga', @SourceIp, @UserAgent);
+      END
+
+      -- Crear la nueva liga
       INSERT INTO league.League
       (SeasonID, Name, Description, TeamSlots,
        LeaguePasswordHash, LeaguePasswordSalt,
@@ -913,12 +938,17 @@ GO
 GRANT EXECUTE ON OBJECT::app.sp_EditLeagueConfig TO app_executor;
 GO
 
+-- ============================================================================
+-- sp_GetLeagueSummary - VERSIÓN ACTUALIZADA
+-- Incluye información adicional de equipos con imágenes
+-- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_GetLeagueSummary
   @LeagueID INT
 AS
 BEGIN
   SET NOCOUNT ON;
 
+  -- 1) Información de la liga
   SELECT
     l.LeagueID, l.Name, l.Description, l.Status,
     l.TeamSlots,
@@ -937,8 +967,18 @@ BEGIN
   JOIN league.Season s ON s.SeasonID = l.SeasonID
   WHERE l.LeagueID = @LeagueID;
 
-  -- Opcional: retornar lista de equipos
-  SELECT t.TeamID, t.TeamName, t.OwnerUserID, u.Name AS OwnerName, t.CreatedAt
+  -- 2) Equipos de la liga (con imagen y thumbnail)
+  SELECT 
+    t.TeamID, 
+    t.TeamName, 
+    t.OwnerUserID, 
+    u.Name AS OwnerName,
+    t.TeamImageUrl,
+    t.ThumbnailUrl,
+    t.IsActive,
+    t.CreatedAt,
+    -- Contar jugadores en el roster
+    (SELECT COUNT(*) FROM league.TeamRoster tr WHERE tr.TeamID = t.TeamID AND tr.IsActive = 1) AS RosterCount
   FROM league.Team t
   JOIN auth.UserAccount u ON u.UserID = t.OwnerUserID
   WHERE t.LeagueID = @LeagueID
@@ -1212,6 +1252,842 @@ END
 GO
 
 GRANT EXECUTE ON OBJECT::app.sp_GetAuditStats TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_CreateNFLTeam
+-- Crea un equipo NFL manualmente con validaciones completas
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_CreateNFLTeam
+  @ActorUserID        INT,
+  @TeamName           NVARCHAR(100),
+  @City               NVARCHAR(100),
+  @TeamImageUrl       NVARCHAR(400) = NULL,
+  @TeamImageWidth     SMALLINT = NULL,
+  @TeamImageHeight    SMALLINT = NULL,
+  @TeamImageBytes     INT = NULL,
+  @ThumbnailUrl       NVARCHAR(400) = NULL,
+  @ThumbnailWidth     SMALLINT = NULL,
+  @ThumbnailHeight    SMALLINT = NULL,
+  @ThumbnailBytes     INT = NULL,
+  @SourceIp           NVARCHAR(45) = NULL,
+  @UserAgent          NVARCHAR(300) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+  BEGIN TRY
+    -- Validaciones de campos requeridos
+    IF @TeamName IS NULL OR LEN(@TeamName) < 1 OR LEN(@TeamName) > 100
+      THROW 50100, 'Nombre de equipo inválido: debe tener entre 1 y 100 caracteres.', 1;
+
+    IF @City IS NULL OR LEN(@City) < 1 OR LEN(@City) > 100
+      THROW 50101, 'Ciudad inválida: debe tener entre 1 y 100 caracteres.', 1;
+
+    -- Validar que no exista el nombre
+    IF EXISTS (SELECT 1 FROM ref.NFLTeam WHERE TeamName = @TeamName)
+      THROW 50102, 'Ya existe un equipo NFL con ese nombre.', 1;
+
+    -- Validar dimensiones de imagen principal
+    IF @TeamImageBytes IS NOT NULL AND @TeamImageBytes > 5242880
+      THROW 50103, 'Imagen supera 5MB.', 1;
+    IF @TeamImageWidth IS NOT NULL AND (@TeamImageWidth < 300 OR @TeamImageWidth > 1024)
+      THROW 50104, 'Ancho de imagen fuera de rango (300-1024).', 1;
+    IF @TeamImageHeight IS NOT NULL AND (@TeamImageHeight < 300 OR @TeamImageHeight > 1024)
+      THROW 50105, 'Alto de imagen fuera de rango (300-1024).', 1;
+
+    -- Validar dimensiones de thumbnail
+    IF @ThumbnailBytes IS NOT NULL AND @ThumbnailBytes > 5242880
+      THROW 50106, 'Thumbnail supera 5MB.', 1;
+    IF @ThumbnailWidth IS NOT NULL AND (@ThumbnailWidth < 300 OR @ThumbnailWidth > 1024)
+      THROW 50107, 'Ancho de thumbnail fuera de rango (300-1024).', 1;
+    IF @ThumbnailHeight IS NOT NULL AND (@ThumbnailHeight < 300 OR @ThumbnailHeight > 1024)
+      THROW 50108, 'Alto de thumbnail fuera de rango (300-1024).', 1;
+
+    DECLARE @NFLTeamID INT;
+
+    BEGIN TRAN;
+
+      INSERT INTO ref.NFLTeam(
+        TeamName, City,
+        TeamImageUrl, TeamImageWidth, TeamImageHeight, TeamImageBytes,
+        ThumbnailUrl, ThumbnailWidth, ThumbnailHeight, ThumbnailBytes,
+        IsActive, CreatedByUserID
+      )
+      VALUES(
+        @TeamName, @City,
+        @TeamImageUrl, @TeamImageWidth, @TeamImageHeight, @TeamImageBytes,
+        @ThumbnailUrl, @ThumbnailWidth, @ThumbnailHeight, @ThumbnailBytes,
+        1, @ActorUserID
+      );
+
+      SET @NFLTeamID = SCOPE_IDENTITY();
+
+      -- Auditoría en UserActionLog
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+      VALUES(@ActorUserID, N'NFL_TEAM', CAST(@NFLTeamID AS NVARCHAR(50)), N'CREATE',
+             CONCAT(N'Equipo NFL creado: ', @TeamName, N' (', @City, N')'), @SourceIp, @UserAgent);
+
+    COMMIT;
+
+    SELECT 
+      @NFLTeamID AS NFLTeamID,
+      @TeamName AS TeamName,
+      @City AS City,
+      N'Equipo NFL creado exitosamente.' AS Message;
+  END TRY
+  BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK;
+    THROW;
+  END CATCH
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_CreateNFLTeam TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_UpdateNFLTeam
+-- Actualiza información de un equipo NFL existente
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_UpdateNFLTeam
+  @ActorUserID        INT,
+  @NFLTeamID          INT,
+  @TeamName           NVARCHAR(100) = NULL,
+  @City               NVARCHAR(100) = NULL,
+  @TeamImageUrl       NVARCHAR(400) = NULL,
+  @TeamImageWidth     SMALLINT = NULL,
+  @TeamImageHeight    SMALLINT = NULL,
+  @TeamImageBytes     INT = NULL,
+  @ThumbnailUrl       NVARCHAR(400) = NULL,
+  @ThumbnailWidth     SMALLINT = NULL,
+  @ThumbnailHeight    SMALLINT = NULL,
+  @ThumbnailBytes     INT = NULL,
+  @SourceIp           NVARCHAR(45) = NULL,
+  @UserAgent          NVARCHAR(300) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+  BEGIN TRY
+    -- Validaciones
+    IF @TeamName IS NOT NULL AND (LEN(@TeamName) < 1 OR LEN(@TeamName) > 100)
+      THROW 50110, 'Nombre de equipo inválido (1-100).', 1;
+
+    IF @City IS NOT NULL AND (LEN(@City) < 1 OR LEN(@City) > 100)
+      THROW 50111, 'Ciudad inválida (1-100).', 1;
+
+    IF @TeamImageBytes IS NOT NULL AND @TeamImageBytes > 5242880
+      THROW 50112, 'Imagen supera 5MB.', 1;
+    IF @TeamImageWidth IS NOT NULL AND (@TeamImageWidth < 300 OR @TeamImageWidth > 1024)
+      THROW 50113, 'Ancho de imagen fuera de rango (300-1024).', 1;
+    IF @TeamImageHeight IS NOT NULL AND (@TeamImageHeight < 300 OR @TeamImageHeight > 1024)
+      THROW 50114, 'Alto de imagen fuera de rango (300-1024).', 1;
+
+    IF @ThumbnailBytes IS NOT NULL AND @ThumbnailBytes > 5242880
+      THROW 50115, 'Thumbnail supera 5MB.', 1;
+    IF @ThumbnailWidth IS NOT NULL AND (@ThumbnailWidth < 300 OR @ThumbnailWidth > 1024)
+      THROW 50116, 'Ancho de thumbnail fuera de rango (300-1024).', 1;
+    IF @ThumbnailHeight IS NOT NULL AND (@ThumbnailHeight < 300 OR @ThumbnailHeight > 1024)
+      THROW 50117, 'Alto de thumbnail fuera de rango (300-1024).', 1;
+
+    -- Obtener valores actuales
+    DECLARE
+      @OldName NVARCHAR(100),
+      @OldCity NVARCHAR(100),
+      @OldImageUrl NVARCHAR(400),
+      @OldImageW SMALLINT, @OldImageH SMALLINT, @OldImageB INT,
+      @OldThumbUrl NVARCHAR(400),
+      @OldThumbW SMALLINT, @OldThumbH SMALLINT, @OldThumbB INT;
+
+    SELECT
+      @OldName = TeamName,
+      @OldCity = City,
+      @OldImageUrl = TeamImageUrl,
+      @OldImageW = TeamImageWidth, @OldImageH = TeamImageHeight, @OldImageB = TeamImageBytes,
+      @OldThumbUrl = ThumbnailUrl,
+      @OldThumbW = ThumbnailWidth, @OldThumbH = ThumbnailHeight, @OldThumbB = ThumbnailBytes
+    FROM ref.NFLTeam
+    WHERE NFLTeamID = @NFLTeamID;
+
+    IF @OldName IS NULL
+      THROW 50118, 'Equipo NFL no existe.', 1;
+
+    -- Validar nombre único (si se está cambiando)
+    IF @TeamName IS NOT NULL AND @TeamName <> @OldName
+      IF EXISTS (SELECT 1 FROM ref.NFLTeam WHERE TeamName = @TeamName AND NFLTeamID <> @NFLTeamID)
+        THROW 50119, 'Ya existe otro equipo NFL con ese nombre.', 1;
+
+    BEGIN TRAN;
+
+      UPDATE ref.NFLTeam
+         SET TeamName = COALESCE(@TeamName, TeamName),
+             City = COALESCE(@City, City),
+             TeamImageUrl = CASE WHEN @TeamImageUrl IS NULL THEN TeamImageUrl ELSE @TeamImageUrl END,
+             TeamImageWidth = CASE WHEN @TeamImageWidth IS NULL THEN TeamImageWidth ELSE @TeamImageWidth END,
+             TeamImageHeight = CASE WHEN @TeamImageHeight IS NULL THEN TeamImageHeight ELSE @TeamImageHeight END,
+             TeamImageBytes = CASE WHEN @TeamImageBytes IS NULL THEN TeamImageBytes ELSE @TeamImageBytes END,
+             ThumbnailUrl = CASE WHEN @ThumbnailUrl IS NULL THEN ThumbnailUrl ELSE @ThumbnailUrl END,
+             ThumbnailWidth = CASE WHEN @ThumbnailWidth IS NULL THEN ThumbnailWidth ELSE @ThumbnailWidth END,
+             ThumbnailHeight = CASE WHEN @ThumbnailHeight IS NULL THEN ThumbnailHeight ELSE @ThumbnailHeight END,
+             ThumbnailBytes = CASE WHEN @ThumbnailBytes IS NULL THEN ThumbnailBytes ELSE @ThumbnailBytes END,
+             UpdatedByUserID = @ActorUserID,
+             UpdatedAt = SYSUTCDATETIME()
+       WHERE NFLTeamID = @NFLTeamID;
+
+      -- Log de cambios por campo
+      IF @TeamName IS NOT NULL AND @TeamName <> @OldName
+        INSERT INTO ref.NFLTeamChangeLog(NFLTeamID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent)
+        VALUES(@NFLTeamID, @ActorUserID, N'TeamName', @OldName, @TeamName, @SourceIp, @UserAgent);
+
+      IF @City IS NOT NULL AND @City <> @OldCity
+        INSERT INTO ref.NFLTeamChangeLog(NFLTeamID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent)
+        VALUES(@NFLTeamID, @ActorUserID, N'City', @OldCity, @City, @SourceIp, @UserAgent);
+
+      IF @TeamImageUrl IS NOT NULL AND @TeamImageUrl <> @OldImageUrl
+        INSERT INTO ref.NFLTeamChangeLog(NFLTeamID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent)
+        VALUES(@NFLTeamID, @ActorUserID, N'TeamImageUrl', @OldImageUrl, @TeamImageUrl, @SourceIp, @UserAgent);
+
+      IF @ThumbnailUrl IS NOT NULL AND @ThumbnailUrl <> @OldThumbUrl
+        INSERT INTO ref.NFLTeamChangeLog(NFLTeamID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent)
+        VALUES(@NFLTeamID, @ActorUserID, N'ThumbnailUrl', @OldThumbUrl, @ThumbnailUrl, @SourceIp, @UserAgent);
+
+      -- Auditoría en UserActionLog
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+      VALUES(@ActorUserID, N'NFL_TEAM', CAST(@NFLTeamID AS NVARCHAR(50)), N'UPDATE',
+             N'Equipo NFL actualizado', @SourceIp, @UserAgent);
+
+    COMMIT;
+
+    SELECT N'Equipo NFL actualizado exitosamente.' AS Message;
+  END TRY
+  BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK;
+    THROW;
+  END CATCH
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_UpdateNFLTeam TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_DeactivateNFLTeam
+-- Desactiva un equipo NFL si no tiene partidos en la temporada actual
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_DeactivateNFLTeam
+  @ActorUserID   INT,
+  @NFLTeamID     INT,
+  @SourceIp      NVARCHAR(45) = NULL,
+  @UserAgent     NVARCHAR(300) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+  BEGIN TRY
+    -- Validar que el equipo existe
+    DECLARE @TeamName NVARCHAR(100);
+    SELECT @TeamName = TeamName FROM ref.NFLTeam WHERE NFLTeamID = @NFLTeamID;
+
+    IF @TeamName IS NULL
+      THROW 50120, 'Equipo NFL no existe.', 1;
+
+    -- Obtener temporada actual
+    DECLARE @CurrentSeasonID INT;
+    SELECT @CurrentSeasonID = SeasonID FROM league.Season WHERE IsCurrent = 1;
+
+    -- Validar que no tenga partidos en la temporada actual
+    IF EXISTS (
+      SELECT 1 
+      FROM league.NFLGame 
+      WHERE SeasonID = @CurrentSeasonID 
+        AND (HomeTeamID = @NFLTeamID OR AwayTeamID = @NFLTeamID)
+        AND GameStatus IN (N'Scheduled', N'InProgress')
+    )
+      THROW 50121, 'No se puede desactivar el equipo porque tiene partidos agendados para esta temporada.', 1;
+
+    BEGIN TRAN;
+
+      UPDATE ref.NFLTeam
+         SET IsActive = 0,
+             UpdatedByUserID = @ActorUserID,
+             UpdatedAt = SYSUTCDATETIME()
+       WHERE NFLTeamID = @NFLTeamID;
+
+      -- Log de cambio
+      INSERT INTO ref.NFLTeamChangeLog(NFLTeamID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent)
+      VALUES(@NFLTeamID, @ActorUserID, N'IsActive', N'1', N'0', @SourceIp, @UserAgent);
+
+      -- Auditoría
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+      VALUES(@ActorUserID, N'NFL_TEAM', CAST(@NFLTeamID AS NVARCHAR(50)), N'DEACTIVATE',
+             CONCAT(N'Equipo desactivado: ', @TeamName), @SourceIp, @UserAgent);
+
+    COMMIT;
+
+    SELECT N'Equipo NFL desactivado exitosamente.' AS Message;
+  END TRY
+  BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK;
+    THROW;
+  END CATCH
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_DeactivateNFLTeam TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_ReactivateNFLTeam
+-- Reactiva un equipo NFL desactivado
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_ReactivateNFLTeam
+  @ActorUserID   INT,
+  @NFLTeamID     INT,
+  @SourceIp      NVARCHAR(45) = NULL,
+  @UserAgent     NVARCHAR(300) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+  BEGIN TRY
+    DECLARE @TeamName NVARCHAR(100);
+    SELECT @TeamName = TeamName FROM ref.NFLTeam WHERE NFLTeamID = @NFLTeamID;
+
+    IF @TeamName IS NULL
+      THROW 50125, 'Equipo NFL no existe.', 1;
+
+    BEGIN TRAN;
+
+      UPDATE ref.NFLTeam
+         SET IsActive = 1,
+             UpdatedByUserID = @ActorUserID,
+             UpdatedAt = SYSUTCDATETIME()
+       WHERE NFLTeamID = @NFLTeamID;
+
+      INSERT INTO ref.NFLTeamChangeLog(NFLTeamID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent)
+      VALUES(@NFLTeamID, @ActorUserID, N'IsActive', N'0', N'1', @SourceIp, @UserAgent);
+
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+      VALUES(@ActorUserID, N'NFL_TEAM', CAST(@NFLTeamID AS NVARCHAR(50)), N'REACTIVATE',
+             CONCAT(N'Equipo reactivado: ', @TeamName), @SourceIp, @UserAgent);
+
+    COMMIT;
+
+    SELECT N'Equipo NFL reactivado exitosamente.' AS Message;
+  END TRY
+  BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK;
+    THROW;
+  END CATCH
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_ReactivateNFLTeam TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_ListNFLTeams
+-- Lista equipos NFL con paginación, búsqueda y filtros
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_ListNFLTeams
+  @PageNumber     INT = 1,
+  @PageSize       INT = 50,
+  @SearchTerm     NVARCHAR(100) = NULL,
+  @FilterCity     NVARCHAR(100) = NULL,
+  @FilterIsActive BIT = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  -- Validar paginación
+  IF @PageNumber < 1 SET @PageNumber = 1;
+  IF @PageSize < 1 OR @PageSize > 100 SET @PageSize = 50;
+
+  DECLARE @Offset INT = (@PageNumber - 1) * @PageSize;
+
+  -- Total de registros
+  DECLARE @TotalRecords INT;
+  SELECT @TotalRecords = COUNT(*)
+  FROM ref.NFLTeam
+  WHERE (@SearchTerm IS NULL OR (TeamName LIKE N'%' + @SearchTerm + N'%' OR City LIKE N'%' + @SearchTerm + N'%'))
+    AND (@FilterCity IS NULL OR City = @FilterCity)
+    AND (@FilterIsActive IS NULL OR IsActive = @FilterIsActive);
+
+  -- Resultados paginados
+  SELECT
+    NFLTeamID,
+    TeamName,
+    City,
+    TeamImageUrl,
+    ThumbnailUrl,
+    IsActive,
+    CreatedAt,
+    UpdatedAt,
+    @TotalRecords AS TotalRecords,
+    @PageNumber AS CurrentPage,
+    @PageSize AS PageSize,
+    CEILING(CAST(@TotalRecords AS FLOAT) / @PageSize) AS TotalPages
+  FROM ref.NFLTeam
+  WHERE (@SearchTerm IS NULL OR (TeamName LIKE N'%' + @SearchTerm + N'%' OR City LIKE N'%' + @SearchTerm + N'%'))
+    AND (@FilterCity IS NULL OR City = @FilterCity)
+    AND (@FilterIsActive IS NULL OR IsActive = @FilterIsActive)
+  ORDER BY TeamName
+  OFFSET @Offset ROWS
+  FETCH NEXT @PageSize ROWS ONLY;
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_ListNFLTeams TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_GetNFLTeamDetails
+-- Obtiene detalles completos de un equipo NFL
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_GetNFLTeamDetails
+  @NFLTeamID INT
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  -- Información del equipo
+  SELECT
+    nt.NFLTeamID,
+    nt.TeamName,
+    nt.City,
+    nt.TeamImageUrl,
+    nt.TeamImageWidth,
+    nt.TeamImageHeight,
+    nt.TeamImageBytes,
+    nt.ThumbnailUrl,
+    nt.ThumbnailWidth,
+    nt.ThumbnailHeight,
+    nt.ThumbnailBytes,
+    nt.IsActive,
+    nt.CreatedAt,
+    creator.Name AS CreatedByName,
+    nt.UpdatedAt,
+    updater.Name AS UpdatedByName
+  FROM ref.NFLTeam nt
+  LEFT JOIN auth.UserAccount creator ON creator.UserID = nt.CreatedByUserID
+  LEFT JOIN auth.UserAccount updater ON updater.UserID = nt.UpdatedByUserID
+  WHERE nt.NFLTeamID = @NFLTeamID;
+
+  -- Historial de cambios (últimos 20)
+  SELECT TOP 20
+    c.ChangeID,
+    c.FieldName,
+    c.OldValue,
+    c.NewValue,
+    c.ChangedAt,
+    u.Name AS ChangedByName,
+    c.SourceIp
+  FROM ref.NFLTeamChangeLog c
+  JOIN auth.UserAccount u ON u.UserID = c.ChangedByUserID
+  WHERE c.NFLTeamID = @NFLTeamID
+  ORDER BY c.ChangedAt DESC;
+
+  -- Jugadores actuales del equipo
+  SELECT
+    p.PlayerID,
+    p.FirstName,
+    p.LastName,
+    p.Position,
+    p.InjuryStatus
+  FROM league.Player p
+  WHERE p.NFLTeamID = @NFLTeamID
+    AND p.IsActive = 1
+  ORDER BY p.Position, p.LastName;
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_GetNFLTeamDetails TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_UpdateTeamBranding
+-- Edita nombre e imagen de un equipo fantasy
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_UpdateTeamBranding
+  @ActorUserID        INT,
+  @TeamID             INT,
+  @TeamName           NVARCHAR(100) = NULL,
+  @TeamImageUrl       NVARCHAR(400) = NULL,
+  @TeamImageWidth     SMALLINT = NULL,
+  @TeamImageHeight    SMALLINT = NULL,
+  @TeamImageBytes     INT = NULL,
+  @ThumbnailUrl       NVARCHAR(400) = NULL,
+  @ThumbnailWidth     SMALLINT = NULL,
+  @ThumbnailHeight    SMALLINT = NULL,
+  @ThumbnailBytes     INT = NULL,
+  @SourceIp           NVARCHAR(45) = NULL,
+  @UserAgent          NVARCHAR(300) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+  BEGIN TRY
+    -- Validaciones básicas
+    IF @TeamName IS NOT NULL AND (LEN(@TeamName) < 1 OR LEN(@TeamName) > 100)
+      THROW 50130, 'Nombre de equipo inválido (1-100).', 1;
+
+    IF @TeamImageBytes IS NOT NULL AND @TeamImageBytes > 5242880
+      THROW 50131, 'Imagen supera 5MB.', 1;
+    IF @TeamImageWidth IS NOT NULL AND (@TeamImageWidth < 300 OR @TeamImageWidth > 1024)
+      THROW 50132, 'Ancho de imagen fuera de rango (300-1024).', 1;
+    IF @TeamImageHeight IS NOT NULL AND (@TeamImageHeight < 300 OR @TeamImageHeight > 1024)
+      THROW 50133, 'Alto de imagen fuera de rango (300-1024).', 1;
+
+    IF @ThumbnailBytes IS NOT NULL AND @ThumbnailBytes > 5242880
+      THROW 50134, 'Thumbnail supera 5MB.', 1;
+    IF @ThumbnailWidth IS NOT NULL AND (@ThumbnailWidth < 300 OR @ThumbnailWidth > 1024)
+      THROW 50135, 'Ancho de thumbnail fuera de rango (300-1024).', 1;
+    IF @ThumbnailHeight IS NOT NULL AND (@ThumbnailHeight < 300 OR @ThumbnailHeight > 1024)
+      THROW 50136, 'Alto de thumbnail fuera de rango (300-1024).', 1;
+
+    -- Obtener valores actuales y validar permisos
+    DECLARE
+      @LeagueID INT,
+      @OwnerUserID INT,
+      @OldName NVARCHAR(100),
+      @OldImageUrl NVARCHAR(400),
+      @OldImageW SMALLINT, @OldImageH SMALLINT, @OldImageB INT,
+      @OldThumbUrl NVARCHAR(400),
+      @OldThumbW SMALLINT, @OldThumbH SMALLINT, @OldThumbB INT;
+
+    SELECT
+      @LeagueID = LeagueID,
+      @OwnerUserID = OwnerUserID,
+      @OldName = TeamName,
+      @OldImageUrl = TeamImageUrl,
+      @OldImageW = TeamImageWidth, @OldImageH = TeamImageHeight, @OldImageB = TeamImageBytes,
+      @OldThumbUrl = ThumbnailUrl,
+      @OldThumbW = ThumbnailWidth, @OldThumbH = ThumbnailHeight, @OldThumbB = ThumbnailBytes
+    FROM league.Team
+    WHERE TeamID = @TeamID;
+
+    IF @OldName IS NULL
+      THROW 50137, 'Equipo no existe.', 1;
+
+    -- Solo el dueño puede editar (o un comisionado, pero por simplicidad solo dueño)
+    IF @OwnerUserID <> @ActorUserID
+      THROW 50138, 'Solo el dueño del equipo puede editar su branding.', 1;
+
+    -- Validar nombre único dentro de la liga
+    IF @TeamName IS NOT NULL AND @TeamName <> @OldName
+      IF EXISTS (SELECT 1 FROM league.Team WHERE LeagueID = @LeagueID AND TeamName = @TeamName AND TeamID <> @TeamID)
+        THROW 50139, 'Ya existe otro equipo con ese nombre en la liga.', 1;
+
+    BEGIN TRAN;
+
+      UPDATE league.Team
+         SET TeamName = COALESCE(@TeamName, TeamName),
+             TeamImageUrl = CASE WHEN @TeamImageUrl IS NULL THEN TeamImageUrl ELSE @TeamImageUrl END,
+             TeamImageWidth = CASE WHEN @TeamImageWidth IS NULL THEN TeamImageWidth ELSE @TeamImageWidth END,
+             TeamImageHeight = CASE WHEN @TeamImageHeight IS NULL THEN TeamImageHeight ELSE @TeamImageHeight END,
+             TeamImageBytes = CASE WHEN @TeamImageBytes IS NULL THEN TeamImageBytes ELSE @TeamImageBytes END,
+             ThumbnailUrl = CASE WHEN @ThumbnailUrl IS NULL THEN ThumbnailUrl ELSE @ThumbnailUrl END,
+             ThumbnailWidth = CASE WHEN @ThumbnailWidth IS NULL THEN ThumbnailWidth ELSE @ThumbnailWidth END,
+             ThumbnailHeight = CASE WHEN @ThumbnailHeight IS NULL THEN ThumbnailHeight ELSE @ThumbnailHeight END,
+             ThumbnailBytes = CASE WHEN @ThumbnailBytes IS NULL THEN ThumbnailBytes ELSE @ThumbnailBytes END,
+             UpdatedAt = SYSUTCDATETIME()
+       WHERE TeamID = @TeamID;
+
+      -- Log de cambios
+      IF @TeamName IS NOT NULL AND @TeamName <> @OldName
+        INSERT INTO league.TeamChangeLog(TeamID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent)
+        VALUES(@TeamID, @ActorUserID, N'TeamName', @OldName, @TeamName, @SourceIp, @UserAgent);
+
+      IF @TeamImageUrl IS NOT NULL AND @TeamImageUrl <> @OldImageUrl
+        INSERT INTO league.TeamChangeLog(TeamID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent)
+        VALUES(@TeamID, @ActorUserID, N'TeamImageUrl', @OldImageUrl, @TeamImageUrl, @SourceIp, @UserAgent);
+
+      IF @ThumbnailUrl IS NOT NULL AND @ThumbnailUrl <> @OldThumbUrl
+        INSERT INTO league.TeamChangeLog(TeamID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent)
+        VALUES(@TeamID, @ActorUserID, N'ThumbnailUrl', @OldThumbUrl, @ThumbnailUrl, @SourceIp, @UserAgent);
+
+      -- Auditoría
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+      VALUES(@ActorUserID, N'FANTASY_TEAM', CAST(@TeamID AS NVARCHAR(50)), N'UPDATE_BRANDING',
+             N'Branding del equipo actualizado', @SourceIp, @UserAgent);
+
+    COMMIT;
+
+    SELECT N'Branding del equipo actualizado exitosamente.' AS Message;
+  END TRY
+  BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK;
+    THROW;
+  END CATCH
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_UpdateTeamBranding TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_GetMyTeam
+-- Obtiene información completa del equipo fantasy con roster de jugadores
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_GetMyTeam
+  @ActorUserID    INT,
+  @TeamID         INT,
+  @FilterPosition NVARCHAR(20) = NULL,
+  @SearchPlayer   NVARCHAR(100) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  -- Validar que el usuario tiene acceso al equipo
+  DECLARE @OwnerUserID INT, @LeagueID INT;
+  SELECT @OwnerUserID = OwnerUserID, @LeagueID = LeagueID
+  FROM league.Team
+  WHERE TeamID = @TeamID;
+
+  IF @OwnerUserID IS NULL
+    THROW 50140, 'Equipo no existe.', 1;
+
+  IF @OwnerUserID <> @ActorUserID
+    -- Validar si es comisionado o miembro de la liga
+    IF NOT EXISTS (
+      SELECT 1 FROM league.LeagueMember
+      WHERE LeagueID = @LeagueID AND UserID = @ActorUserID
+    )
+      THROW 50141, 'No tienes acceso a este equipo.', 1;
+
+  -- 1) Información del equipo
+  SELECT
+    t.TeamID,
+    t.TeamName,
+    u.Name AS ManagerName,
+    u.UserID AS ManagerUserID,
+    t.TeamImageUrl,
+    t.ThumbnailUrl,
+    t.IsActive,
+    l.Name AS LeagueName,
+    l.LeagueID,
+    l.Status AS LeagueStatus,
+    t.CreatedAt,
+    t.UpdatedAt
+  FROM league.Team t
+  JOIN auth.UserAccount u ON u.UserID = t.OwnerUserID
+  JOIN league.League l ON l.LeagueID = t.LeagueID
+  WHERE t.TeamID = @TeamID;
+
+  -- 2) Jugadores en el roster (con filtros opcionales)
+  SELECT
+    tr.RosterID,
+    p.PlayerID,
+    p.FirstName,
+    p.LastName,
+    p.FullName,
+    p.Position,
+    nt.TeamName AS NFLTeamName,
+    nt.City AS NFLTeamCity,
+    p.InjuryStatus,
+    p.InjuryDescription,
+    p.PhotoUrl,
+    p.PhotoThumbnailUrl,
+    tr.AcquisitionType,
+    tr.AcquisitionDate,
+    tr.IsActive AS IsOnRoster
+  FROM league.TeamRoster tr
+  JOIN league.Player p ON p.PlayerID = tr.PlayerID
+  LEFT JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
+  WHERE tr.TeamID = @TeamID
+    AND tr.IsActive = 1
+    AND (@FilterPosition IS NULL OR p.Position = @FilterPosition)
+    AND (@SearchPlayer IS NULL OR p.FullName LIKE N'%' + @SearchPlayer + N'%')
+  ORDER BY 
+    CASE p.Position
+      WHEN 'QB' THEN 1
+      WHEN 'RB' THEN 2
+      WHEN 'WR' THEN 3
+      WHEN 'TE' THEN 4
+      WHEN 'K' THEN 5
+      WHEN 'DEF' THEN 6
+      ELSE 7
+    END,
+    p.LastName;
+
+  -- 3) Distribución de jugadores por forma de adquisición (para el gráfico)
+  SELECT
+    tr.AcquisitionType,
+    COUNT(*) AS PlayerCount,
+    CAST(ROUND(COUNT(*) * 100.0 / NULLIF((SELECT COUNT(*) FROM league.TeamRoster WHERE TeamID = @TeamID AND IsActive = 1), 0), 2) AS DECIMAL(5,2)) AS Percentage
+  FROM league.TeamRoster tr
+  WHERE tr.TeamID = @TeamID
+    AND tr.IsActive = 1
+  GROUP BY tr.AcquisitionType
+  ORDER BY PlayerCount DESC;
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_GetMyTeam TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_GetTeamRosterDistribution
+-- Obtiene distribución porcentual de jugadores por forma de adquisición
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_GetTeamRosterDistribution
+  @TeamID INT
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  -- Validar que el equipo existe
+  IF NOT EXISTS (SELECT 1 FROM league.Team WHERE TeamID = @TeamID)
+    THROW 50145, 'Equipo no existe.', 1;
+
+  -- Total de jugadores activos
+  DECLARE @TotalPlayers INT;
+  SELECT @TotalPlayers = COUNT(*)
+  FROM league.TeamRoster
+  WHERE TeamID = @TeamID AND IsActive = 1;
+
+  -- Distribución por tipo de adquisición
+  SELECT
+    AcquisitionType,
+    COUNT(*) AS PlayerCount,
+    @TotalPlayers AS TotalPlayers,
+    CASE 
+      WHEN @TotalPlayers > 0 
+      THEN CAST(ROUND(COUNT(*) * 100.0 / @TotalPlayers, 2) AS DECIMAL(5,2))
+      ELSE 0
+    END AS Percentage
+  FROM league.TeamRoster
+  WHERE TeamID = @TeamID
+    AND IsActive = 1
+  GROUP BY AcquisitionType
+  ORDER BY PlayerCount DESC;
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_GetTeamRosterDistribution TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_AddPlayerToRoster
+-- Agrega un jugador al roster de un equipo fantasy
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_AddPlayerToRoster
+  @ActorUserID      INT,
+  @TeamID           INT,
+  @PlayerID         INT,
+  @AcquisitionType  NVARCHAR(20),  -- 'Draft','Trade','FreeAgent','Waiver'
+  @SourceIp         NVARCHAR(45) = NULL,
+  @UserAgent        NVARCHAR(300) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+  BEGIN TRY
+    -- Validaciones
+    IF @AcquisitionType NOT IN (N'Draft', N'Trade', N'FreeAgent', N'Waiver')
+      THROW 50150, 'Tipo de adquisición inválido.', 1;
+
+    -- Validar que el equipo existe
+    DECLARE @LeagueID INT, @OwnerUserID INT;
+    SELECT @LeagueID = LeagueID, @OwnerUserID = OwnerUserID
+    FROM league.Team
+    WHERE TeamID = @TeamID;
+
+    IF @LeagueID IS NULL
+      THROW 50151, 'Equipo no existe.', 1;
+
+    -- Validar que el jugador existe y está activo
+    IF NOT EXISTS (SELECT 1 FROM league.Player WHERE PlayerID = @PlayerID AND IsActive = 1)
+      THROW 50152, 'Jugador no existe o no está activo.', 1;
+
+    -- Validar que el jugador no está ya en otro equipo de la misma liga
+    IF EXISTS (
+      SELECT 1
+      FROM league.TeamRoster tr
+      JOIN league.Team t ON t.TeamID = tr.TeamID
+      WHERE tr.PlayerID = @PlayerID
+        AND tr.IsActive = 1
+        AND t.LeagueID = @LeagueID
+        AND tr.TeamID <> @TeamID
+    )
+      THROW 50153, 'El jugador ya está asignado a otro equipo en esta liga.', 1;
+
+    -- Validar que no está duplicado en el mismo equipo
+    IF EXISTS (
+      SELECT 1 FROM league.TeamRoster
+      WHERE TeamID = @TeamID AND PlayerID = @PlayerID AND IsActive = 1
+    )
+      THROW 50154, 'El jugador ya está en el roster de este equipo.', 1;
+
+    BEGIN TRAN;
+
+      INSERT INTO league.TeamRoster(TeamID, PlayerID, AcquisitionType, AddedByUserID)
+      VALUES(@TeamID, @PlayerID, @AcquisitionType, @ActorUserID);
+
+      DECLARE @RosterID BIGINT = SCOPE_IDENTITY();
+
+      -- Auditoría
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+      VALUES(@ActorUserID, N'ROSTER', CAST(@RosterID AS NVARCHAR(50)), N'ADD_PLAYER',
+             CONCAT(N'Jugador agregado al roster (', @AcquisitionType, N')'), @SourceIp, @UserAgent);
+
+    COMMIT;
+
+    SELECT 
+      @RosterID AS RosterID,
+      N'Jugador agregado al roster exitosamente.' AS Message;
+  END TRY
+  BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK;
+    THROW;
+  END CATCH
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_AddPlayerToRoster TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_RemovePlayerFromRoster
+-- Remueve un jugador del roster de un equipo fantasy
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_RemovePlayerFromRoster
+  @ActorUserID   INT,
+  @RosterID      BIGINT,
+  @SourceIp      NVARCHAR(45) = NULL,
+  @UserAgent     NVARCHAR(300) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+  BEGIN TRY
+    -- Validar que el roster entry existe
+    DECLARE @TeamID INT, @PlayerID INT;
+    SELECT @TeamID = TeamID, @PlayerID = PlayerID
+    FROM league.TeamRoster
+    WHERE RosterID = @RosterID AND IsActive = 1;
+
+    IF @TeamID IS NULL
+      THROW 50160, 'Entrada de roster no existe o ya fue removida.', 1;
+
+    BEGIN TRAN;
+
+      UPDATE league.TeamRoster
+         SET IsActive = 0,
+             DroppedDate = SYSUTCDATETIME()
+       WHERE RosterID = @RosterID;
+
+      -- Auditoría
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+      VALUES(@ActorUserID, N'ROSTER', CAST(@RosterID AS NVARCHAR(50)), N'REMOVE_PLAYER',
+             N'Jugador removido del roster', @SourceIp, @UserAgent);
+
+    COMMIT;
+
+    SELECT N'Jugador removido del roster exitosamente.' AS Message;
+  END TRY
+  BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK;
+    THROW;
+  END CATCH
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_RemovePlayerFromRoster TO app_executor;
 GO
 
 GRANT EXECUTE ON SCHEMA::app TO app_executor;
