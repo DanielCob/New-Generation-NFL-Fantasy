@@ -15,10 +15,22 @@ namespace NFL_Fantasy_API.Services.Implementations
     public class AuthService : IAuthService
     {
         private readonly DatabaseHelper _db;
+        private readonly IEmailSender _email;
+        private readonly IConfiguration _config;
+        private readonly ILogger<AuthService> _logger;
 
-        public AuthService(IConfiguration configuration)
+        /// <summary>
+        /// Crea una instancia de <see cref="AuthService"/>.
+        /// </summary>
+        /// <param name="configuration">Configuración de la aplicación.</param>
+        /// <param name="email">Servicio de envío de correo.</param>
+        /// <param name="logger">Logger de infraestructura.</param>
+        public AuthService(IConfiguration configuration, IEmailSender email, ILogger<AuthService> logger)
         {
             _db = new DatabaseHelper(configuration);
+            _email = email;
+            _config = configuration;
+            _logger = logger;
         }
 
         #region Register
@@ -276,44 +288,61 @@ namespace NFL_Fantasy_API.Services.Implementations
         #region Password Reset
 
         /// <summary>
-        /// Solicita restablecimiento de contraseña
+        /// Solicita restablecimiento de contraseña: genera token y envía correo.
+        /// Nunca expone el token en la respuesta de la API.
         /// SP: app.sp_RequestPasswordReset
-        /// Feature 1.1 - Desbloqueo de cuenta bloqueada
         /// </summary>
         public async Task<ApiResponseDTO> RequestPasswordResetAsync(RequestPasswordResetDTO dto, string? sourceIp = null)
         {
             try
             {
-                var parameters = new SqlParameter[]
-                {
-                    new SqlParameter("@Email", dto.Email),
-                    new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
-                    new SqlParameter("@Token", SqlDbType.NVarChar, 100) { Direction = ParameterDirection.Output },
-                    new SqlParameter("@ExpiresAt", SqlDbType.DateTime2) { Direction = ParameterDirection.Output }
-                };
+                // Salidas tipadas para evitar errores de lectura.
+                var pEmail = new SqlParameter("@Email", SqlDbType.NVarChar, 50) { Value = dto.Email };
+                var pSourceIp = new SqlParameter("@SourceIp", SqlDbType.NVarChar, 45) { Value = (object?)sourceIp ?? DBNull.Value };
+                var pToken = new SqlParameter("@Token", SqlDbType.NVarChar, 100) { Direction = ParameterDirection.Output };
+                var pExpiresAt = new SqlParameter("@ExpiresAt", SqlDbType.DateTime2) { Direction = ParameterDirection.Output };
 
-                var (success, errorMessage, outputValues) = await _db.ExecuteStoredProcedureWithOutputAsync(
+                await _db.ExecuteStoredProcedureWithOutputAsync(
                     "app.sp_RequestPasswordReset",
-                    parameters
+                    new[] { pEmail, pSourceIp, pToken, pExpiresAt }
                 );
 
-                // Por seguridad, siempre devolvemos mensaje genérico
-                // (no revelar si el email existe o no)
-                var response = new PasswordResetRequestResponseDTO
-                {
-                    Token = outputValues.ContainsKey("@Token") && outputValues["@Token"] != null
-                        ? outputValues["@Token"].ToString() ?? string.Empty
-                        : string.Empty,
-                    ExpiresAt = outputValues.ContainsKey("@ExpiresAt") && outputValues["@ExpiresAt"] != null
-                        ? Convert.ToDateTime(outputValues["@ExpiresAt"])
-                        : DateTime.UtcNow.AddHours(1),
-                    Message = "Si el correo existe, se ha enviado un enlace de restablecimiento."
-                };
+                // Si el email no existe, el SP deja Token/Expires null -> seguimos devolviendo mensaje genérico.
+                var token = pToken.Value == DBNull.Value ? null : (pToken.Value?.ToString());
+                var expiresAtUtc = pExpiresAt.Value == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(pExpiresAt.Value);
 
-                return ApiResponseDTO.SuccessResponse(response.Message, response);
+                if (!string.IsNullOrWhiteSpace(token) && expiresAtUtc.HasValue)
+                {
+                    // URL del frontend para página de reseteo (agrega token como querystring).
+                    var baseUrl = _config["Frontend:ResetPasswordUrl"];
+                    if (string.IsNullOrWhiteSpace(baseUrl))
+                    {
+                        // fallback simple si no configuras Frontend:ResetPasswordUrl
+                        baseUrl = "https://example.com/reset-password";
+                        _logger.LogWarning("Frontend:ResetPasswordUrl no está configurado; usando fallback {Url}", baseUrl);
+                    }
+
+                    var resetUrl = $"{baseUrl}?token={Uri.EscapeDataString(token)}";
+                    var appName = _config["Application:Name"] ?? "X-NFL Fantasy API";
+
+                    var html = EmailTemplates.PasswordReset(appName, resetUrl, expiresAtUtc.Value);
+
+                    await _email.SendAsync(dto.Email, $"{appName} – Restablecimiento de contraseña", html);
+
+                    _logger.LogInformation("Reset solicitado para {Email}. Token generado y enviado por correo.", dto.Email);
+                }
+                else
+                {
+                    // Email no existe o no se generó token (se mantiene respuesta genérica)
+                    _logger.LogInformation("Reset solicitado para {Email}. No se generó token (posible email inexistente).", dto.Email);
+                }
+
+                // Seguridad: jamás exponer token/fecha en API
+                return ApiResponseDTO.SuccessResponse("Si el correo existe, se ha enviado un enlace de restablecimiento.");
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error al solicitar restablecimiento para {Email}", dto.Email);
                 return ApiResponseDTO.ErrorResponse($"Error al solicitar restablecimiento: {ex.Message}");
             }
         }

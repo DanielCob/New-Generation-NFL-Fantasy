@@ -290,7 +290,7 @@ GO
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_RequestPasswordReset
   @Email      NVARCHAR(50),
-  @SourceIp   NVARCHAR(45) = NULL,      -- NUEVO
+  @SourceIp   NVARCHAR(45) = NULL,
   @Token      NVARCHAR(100) OUTPUT,
   @ExpiresAt  DATETIME2(0) OUTPUT
 AS
@@ -307,10 +307,12 @@ BEGIN
     RETURN;
   END
 
-  DECLARE @guid NVARCHAR(36) = CONVERT(NVARCHAR(36), NEWID());
-  DECLARE @rand NVARCHAR(12) = REPLACE(CONVERT(NVARCHAR(12), NEWID()),'-','');
-  SET @Token = @guid + N'-' + @rand;
-
+  -- CORRECCIÓN: Generar token correctamente
+  DECLARE @guid1 NVARCHAR(36) = CONVERT(NVARCHAR(36), NEWID());
+  DECLARE @guid2 NVARCHAR(36) = CONVERT(NVARCHAR(36), NEWID());
+  -- Remover guiones de ambos GUIDs y concatenar (64 caracteres)
+  SET @Token = REPLACE(@guid1, '-', '') + REPLACE(@guid2, '-', '');
+  
   SET @ExpiresAt = DATEADD(MINUTE, 60, SYSUTCDATETIME());
 
   INSERT INTO auth.PasswordResetRequest(UserID, Token, ExpiresAt, FromIp)

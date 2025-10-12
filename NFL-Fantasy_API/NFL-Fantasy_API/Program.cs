@@ -97,6 +97,10 @@ builder.Services.AddScoped<IViewsService, ViewsService>();
 // Servicio de auditoría y mantenimiento
 builder.Services.AddScoped<IAuditService, AuditService>();
 
+// Servicio de email (SMTP)
+builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("Smtp"));
+builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+
 #endregion
 
 #region Swagger Configuration
