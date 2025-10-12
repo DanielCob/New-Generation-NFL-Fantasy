@@ -1,238 +1,142 @@
 <!-- src/app/pages/register/register.html -->
 <div class="register-container">
   <mat-card class="register-card">
+
     <mat-card-header>
       <mat-card-title class="register-title">
         <mat-icon class="logo-icon">person_add</mat-icon>
         <span>Create Account</span>
       </mat-card-title>
-      <mat-card-subtitle>
-        <mat-slide-toggle (change)="toggleUserType()" [checked]="isEngineer()">
-          Register as {{ isEngineer() ? 'Engineer' : 'Client' }}
-        </mat-slide-toggle>
-      </mat-card-subtitle>
+      <mat-card-subtitle>Fill the required information to create your account</mat-card-subtitle>
     </mat-card-header>
 
     <mat-card-content>
-      <mat-stepper linear #stepper>
-        <!-- Step 1: Personal Information -->
-        <mat-step [stepControl]="personalInfoForm">
-          <ng-template matStepLabel>Personal Information</ng-template>
-          <form [formGroup]="personalInfoForm">
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Username</mat-label>
-              <input matInput formControlName="username">
-              <mat-icon matPrefix>account_circle</mat-icon>
+      <form [formGroup]="registerForm" (ngSubmit)="onSubmit()">
+        <!-- Name -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Name</mat-label>
+          <input matInput formControlName="name" />
+          <mat-icon matPrefix>person</mat-icon>
+          @if (registerForm.get('name')?.invalid && registerForm.get('name')?.touched) {
+            <mat-error>Name is required (min 2 chars)</mat-error>
+          }
+        </mat-form-field>
+
+        <!-- Alias -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Alias</mat-label>
+          <input matInput formControlName="alias" />
+          <mat-icon matPrefix>badge</mat-icon>
+          @if (registerForm.get('alias')?.invalid && registerForm.get('alias')?.touched) {
+            <mat-error>Alias is required (min 3 chars)</mat-error>
+          }
+        </mat-form-field>
+
+        <!-- Email -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Email</mat-label>
+          <input matInput type="email" formControlName="email" />
+          <mat-icon matPrefix>email</mat-icon>
+          @if (registerForm.get('email')?.invalid && registerForm.get('email')?.touched) {
+            <mat-error>Enter a valid email</mat-error>
+          }
+        </mat-form-field>
+
+        <!-- Language -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Language</mat-label>
+          <mat-select formControlName="languageCode">
+            @for (lang of languages; track lang.code) {
+              <mat-option [value]="lang.code">{{ lang.label }}</mat-option>
+            }
+          </mat-select>
+          <mat-icon matPrefix>translate</mat-icon>
+        </mat-form-field>
+
+        <!-- Password -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Password</mat-label>
+          <input
+            matInput
+            [type]="hidePassword() ? 'password' : 'text'"
+            formControlName="password"
+          />
+          <mat-icon matPrefix>lock</mat-icon>
+          <button
+            mat-icon-button
+            matSuffix
+            type="button"
+            (click)="togglePasswordVisibility()"
+            aria-label="Toggle password visibility"
+          >
+            <mat-icon>{{ hidePassword() ? 'visibility_off' : 'visibility' }}</mat-icon>
+          </button>
+          @if (registerForm.get('password')?.invalid && registerForm.get('password')?.touched) {
+            <mat-error>Min 6 characters</mat-error>
+          }
+        </mat-form-field>
+
+        <!-- Confirm Password -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Confirm Password</mat-label>
+          <input
+            matInput
+            [type]="hidePassword() ? 'password' : 'text'"
+            formControlName="passwordConfirm"
+          />
+          <mat-icon matPrefix>lock</mat-icon>
+          @if (registerForm.errors?.['passwordMismatch'] && registerForm.get('passwordConfirm')?.touched) {
+            <mat-error>Passwords do not match</mat-error>
+          }
+        </mat-form-field>
+
+        <!-- Optional: Profile image metadata -->
+        <div class="optional-section">
+          <h4>Profile image (optional)</h4>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Image URL</mat-label>
+            <input matInput formControlName="profileImageUrl" />
+            <mat-icon matPrefix>image</mat-icon>
+            <mat-hint>Leave empty if you don't want to set one now</mat-hint>
+          </mat-form-field>
+
+          <div class="row">
+            <mat-form-field appearance="outline" class="third-width">
+              <mat-label>Width (px)</mat-label>
+              <input matInput type="number" formControlName="profileImageWidth" />
             </mat-form-field>
 
-            <div class="row">
-              <mat-form-field appearance="outline" class="half-width">
-                <mat-label>First Name</mat-label>
-                <input matInput formControlName="firstName">
-              </mat-form-field>
-
-              <mat-form-field appearance="outline" class="half-width">
-                <mat-label>Last Surname</mat-label>
-                <input matInput formControlName="lastSurname">
-              </mat-form-field>
-            </div>
-
-            <div class="row">
-              <mat-form-field appearance="outline" class="half-width">
-                <mat-label>Second Surname (Optional)</mat-label>
-                <input matInput formControlName="secondSurname">
-              </mat-form-field>
-
-              <mat-form-field appearance="outline" class="half-width">
-                <mat-label>Birth Date</mat-label>
-                <input matInput 
-                       [matDatepicker]="picker" 
-                       formControlName="birthDate"
-                       [max]="maxDate"
-                       [min]="minDate">
-                <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
-                <mat-datepicker #picker></mat-datepicker>
-                @if (personalInfoForm.get('birthDate')?.errors?.['underage']) {
-                  <mat-error>You must be at least 18 years old</mat-error>
-                }
-              </mat-form-field>
-            </div>
-
-            <div class="step-actions">
-              <button mat-raised-button 
-                      matStepperNext 
-                      color="primary"
-                      [disabled]="personalInfoForm.invalid">
-                Next
-              </button>
-            </div>
-          </form>
-        </mat-step>
-
-        <!-- Step 2: Account Information -->
-        <mat-step [stepControl]="accountForm">
-          <ng-template matStepLabel>Account Information</ng-template>
-          <form [formGroup]="accountForm">
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Email</mat-label>
-              <input matInput type="email" formControlName="email">
-              <mat-icon matPrefix>email</mat-icon>
-              @if (isEngineer()) {
-                <mat-hint>Engineers must use @ing.com email</mat-hint>
-              } @else {
-                <mat-hint>Clients cannot use @ing.com or @admin.com</mat-hint>
-              }
-              @if (accountForm.get('email')?.errors?.['invalidEngineerEmail']) {
-                <mat-error>Engineers must use @ing.com email</mat-error>
-              }
-              @if (accountForm.get('email')?.errors?.['invalidClientEmail']) {
-                <mat-error>Clients cannot use @ing.com or @admin.com email</mat-error>
-              }
+            <mat-form-field appearance="outline" class="third-width">
+              <mat-label>Height (px)</mat-label>
+              <input matInput type="number" formControlName="profileImageHeight" />
             </mat-form-field>
 
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Password</mat-label>
-              <input matInput 
-                     [type]="hidePassword() ? 'password' : 'text'" 
-                     formControlName="password">
-              <mat-icon matPrefix>lock</mat-icon>
-              <button mat-icon-button 
-                      matSuffix 
-                      type="button"
-                      (click)="togglePasswordVisibility()">
-                <mat-icon>{{hidePassword() ? 'visibility_off' : 'visibility'}}</mat-icon>
-              </button>
+            <mat-form-field appearance="outline" class="third-width">
+              <mat-label>Bytes</mat-label>
+              <input matInput type="number" formControlName="profileImageBytes" />
             </mat-form-field>
+          </div>
+        </div>
 
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Confirm Password</mat-label>
-              <input matInput 
-                     [type]="hidePassword() ? 'password' : 'text'" 
-                     formControlName="confirmPassword">
-              <mat-icon matPrefix>lock</mat-icon>
-              @if (accountForm.errors?.['passwordMismatch'] && accountForm.get('confirmPassword')?.touched) {
-                <mat-error>Passwords do not match</mat-error>
-              }
-            </mat-form-field>
+        <!-- Actions -->
+        <div class="actions">
+          <button
+            mat-raised-button
+            color="primary"
+            type="submit"
+            [disabled]="registerForm.invalid || isLoading()"
+          >
+            @if (isLoading()) {
+              <mat-spinner diameter="18"></mat-spinner>
+            } @else {
+              Create account
+            }
+          </button>
 
-            <div class="step-actions">
-              <button mat-button matStepperPrevious>Back</button>
-              <button mat-raised-button 
-                      matStepperNext 
-                      color="primary"
-                      [disabled]="accountForm.invalid">
-                Next
-              </button>
-            </div>
-          </form>
-        </mat-step>
-
-        <!-- Step 3: Location -->
-        <mat-step [stepControl]="locationForm">
-          <ng-template matStepLabel>Location</ng-template>
-          <form [formGroup]="locationForm">
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Province</mat-label>
-              <mat-select formControlName="provinceID">
-                @for (province of provinces(); track province.provinceID) {
-                  <mat-option [value]="province.provinceID">
-                    {{province.provinceName}}
-                  </mat-option>
-                }
-              </mat-select>
-              <mat-icon matPrefix>location_city</mat-icon>
-            </mat-form-field>
-
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Canton</mat-label>
-              <mat-select formControlName="cantonID">
-                @for (canton of cantons(); track canton.cantonID) {
-                  <mat-option [value]="canton.cantonID">
-                    {{canton.cantonName}}
-                  </mat-option>
-                }
-              </mat-select>
-              <mat-icon matPrefix>location_on</mat-icon>
-            </mat-form-field>
-
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>District (Optional)</mat-label>
-              <mat-select formControlName="districtID">
-                @for (district of districts(); track district.districtID) {
-                  <mat-option [value]="district.districtID">
-                    {{district.districtName}}
-                  </mat-option>
-                }
-              </mat-select>
-              <mat-icon matPrefix>place</mat-icon>
-            </mat-form-field>
-
-            <div class="step-actions">
-              <button mat-button matStepperPrevious>Back</button>
-              @if (isEngineer()) {
-                <button mat-raised-button 
-                        matStepperNext 
-                        color="primary"
-                        [disabled]="locationForm.invalid">
-                  Next
-                </button>
-              } @else {
-                <button mat-raised-button 
-                        color="primary"
-                        (click)="onSubmit()"
-                        [disabled]="!isFormValid() || isLoading()">
-                  @if (isLoading()) {
-                    <mat-spinner diameter="20"></mat-spinner>
-                  } @else {
-                    Complete Registration
-                  }
-                </button>
-              }
-            </div>
-          </form>
-        </mat-step>
-
-        <!-- Step 4: Professional Information (Engineers only) -->
-        @if (isEngineer()) {
-          <mat-step [stepControl]="professionalForm">
-            <ng-template matStepLabel>Professional Information</ng-template>
-            <form [formGroup]="professionalForm">
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Career</mat-label>
-                <input matInput formControlName="career">
-                <mat-icon matPrefix>school</mat-icon>
-              </mat-form-field>
-
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Specialization (Optional)</mat-label>
-                <input matInput formControlName="specialization">
-                <mat-icon matPrefix>work</mat-icon>
-              </mat-form-field>
-
-              <div class="step-actions">
-                <button mat-button matStepperPrevious>Back</button>
-                <button mat-raised-button 
-                        color="primary"
-                        (click)="onSubmit()"
-                        [disabled]="!isFormValid() || isLoading()">
-                  @if (isLoading()) {
-                    <mat-spinner diameter="20"></mat-spinner>
-                  } @else {
-                    Complete Registration
-                  }
-                </button>
-              </div>
-            </form>
-          </mat-step>
-        }
-      </mat-stepper>
+          <a routerLink="/login" mat-button color="accent">Already have an account? Sign in</a>
+        </div>
+      </form>
     </mat-card-content>
-
-    <mat-card-actions>
-      <div class="login-link">
-        <span>Already have an account?</span>
-        <a routerLink="/login" mat-button color="accent">Sign In</a>
-      </div>
-    </mat-card-actions>
   </mat-card>
 </div>

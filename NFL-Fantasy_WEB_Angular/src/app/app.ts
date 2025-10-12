@@ -1,7 +1,7 @@
 // src/app/app.ts - REPLACE existing content
 import { Component, OnInit, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import { Auth } from './core/services/auth';
+import { AuthService } from './core/services/auth.service';
 
 @Component({
   selector: 'app-root',
@@ -10,7 +10,7 @@ import { Auth } from './core/services/auth';
   styles: []
 })
 export class App implements OnInit {
-  private auth = inject(Auth);
+  private auth = inject(AuthService);
 
   ngOnInit() {
     // Initialize authentication state on app load

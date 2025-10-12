@@ -1,26 +1,24 @@
 // src/app/pages/register/register.ts
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators, AbstractControl } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
-import { MatDatepickerModule } from '@angular/material/datepicker';
-import { MatNativeDateModule } from '@angular/material/core';
-import { MatStepperModule } from '@angular/material/stepper';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
-import { User } from '../../core/services/user';
-import { Location } from '../../core/services/location';
-import { Province, Canton, District } from '../../core/models/location.model';
+
+import { AuthService } from '../../core/services/auth.service';
+import { RegisterRequest, SimpleOkResponse } from '../../core/models/auth.model';
 
 @Component({
   selector: 'app-register',
+  standalone: true,
   imports: [
     CommonModule,
     ReactiveFormsModule,
@@ -31,242 +29,109 @@ import { Province, Canton, District } from '../../core/models/location.model';
     MatButtonModule,
     MatIconModule,
     MatSelectModule,
-    MatDatepickerModule,
-    MatNativeDateModule,
-    MatStepperModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule,
-    MatSlideToggleModule
+    MatSnackBarModule
   ],
   templateUrl: './register.html',
   styleUrl: './register.css'
 })
-export class Register implements OnInit {
+export class Register {
   private fb = inject(FormBuilder);
-  private userService = inject(User);
-  private locationService = inject(Location);
+  private auth = inject(AuthService);
   private router = inject(Router);
   private snackBar = inject(MatSnackBar);
 
   hidePassword = signal(true);
   isLoading = signal(false);
-  isEngineer = signal(false);
-  
-  provinces = signal<Province[]>([]);
-  cantons = signal<Canton[]>([]);
-  districts = signal<District[]>([]);
 
-  maxDate = new Date();
-  minDate = new Date(1900, 0, 1);
+  // Opciones para LanguageCode (ajusta si tienes catálogo en backend)
+  languages = [
+    { code: 'en', label: 'English' },
+    { code: 'es', label: 'Español' },
+  ];
 
-  personalInfoForm: FormGroup = this.fb.group({
-    username: ['', [Validators.required, Validators.minLength(3)]],
-    firstName: ['', [Validators.required]],
-    lastSurname: ['', [Validators.required]],
-    secondSurname: [''],
-    birthDate: ['', [Validators.required, this.ageValidator()]]
-  });
-
-  accountForm: FormGroup = this.fb.group({
-    email: ['', [Validators.required, this.emailValidator()]],
+  // Formulario alineado 1:1 con RegisterRequest
+  // Nota: los metadatos de imagen son opcionales a nivel de UX, pero tu interfaz exige number.
+  // Si no se proveen, enviaremos 0 para width/height/bytes y '' para url.
+  registerForm: FormGroup = this.fb.group({
+    name: ['', [Validators.required, Validators.minLength(2)]],
+    email: ['', [Validators.required, Validators.email]],
+    alias: ['', [Validators.required, Validators.minLength(3)]],
     password: ['', [Validators.required, Validators.minLength(6)]],
-    confirmPassword: ['', [Validators.required]]
+    passwordConfirm: ['', [Validators.required]],
+    languageCode: ['en', [Validators.required]],
+
+    // Imagen de perfil (opcionales). Si están vacíos, se mandan como 0/''.
+    profileImageUrl: [''],
+    profileImageWidth: [''],
+    profileImageHeight: [''],
+    profileImageBytes: [''],
   }, { validators: this.passwordMatchValidator });
 
-  locationForm: FormGroup = this.fb.group({
-    provinceID: ['', Validators.required],
-    cantonID: ['', Validators.required],
-    districtID: ['']
-  });
-
-  professionalForm: FormGroup = this.fb.group({
-    career: [''],
-    specialization: ['']
-  });
-
-  ngOnInit(): void {
-    this.maxDate.setFullYear(this.maxDate.getFullYear() - 18);
-    this.loadProvinces();
-    this.setupLocationSubscriptions();
-    this.setupProfessionalValidation();
-  }
-
-  private setupLocationSubscriptions(): void {
-    this.locationForm.get('provinceID')?.valueChanges.subscribe(provinceId => {
-      if (provinceId) {
-        this.loadCantons(provinceId);
-        // Reset to empty values instead of empty strings
-        this.locationForm.patchValue({ 
-          cantonID: null, 
-          districtID: null 
-        });
-        this.cantons.set([]);
-        this.districts.set([]);
-      }
-    });
-
-    this.locationForm.get('cantonID')?.valueChanges.subscribe(cantonId => {
-      if (cantonId) {
-        this.loadDistricts(cantonId);
-        // Reset to null instead of empty string
-        this.locationForm.patchValue({ 
-          districtID: null 
-        });
-        this.districts.set([]);
-      }
-    });
-  }
-
-  private setupProfessionalValidation(): void {
-    // Update validators when user type changes
-    this.professionalForm.get('career')?.setValidators(
-      this.isEngineer() ? [Validators.required] : []
-    );
-  }
-
-  toggleUserType(): void {
-    this.isEngineer.update(value => !value);
-    
-    // Update email validators based on user type
-    const emailControl = this.accountForm.get('email');
-    if (this.isEngineer()) {
-      emailControl?.setValidators([Validators.required, this.engineerEmailValidator()]);
-      this.professionalForm.get('career')?.setValidators([Validators.required]);
-    } else {
-      emailControl?.setValidators([Validators.required, this.clientEmailValidator()]);
-      this.professionalForm.get('career')?.clearValidators();
-    }
-    emailControl?.updateValueAndValidity();
-    this.professionalForm.get('career')?.updateValueAndValidity();
-  }
-
-  private loadProvinces(): void {
-    this.locationService.getProvinces().subscribe({
-      next: (provinces) => this.provinces.set(provinces),
-      error: () => this.snackBar.open('Error loading provinces', 'Close', { duration: 3000 })
-    });
-  }
-
-  private loadCantons(provinceId: number): void {
-    this.locationService.getCantonsByProvince(provinceId).subscribe({
-      next: (cantons) => this.cantons.set(cantons),
-      error: () => this.snackBar.open('Error loading cantons', 'Close', { duration: 3000 })
-    });
-  }
-
-  private loadDistricts(cantonId: number): void {
-    this.locationService.getDistrictsByCanton(cantonId).subscribe({
-      next: (districts) => this.districts.set(districts),
-      error: () => this.snackBar.open('Error loading districts', 'Close', { duration: 3000 })
-    });
-  }
-
-  private ageValidator() {
-    return (control: AbstractControl) => {
-      if (!control.value) return null;
-      const birthDate = new Date(control.value);
-      const today = new Date();
-      const age = today.getFullYear() - birthDate.getFullYear();
-      return age >= 18 ? null : { underage: true };
-    };
-  }
-
-  private emailValidator() {
-    return (control: AbstractControl) => {
-      if (!control.value) return null;
-      const email = control.value.toLowerCase();
-      
-      if (this.isEngineer() && !email.endsWith('@ing.com')) {
-        return { invalidEngineerEmail: true };
-      }
-      if (!this.isEngineer() && (email.endsWith('@ing.com') || email.endsWith('@admin.com'))) {
-        return { invalidClientEmail: true };
-      }
-      return null;
-    };
-  }
-
-  private engineerEmailValidator() {
-    return (control: AbstractControl) => {
-      if (!control.value) return null;
-      return control.value.toLowerCase().endsWith('@ing.com') ? null : { invalidEngineerEmail: true };
-    };
-  }
-
-  private clientEmailValidator() {
-    return (control: AbstractControl) => {
-      if (!control.value) return null;
-      const email = control.value.toLowerCase();
-      if (email.endsWith('@ing.com') || email.endsWith('@admin.com')) {
-        return { invalidClientEmail: true };
-      }
-      return null;
-    };
-  }
-
+  // --- Validadores ---
   private passwordMatchValidator(group: AbstractControl) {
-    const password = group.get('password')?.value;
-    const confirmPassword = group.get('confirmPassword')?.value;
-    return password === confirmPassword ? null : { passwordMismatch: true };
+    const p = group.get('password')?.value;
+    const c = group.get('passwordConfirm')?.value;
+    return p === c ? null : { passwordMismatch: true };
   }
 
   togglePasswordVisibility(): void {
-    this.hidePassword.update(value => !value);
+    this.hidePassword.update(v => !v);
   }
 
+  // --- Envío ---
   onSubmit(): void {
-    if (this.isFormValid() && !this.isLoading()) {
-      this.isLoading.set(true);
+    if (this.isLoading()) return;
 
-      const formData = {
-        ...this.personalInfoForm.value,
-        ...this.accountForm.value,
-        ...this.locationForm.value,
-        ...(this.isEngineer() ? this.professionalForm.value : {})
-      };
+    if (this.registerForm.invalid) {
+      this.registerForm.markAllAsTouched();
+      this.snackBar.open('Revisa los campos requeridos.', 'Cerrar', { duration: 3000, panelClass: ['error-snackbar'] });
+      return;
+    }
 
-      delete formData.confirmPassword;
+    const v = this.registerForm.value;
 
-      const request = this.isEngineer()
-        ? this.userService.createEngineer(formData)
-        : this.userService.createClient(formData);
+    // Normaliza campos opcionales de imagen a valores válidos para el backend
+    const req: RegisterRequest = {
+      name: v.name,
+      email: v.email,
+      alias: v.alias,
+      password: v.password,
+      passwordConfirm: v.passwordConfirm,
+      languageCode: v.languageCode,
 
-      request.subscribe({
-        next: (response) => {
-          if (response.success) {
-            this.snackBar.open('Registration successful! Please login.', 'Close', {
-              duration: 5000,
-              panelClass: ['success-snackbar']
-            });
-            this.router.navigate(['/login']);
-          } else {
-            this.snackBar.open(response.message || 'Registration failed', 'Close', {
-              duration: 5000,
-              panelClass: ['error-snackbar']
-            });
-          }
-          this.isLoading.set(false);
-        },
-        error: (error) => {
-          this.isLoading.set(false);
-          this.snackBar.open(error.error?.message || 'Registration failed', 'Close', {
-            duration: 5000,
-            panelClass: ['error-snackbar']
+      profileImageUrl: (v.profileImageUrl ?? '').trim(),
+      profileImageWidth: this.toNumberOrZero(v.profileImageWidth),
+      profileImageHeight: this.toNumberOrZero(v.profileImageHeight),
+      profileImageBytes: this.toNumberOrZero(v.profileImageBytes),
+    };
+
+    this.isLoading.set(true);
+    this.auth.register(req).subscribe({
+      next: (res: SimpleOkResponse) => {
+        if (res.success) {
+          this.snackBar.open(res.message || 'Registro exitoso. Ahora puedes iniciar sesión.', 'Cerrar', {
+            duration: 3000, panelClass: ['success-snackbar']
+          });
+          this.router.navigateByUrl('/login');
+        } else {
+          this.snackBar.open(res.message || 'No se pudo completar el registro.', 'Cerrar', {
+            duration: 4500, panelClass: ['error-snackbar']
           });
         }
-      });
-    }
+        this.isLoading.set(false);
+      },
+      error: (err) => {
+        const msg = err?.error?.Message || err?.error?.message || 'Error al registrar';
+        this.snackBar.open(msg, 'Cerrar', { duration: 5000, panelClass: ['error-snackbar'] });
+        this.isLoading.set(false);
+      }
+    });
   }
 
-  public isFormValid(): boolean {
-    const baseValid = this.personalInfoForm.valid && 
-                     this.accountForm.valid && 
-                     this.locationForm.valid;
-    
-    if (this.isEngineer()) {
-      return baseValid && this.professionalForm.valid;
-    }
-    
-    return baseValid;
+  // --- Helpers ---
+  private toNumberOrZero(x: any): number {
+    const n = Number(x);
+    return Number.isFinite(n) ? n : 0;
   }
 }

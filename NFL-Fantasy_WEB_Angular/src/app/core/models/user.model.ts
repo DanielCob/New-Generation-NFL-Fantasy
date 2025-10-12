@@ -1,50 +1,76 @@
-// src/app/core/models/user.model.ts
-export interface CreateClientDTO {
-  username: string;
-  firstName: string;
-  lastSurname: string;
-  secondSurname?: string;
-  email: string;
-  password: string;
-  birthDate: Date;
-  provinceID: number;
-  cantonID: number;
-  districtID?: number;
+export interface ApiResponse<T> {
+  success: boolean;
+  message: string;
+  data: T;
 }
 
-export interface CreateEngineerDTO extends CreateClientDTO {
-  career: string;
-  specialization?: string;
+export interface CommissionedLeague {
+  LeagueID: number;
+  LeagueName: string;
+  Status: number;
+  TeamSlots: number;
+  RoleCode: 'COMMISSIONER' | 'CO_COMMISSIONER'; // ajustable según tu sistema
+  IsPrimaryCommissioner: boolean;
+  JoinedAt: string; // ISO
 }
 
-export interface UserResponse {
-  userID: number;
-  username: string;
-  firstName: string;
-  lastSurname: string;
-  secondSurname?: string;
-  email: string;
-  birthDate: Date;
-  age: number;
-  userType: string;
-  provinceName: string;
-  cantonName: string;
-  districtName?: string;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+export interface UserTeam {
+  TeamID: number;
+  LeagueID: number;
+  LeagueName: string;
+  TeamName: string;
+  CreatedAt: string; // ISO
 }
 
-export interface EngineerResponse extends UserResponse {
-  career: string;
-  specialization?: string;
+export interface UserProfile {
+  UserID: number;
+  Email: string;
+  Name: string;
+  Alias: string;
+  LanguageCode: string; // e.g. "en"
+  AccountStatus: number;
+  CreatedAt: string; // ISO
+  UpdatedAt: string; // ISO
+  Role: 'ADMIN' | 'MANAGER' | 'CLIENT'; // ajustable según roles existentes
+  CommissionedLeagues: CommissionedLeague[];
+  Teams: UserTeam[];
 }
 
-export interface CurrentUser {
-  userId: number;
-  userType: 'CLIENT' | 'ENGINEER' | 'ADMIN';
-  sessionToken: string;
-  email: string;
-  firstName: string;
-  lastSurname: string;
+/* ========= Request: PUT /api/User/profile ========= */
+export interface EditUserProfileRequest {
+  Name: string;
+  Alias: string;
+  LanguageCode: string;
+  ProfileImageUrl: string;
+  ProfileImageWidth: number;
+  ProfileImageHeight: number;
+  ProfileImageBytes: number;
 }
+
+export interface UserHeader {
+  UserID: number;
+  Email: string;
+  Name: string;
+  Alias: string;
+  LanguageCode: string;
+  AccountStatus: number;
+  CreatedAt: string; // ISO
+  UpdatedAt: string; // ISO
+}
+export interface UserSession {
+  UserID: number;
+  SessionID: string;
+  CreatedAt: string;       // ISO
+  LastActivityAt: string;  // ISO
+  ExpiresAt: string;       // ISO
+  IsValid: boolean;
+}
+
+export type UserSessionsResponse = ApiResponse<UserSession[]>;
+export type UserHeaderResponse = ApiResponse<UserHeader>;
+
+/* ========= Response: PUT /api/User/profile ========= */
+export type EditUserProfileResponse = ApiResponse<null>; // No incluye campo Data
+
+
+export type UserProfileResponse = ApiResponse<UserProfile>;

@@ -1,46 +1,72 @@
 <!-- src/app/shared/components/navigation-bar/navigation-bar.html -->
 <mat-toolbar class="navbar">
+  <!-- Brand -->
   <div class="nav-brand">
-    <mat-icon class="brand-icon">rocket_launch</mat-icon>
-    <span class="brand-text">User Management</span>
+    <mat-icon class="brand-icon">sports_football</mat-icon>
+    <span class="brand-text">X-NFL Fantasy</span>
   </div>
 
+  <!-- (Opcional) Links fijos básicos -->
   <div class="nav-items">
-    @for (item of getNavigationItems(); track item.route) {
-      <a [routerLink]="item.route" mat-button class="nav-link">
-        <mat-icon>{{item.icon}}</mat-icon>
-        <span>{{item.label}}</span>
-      </a>
-    }
+    <a routerLink="/" mat-button class="nav-link">
+      <mat-icon>home</mat-icon>
+      <span>Home</span>
+    </a>
+    <a routerLink="/leagues" mat-button class="nav-link">
+      <mat-icon>groups</mat-icon>
+      <span>Leagues</span>
+    </a>
   </div>
 
-  <div class="nav-actions">
-    <button mat-icon-button [matMenuTriggerFor]="userMenu" class="user-menu-trigger">
-      <mat-icon>account_circle</mat-icon>
-    </button>
-    
-    <mat-menu #userMenu="matMenu">
-      <div class="user-info">
-        <mat-icon class="user-avatar">person</mat-icon>
-        <div class="user-details">
-          <div class="user-name">{{currentUser()?.firstName}} {{currentUser()?.lastSurname}}</div>
-          <div class="user-role">{{userType()}}</div>
+  <span class="spacer"></span>
+
+  <!-- Acciones según sesión -->
+  @if (!isLoggedIn()) {
+    <div class="nav-actions">
+      <a routerLink="/login" mat-button>
+        <mat-icon>login</mat-icon>
+        <span>Sign in</span>
+      </a>
+      <a routerLink="/register" mat-stroked-button>
+        <mat-icon>person_add</mat-icon>
+        <span>Create account</span>
+      </a>
+    </div>
+  } @else {
+    <div class="nav-actions">
+      <button mat-button [matMenuTriggerFor]="userMenu" class="user-menu-trigger">
+        <mat-icon>account_circle</mat-icon>
+        <span>{{ userName() }}</span>
+      </button>
+
+      <mat-menu #userMenu="matMenu" xPosition="before">
+        <div class="user-info">
+          <mat-icon class="user-avatar">person</mat-icon>
+          <div class="user-details">
+            <div class="user-name">{{ session()?.Name }}</div>
+            <div class="user-email">{{ session()?.Email }}</div>
+          </div>
         </div>
-      </div>
-      <mat-divider></mat-divider>
-      <button mat-menu-item (click)="navigateToProfile()">
-        <mat-icon>person</mat-icon>
-        <span>Profile</span>
-      </button>
-      <button mat-menu-item (click)="navigateToSettings()">
-        <mat-icon>settings</mat-icon>
-        <span>Settings</span>
-      </button>
-      <mat-divider></mat-divider>
-      <button mat-menu-item (click)="logout()">
-        <mat-icon>logout</mat-icon>
-        <span>Logout</span>
-      </button>
-    </mat-menu>
-  </div>
+
+        <mat-divider></mat-divider>
+
+        <button mat-menu-item (click)="navigateToProfile()">
+          <mat-icon>person</mat-icon>
+          <span>Profile</span>
+        </button>
+
+        <button mat-menu-item (click)="navigateToSettings()">
+          <mat-icon>settings</mat-icon>
+          <span>Settings</span>
+        </button>
+
+        <mat-divider></mat-divider>
+
+        <button mat-menu-item (click)="logout()">
+          <mat-icon>logout</mat-icon>
+          <span>Logout</span>
+        </button>
+      </mat-menu>
+    </div>
+  }
 </mat-toolbar>

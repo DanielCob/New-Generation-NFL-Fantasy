@@ -1,49 +1,31 @@
-// src/app/app.routes.ts - REPLACE existing content
+// src/app/app.routes.ts
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth-guard';
-import { roleGuard } from './core/guards/role-guard';
+// import { roleGuard } from './core/guards/role-guard'; // (borra si no lo usas)
 
 export const routes: Routes = [
-  {
-    path: '',
-    redirectTo: '/login',
-    pathMatch: 'full'
-  },
+  { path: '', pathMatch: 'full', redirectTo: 'login' },
+
   {
     path: 'login',
-    loadComponent: () => import('./pages/login/login').then(m => m.Login)
+    loadComponent: () => import('./pages/login/login').then(m => m.Login),
   },
   {
     path: 'register',
-    loadComponent: () => import('./pages/register/register').then(m => m.Register)
+    loadComponent: () => import('./pages/register/register').then(m => m.Register),
   },
+
+  // Área autenticada (usa tu MainLayout standalone)
   {
     path: '',
     loadComponent: () => import('./layouts/main-layout/main-layout').then(m => m.MainLayout),
     canActivate: [authGuard],
     children: [
-      {
-        path: 'admin',
-        loadComponent: () => import('./pages/admin-dashboard/admin-dashboard').then(m => m.AdminDashboard),
-        canActivate: [roleGuard],
-        data: { role: 'ADMIN' }
-      },
-      {
-        path: 'engineer',
-        loadComponent: () => import('./pages/engineer-dashboard/engineer-dashboard').then(m => m.EngineerDashboard),
-        canActivate: [roleGuard],
-        data: { role: 'ENGINEER' }
-      },
-      {
-        path: 'client',
-        loadComponent: () => import('./pages/client-dashboard/client-dashboard').then(m => m.ClientDashboard),
-        canActivate: [roleGuard],
-        data: { role: 'CLIENT' }
-      }
-    ]
+      // agrega aquí tus rutas hijas protegidas
+      // { path: 'profile/header', loadComponent: () => import('./pages/profile/header').then(m => m.ProfileHeader) },
+      // { path: 'leagues', loadComponent: () => import('./pages/leagues/leagues').then(m => m.Leagues) },
+    ],
   },
-  {
-    path: '**',
-    redirectTo: '/login'
-  }
+
+  { path: '**', redirectTo: 'login' },
 ];
