@@ -1,18 +1,18 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { Login } from './login';
+import { PositionFormats } from './position-formats';
 
-describe('Login', () => {
-  let component: Login;
-  let fixture: ComponentFixture<Login>;
+describe('PositionFormats', () => {
+  let component: PositionFormats;
+  let fixture: ComponentFixture<PositionFormats>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [Login]
+      imports: [PositionFormats]
     })
     .compileComponents();
 
-    fixture = TestBed.createComponent(Login);
+    fixture = TestBed.createComponent(PositionFormats);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });

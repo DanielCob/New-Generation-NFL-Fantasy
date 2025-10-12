@@ -13,8 +13,8 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
-import { AuthService } from '../../core/services/auth.service';
-import { RegisterRequest, SimpleOkResponse } from '../../core/models/auth.model';
+import { AuthService } from '../../../core/services/auth.service';
+import { RegisterRequest, SimpleOkResponse } from '../../../core/models/auth.model';
 
 @Component({
   selector: 'app-register',
