@@ -1,4 +1,12 @@
-<!-- src/app/pages/profile/full-profile/full-profile.html -->
+<!--
+  full-profile.html
+  -----------------------------------------------------------
+  Cambios clave:
+  - Se reemplazaron listas sueltas por el componente reutilizable
+    <app-table-simple> para "Ligas como comisionado" y "Mis equipos".
+  - Se mantiene el encabezado con datos básicos del usuario.
+  - Reutilizamos loading y error existentes.
+-->
 
 <!-- Loading -->
 <div class="fp-loading" *ngIf="loading()">
@@ -55,67 +63,41 @@
     </mat-card-content>
   </mat-card>
 
-  <!-- Ligas como comisionado -->
+  <!-- Ligas como comisionado (usa TableSimple) -->
   <mat-card class="fp-card">
     <mat-card-header>
       <mat-card-title>
         <mat-icon>emoji_events</mat-icon>
         <span>Ligas como comisionado</span>
       </mat-card-title>
-      <mat-card-subtitle>
-        (de sp_GetUserProfile) – LeagueName, Status, TeamSlots, IsPrimaryCommissioner, JoinedAt
-      </mat-card-subtitle>
     </mat-card-header>
 
     <mat-card-content>
-      <mat-list *ngIf="p.CommissionedLeagues?.length; else noLeagues">
-        <mat-list-item *ngFor="let l of p.CommissionedLeagues">
-          <mat-icon matListItemIcon>sports_football</mat-icon>
-          <div matListItemTitle>{{ l.LeagueName }}</div>
-          <div matListItemLine>
-            Slots: {{ l.TeamSlots }} · Ingresó: {{ l.JoinedAt | date:'mediumDate' }}
-          </div>
-          <div class="right">
-            <mat-chip-set>
-              <mat-chip [color]="statusChipColor(l.Status)" selected>Status: {{ l.Status }}</mat-chip>
-              <mat-chip color="accent" *ngIf="l.IsPrimaryCommissioner" selected>Primary</mat-chip>
-            </mat-chip-set>
-          </div>
-        </mat-list-item>
-      </mat-list>
-      <ng-template #noLeagues>
-        <div class="empty-hint">
-          <mat-icon>info</mat-icon> No figuras como comisionado en ninguna liga.
-        </div>
-      </ng-template>
+      <app-table-simple
+        [data]="p.CommissionedLeagues || []"
+        [columns]="commissionedColumns"
+        [emptyMessage]="'No figuras como comisionado en ninguna liga.'"
+        [trackBy]="trackByLeague">
+      </app-table-simple>
     </mat-card-content>
   </mat-card>
 
-  <!-- Mis equipos -->
+  <!-- Mis equipos (usa TableSimple) -->
   <mat-card class="fp-card">
     <mat-card-header>
       <mat-card-title>
         <mat-icon>groups</mat-icon>
         <span>Mis equipos</span>
       </mat-card-title>
-      <mat-card-subtitle>
-        (de sp_GetUserProfile) – LeagueName, TeamName, CreatedAt
-      </mat-card-subtitle>
     </mat-card-header>
 
     <mat-card-content>
-      <mat-list *ngIf="p.Teams?.length; else noTeams">
-        <mat-list-item *ngFor="let t of p.Teams">
-          <mat-icon matListItemIcon>flag</mat-icon>
-          <div matListItemTitle>{{ t.TeamName }}</div>
-          <div matListItemLine> Liga: {{ t.LeagueName }} · Desde: {{ t.CreatedAt | date:'mediumDate' }} </div>
-        </mat-list-item>
-      </mat-list>
-      <ng-template #noTeams>
-        <div class="empty-hint">
-          <mat-icon>info</mat-icon> Aún no tienes equipos asociados.
-        </div>
-      </ng-template>
+      <app-table-simple
+        [data]="p.Teams || []"
+        [columns]="teamsColumns"
+        [emptyMessage]="'Aún no tienes equipos asociados.'"
+        [trackBy]="trackByTeam">
+      </app-table-simple>
     </mat-card-content>
   </mat-card>
 

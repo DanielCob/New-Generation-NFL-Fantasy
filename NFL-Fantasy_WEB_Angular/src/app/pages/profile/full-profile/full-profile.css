@@ -1,3 +1,10 @@
+/**
+ * full-profile.css
+ * ---------------------------------------------------------
+ * Conservamos tu diseño original y añadimos mínimos ajustes
+ * para que la tabla genérica se vea integrada.
+ */
+
 .fp-card {
   max-width: 800px;
   margin: 24px auto;
@@ -37,6 +44,7 @@ mat-card-content {
   padding: 24px;
 }
 
+/* Grid de datos del header */
 .fp-grid {
   display: grid;
   gap: 16px;
@@ -68,34 +76,7 @@ mat-card-content {
   color: #2c3e50;
 }
 
-mat-list {
-  padding: 0;
-  background-color: #fafbfc;
-  border-radius: 8px;
-  border: 1px solid #f0f0f0;
-}
-
-mat-list-item {
-  margin-bottom: 2px;
-  transition: background-color 0.2s;
-}
-
-mat-list-item:hover {
-  background-color: #f8f9ff;
-}
-
-mat-list-item mat-icon {
-  color: #3f51b5;
-}
-
-.right {
-  margin-left: auto;
-}
-
-mat-chip-set {
-  margin-left: 16px;
-}
-
+/* Mensajes vacíos (si no hay data) */
 .empty-hint {
   display: flex;
   align-items: center;
@@ -126,18 +107,7 @@ mat-chip-set {
   gap: 16px;
 }
 
-.error-box {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  padding: 32px;
-  text-align: center;
-  color: #e53935;
-}
-
-.error-box mat-icon {
-  font-size: 48px;
-  width: 48px;
-  height: 48px;
+/* Ajuste mínimo para integrar tables del componente TableSimple */
+.app-table-simple-wrapper {
+  margin-top: 4px;
 }

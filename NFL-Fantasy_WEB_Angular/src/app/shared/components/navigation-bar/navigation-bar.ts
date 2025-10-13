@@ -58,10 +58,7 @@ export class NavigationBar implements OnDestroy {
   navigateToProfile(): void {
     this.router.navigate(['/profile/header']);
   }
-
-  navigateToSettings(): void {
-    this.router.navigate(['/settings']);
-  }
+  
   navigateToFullProfile(): void {
   this.router.navigate(['/profile/full-profile']);
 }

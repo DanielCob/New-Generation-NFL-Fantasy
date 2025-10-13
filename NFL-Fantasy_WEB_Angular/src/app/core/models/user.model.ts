@@ -1,15 +1,25 @@
+/**
+ * user.model.ts
+ * -----------------------------------------------------------------------------
+ * Ajuste: se agrega `ProfileImageUrl?` (opcional) al UserProfile para poder
+ * mostrar el avatar en /profile/header cuando el backend lo envíe (ya sea
+ * desde /User/header o /User/profile).
+ */
+
 export interface ApiResponse<T> {
   success: boolean;
   message: string;
   data: T;
 }
 
+/* ========= ENTIDADES RELACIONADAS AL PERFIL COMPLETO ========= */
+
 export interface CommissionedLeague {
   LeagueID: number;
   LeagueName: string;
   Status: number;
   TeamSlots: number;
-  RoleCode: 'COMMISSIONER' | 'CO_COMMISSIONER'; // ajustable según tu sistema
+  RoleCode: 'COMMISSIONER' | 'CO_COMMISSIONER';
   IsPrimaryCommissioner: boolean;
   JoinedAt: string; // ISO
 }
@@ -31,21 +41,30 @@ export interface UserProfile {
   AccountStatus: number;
   CreatedAt: string; // ISO
   UpdatedAt: string; // ISO
-  Role: 'ADMIN' | 'MANAGER' | 'CLIENT'; // ajustable según roles existentes
+  Role: 'ADMIN' | 'MANAGER' | 'CLIENT';
+  /** URL de imagen de perfil si existe (puede venir desde sp_GetUserProfile) */
+  ProfileImageUrl?: string | null;
+
   CommissionedLeagues: CommissionedLeague[];
   Teams: UserTeam[];
 }
 
-/* ========= Request: PUT /api/User/profile ========= */
+/* ========= REQUEST/RESPONSE: PUT /api/User/profile =========
+   Campos de imagen opcionales (se envían solo si se provee URL).
+================================================================ */
+
 export interface EditUserProfileRequest {
   Name: string;
   Alias: string;
   LanguageCode: string;
-  ProfileImageUrl: string;
-  ProfileImageWidth: number;
-  ProfileImageHeight: number;
-  ProfileImageBytes: number;
+
+  ProfileImageUrl?: string;
+  ProfileImageWidth?: number;
+  ProfileImageHeight?: number;
+  ProfileImageBytes?: number;
 }
+
+/* ========= OTROS TIPOS RELACIONADOS ========= */
 
 export interface UserHeader {
   UserID: number;
@@ -57,6 +76,7 @@ export interface UserHeader {
   CreatedAt: string; // ISO
   UpdatedAt: string; // ISO
 }
+
 export interface UserSession {
   UserID: number;
   SessionID: string;
@@ -68,9 +88,5 @@ export interface UserSession {
 
 export type UserSessionsResponse = ApiResponse<UserSession[]>;
 export type UserHeaderResponse = ApiResponse<UserHeader>;
-
-/* ========= Response: PUT /api/User/profile ========= */
-export type EditUserProfileResponse = ApiResponse<null>; // No incluye campo Data
-
-
+export type EditUserProfileResponse = ApiResponse<null>;
 export type UserProfileResponse = ApiResponse<UserProfile>;

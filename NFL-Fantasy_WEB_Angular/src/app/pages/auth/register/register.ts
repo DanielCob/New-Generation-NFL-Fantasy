@@ -122,8 +122,6 @@ onSubmit(): void {
         : {})
     };
 
-    console.log('Payload enviado al backend →', req);
-
     this.isLoading.set(true);
     this.auth.register(req).subscribe({
       next: (res: SimpleOkResponse) => {

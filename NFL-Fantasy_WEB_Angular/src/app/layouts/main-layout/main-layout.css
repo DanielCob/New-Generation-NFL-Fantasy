@@ -1,11 +1,40 @@
-/* src/app/layouts/main-layout/main-layout.css */
+/**
+ * main-layout.css
+ * ---------------------------------------------------------
+ * Objetivo:
+ * - Eliminar el scrollbar interno "fantasma" del contenedor principal.
+ *
+ * Estrategia:
+ * - El layout usa un contenedor en columna que ocupa toda la altura
+ *   de la ventana (100dvh).
+ * - La zona de contenido (.content) NO fuerza overflow ni scroll
+ *   propio; dejamos que el documento (body) maneje el scroll.
+ * - Si tu navbar tiene una altura específica, puedes ajustar
+ *   --nav-height (por defecto 64px).
+ */
+
+:root {
+  --nav-height: 64px;
+}
+
 .main-layout {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  min-height: 100dvh;         /* ocupa la pantalla completa */
+  background: #fff;           /* opcional */
 }
 
+/* Barra de navegación se renderiza arriba vía <app-navigation-bar> */
+/* Si tienes estilos propios de la barra, déjalos en su componente. */
+
 .content {
-  flex: 1;
-  overflow-y: auto;
+  flex: 1 1 auto;             /* ocupa el espacio restante */
+  padding: 16px;              /* el padding que ya usabas */
+  overflow: visible;          /* 👈 evita scroll interno innecesario */
+  height: auto;               /* no fijar 100vh para no crear doble scroll */
+  min-height: calc(100dvh - var(--nav-height));
+  box-sizing: border-box;
 }
+
+/* Si en algún momento agregaste algo como overflow:auto o height:100vh
+   en .content, este bloque lo sobreescribe y elimina el "scroll fantasma". */
