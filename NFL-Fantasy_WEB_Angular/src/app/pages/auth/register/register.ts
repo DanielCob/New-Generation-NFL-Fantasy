@@ -113,17 +113,13 @@ onSubmit(): void {
         ? {
             ProfileImageUrl: v.profileImageUrl.trim(),
             ...(this.toNumberOrUndefined(v.profileImageWidth) !== undefined
-              ? { ProfileImageWidth: this.toNumberOrUndefined(v.profileImageWidth)! }
-              : {}),
+              ? { ProfileImageWidth: this.toNumberOrUndefined(v.profileImageWidth)! } : {}),
             ...(this.toNumberOrUndefined(v.profileImageHeight) !== undefined
-              ? { ProfileImageHeight: this.toNumberOrUndefined(v.profileImageHeight)! }
-              : {}),
+              ? { ProfileImageHeight: this.toNumberOrUndefined(v.profileImageHeight)! } : {}),
             ...(this.toNumberOrUndefined(v.profileImageBytes) !== undefined
-              ? { ProfileImageBytes: this.toNumberOrUndefined(v.profileImageBytes)! }
-              : {}),
+              ? { ProfileImageBytes: this.toNumberOrUndefined(v.profileImageBytes)! } : {}),
           }
-        : {}
-      ),
+        : {})
     };
 
     console.log('Payload enviado al backend →', req);
@@ -225,5 +221,6 @@ onSubmit(): void {
     const n = Number(x);
     return Number.isFinite(n) ? n : 0;
   }
+  
 
 }

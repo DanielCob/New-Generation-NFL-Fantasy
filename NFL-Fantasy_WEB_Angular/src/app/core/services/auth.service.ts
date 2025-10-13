@@ -25,6 +25,12 @@ export interface AuthSession {
   Name: string;
 }
 
+  const normalizeApi = <T>(r: any): ApiResponse<T> => ({
+    success: (r?.success ?? r?.Success) ?? false,
+    message: (r?.message ?? r?.Message) ?? '',
+    data: (r?.data ?? r?.Data) as T,
+  });
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly authUrl = `${environment.apiUrl}/Auth`;
@@ -38,8 +44,9 @@ export class AuthService {
 
   // ---------- AUTH ----------
 
-  register(body: RegisterRequest): Observable<SimpleOkResponse> {
-    return this.http.post<SimpleOkResponse>(`${this.authUrl}/register`, body);
+  register(body: RegisterRequest): Observable<ApiResponse<string>> {
+  return this.http.post(`${this.authUrl}/register`, body)
+    .pipe(map(r => normalizeApi<string>(r)));
   }
 
   login(body: LoginRequest): Observable<LoginResponse> {
@@ -55,15 +62,17 @@ export class AuthService {
   }
 
   // ✅ Siempre limpia sesión (éxito o error)
-  logout(): Observable<SimpleOkResponse> {
-    return this.http.post<SimpleOkResponse>(`${this.authUrl}/logout`, {}).pipe(
+  logout(): Observable<ApiResponse<string>> {
+    return this.http.post(`${this.authUrl}/logout`, {}).pipe(
+      map(r => normalizeApi<string>(r)),
       finalize(() => this.clearSession())
     );
   }
 
   // ✅ Siempre limpia sesión (éxito o error)
-  logoutAll(): Observable<SimpleOkResponse> {
-    return this.http.post<SimpleOkResponse>(`${this.authUrl}/logout-all`, {}).pipe(
+  logoutAll(): Observable<ApiResponse<string>> {
+    return this.http.post(`${this.authUrl}/logout-all`, {}).pipe(
+      map(r => normalizeApi<string>(r)),
       finalize(() => this.clearSession())
     );
   }
@@ -115,4 +124,8 @@ export class AuthService {
   }
   clearLocalSession(): void { (this as any).clearSession?.(); }
 
+
 }
+
+
+
