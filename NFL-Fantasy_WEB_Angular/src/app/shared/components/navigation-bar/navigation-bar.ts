@@ -12,7 +12,6 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar'; //
 import { AuthService, AuthSession } from '../../../core/services/auth.service';
 import { Subscription } from 'rxjs';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { SetTeamIdDialog } from '../set-team-id-dialog/set-team-id-dialog';
 import { SelectTeamDialog } from '../select-team-dialog/select-team-dialog';
 
 @Component({
