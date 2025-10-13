@@ -1,0 +1,48 @@
+<mat-card>
+  <mat-card-header>
+    <mat-card-title><mat-icon>group</mat-icon>&nbsp;Manage Roster</mat-card-title>
+    <mat-card-subtitle>{{ myTeam()?.teamName ?? '' }}</mat-card-subtitle>
+    <span class="spacer"></span>
+    <button mat-stroked-button color="primary" (click)="openAddPlayerDialog()" [disabled]="saving()">
+      <mat-icon>person_add</mat-icon>&nbsp;Add Player
+    </button>
+  </mat-card-header>
+
+  <mat-card-content>
+    <div class="center" *ngIf="loading()"><mat-progress-spinner diameter="28" mode="indeterminate"></mat-progress-spinner></div>
+
+    <table mat-table [dataSource]="roster()" class="mat-elevation-z1 full-width" *ngIf="!loading()">
+
+      <ng-container matColumnDef="player">
+        <th mat-header-cell *matHeaderCellDef>Player</th>
+        <td mat-cell *matCellDef="let r">{{ r.fullName }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="pos">
+        <th mat-header-cell *matHeaderCellDef>Pos</th>
+        <td mat-cell *matCellDef="let r">{{ r.position }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="team">
+        <th mat-header-cell *matHeaderCellDef>Team</th>
+        <td mat-cell *matCellDef="let r">{{ r.nflTeamName || 'FA' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef></th>
+        <td mat-cell *matCellDef="let r">
+          <button mat-icon-button color="warn" (click)="remove(r)" [disabled]="saving()">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayed"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayed"></tr>
+    </table>
+
+    <div class="empty" *ngIf="!loading() && !roster().length">
+      <mat-icon>info</mat-icon> No players in roster.
+    </div>
+  </mat-card-content>
+</mat-card>

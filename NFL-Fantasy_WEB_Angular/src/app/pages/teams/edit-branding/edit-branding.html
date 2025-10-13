@@ -1,1 +1,41 @@
-<p>edit-branding works!</p>
+<mat-card class="eb-card">
+  <mat-card-header>
+    <mat-card-title><mat-icon>branding_watermark</mat-icon>&nbsp;Edit Team Branding</mat-card-title>
+    <mat-card-subtitle>Update team name and image</mat-card-subtitle>
+  </mat-card-header>
+
+  <mat-card-content [formGroup]="form">
+    <div class="grid">
+      <mat-form-field appearance="outline">
+        <mat-label>Team name</mat-label>
+        <input matInput formControlName="teamName" maxlength="40" />
+        <mat-hint align="end">{{ form.get('teamName')?.value?.length || 0 }}/40</mat-hint>
+        <mat-error *ngIf="form.get('teamName')?.touched && form.get('teamName')?.invalid">
+          Team name is required
+        </mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Image URL (optional)</mat-label>
+        <input matInput formControlName="teamImageUrl" />
+      </mat-form-field>
+    </div>
+
+    <!-- Hidden metadata (si luego calculas desde un uploader) -->
+    <input type="hidden" formControlName="teamImageWidth" />
+    <input type="hidden" formControlName="teamImageHeight" />
+    <input type="hidden" formControlName="teamImageBytes" />
+    <input type="hidden" formControlName="thumbnailUrl" />
+    <input type="hidden" formControlName="thumbnailWidth" />
+    <input type="hidden" formControlName="thumbnailHeight" />
+    <input type="hidden" formControlName="thumbnailBytes" />
+  </mat-card-content>
+
+  <mat-card-actions align="end">
+    <a mat-stroked-button [routerLink]="['/teams', teamId(), 'my-team']">Cancel</a>
+    <button mat-flat-button color="primary" (click)="save()" [disabled]="form.invalid || saving()">
+      <mat-icon>save</mat-icon>&nbsp;Save
+      <mat-progress-spinner *ngIf="saving()" diameter="18" mode="indeterminate"></mat-progress-spinner>
+    </button>
+  </mat-card-actions>
+</mat-card>

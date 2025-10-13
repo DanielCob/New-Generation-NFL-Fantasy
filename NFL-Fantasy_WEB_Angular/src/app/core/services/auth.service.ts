@@ -98,6 +98,9 @@ export class AuthService {
   updateProfile(body: EditUserProfileRequest): Observable<SimpleOkResponse> {
     return this.http.post<SimpleOkResponse>(`${this.userUrl}/update-profile`, body);
   }
+  getCurrentUserId(): number | null {
+    return this._session$.value?.UserID ?? null;
+  }
 
   // ---------- SESIÓN LOCAL ----------
 

@@ -1,18 +1,18 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { AddPlayerDialog } from './add-player-dialog';
+import { SelectTeamDialog } from './select-team-dialog';
 
-describe('AddPlayerDialog', () => {
-  let component: AddPlayerDialog;
-  let fixture: ComponentFixture<AddPlayerDialog>;
+describe('SelectTeamDialog', () => {
+  let component: SelectTeamDialog;
+  let fixture: ComponentFixture<SelectTeamDialog>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [AddPlayerDialog]
+      imports: [SelectTeamDialog]
     })
     .compileComponents();
 
-    fixture = TestBed.createComponent(AddPlayerDialog);
+    fixture = TestBed.createComponent(SelectTeamDialog);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });

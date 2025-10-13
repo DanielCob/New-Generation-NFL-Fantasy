@@ -124,6 +124,39 @@ export interface LeagueTeam {
   CreatedAt: string; // ISO date
 }
 
+export interface LeagueTeamView {
+  teamID: number;
+  teamName: string;
+  ownerName: string;
+
+  // 🆕 NUEVOS CAMPOS Feature 3.1:
+  teamImageUrl?: string;
+  thumbnailUrl?: string;
+  isActive: boolean;
+  rosterCount: number;
+  updatedAt: Date;
+
+  createdAt: Date;
+}
+
+// Actualizar UserTeamView:
+
+export interface UserTeamView {
+  teamID: number;
+  leagueID: number;
+  leagueName: string;
+  teamName: string;
+
+  // 🆕 NUEVOS CAMPOS Feature 3.1:
+  teamImageUrl?: string;
+  thumbnailUrl?: string;
+  isActive: boolean;
+  rosterCount: number;
+
+  teamCreatedAt: Date;
+  leagueStatus: number;
+}
+
 
 export type CreateLeagueResponse = ApiResponse<CreateLeagueData>;
 

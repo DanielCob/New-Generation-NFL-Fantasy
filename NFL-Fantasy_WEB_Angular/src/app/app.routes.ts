@@ -3,6 +3,9 @@ import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 import { adminGuard } from './core/guards/admin.guard';
 import { noAuthGuard } from './core/guards/no-auth-guard';
+import { teamOwnerGuard } from './core/guards/team-owner.guard';
+import { Edit } from './pages/nfl-teams/edit/edit';
+import { redirectStoredTeamGuard } from './core/guards/redirect-stored-teams.guard';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'login' },
@@ -71,6 +74,91 @@ export const routes: Routes = [
       { path: 'league/:id/teams',
         loadComponent: () => import('./pages/league/teams/teams').then(m => m.Teams)
       },
+
+            // 🆕 TEAMS (Feature 3.1)
+      {
+  path: 'my-team',
+    canActivate: [redirectStoredTeamGuard],
+    data: { dest: 'my-team' },
+    loadComponent: () =>
+      import('./core/route-shells/empty-redirect-shell').then(m => m.EmptyRedirectShell),
+  },
+  {
+    path: 'teams/edit-branding',
+    canActivate: [redirectStoredTeamGuard],
+    data: { dest: 'edit-branding' },
+    loadComponent: () =>
+      import('./core/route-shells/empty-redirect-shell').then(m => m.EmptyRedirectShell),
+  },
+  {
+    path: 'teams/manage-roster',
+    canActivate: [redirectStoredTeamGuard],
+    data: { dest: 'manage-roster' },
+    loadComponent: () =>
+      import('./core/route-shells/empty-redirect-shell').then(m => m.EmptyRedirectShell),
+  },
+
+      {
+        path: 'teams',
+        children: [
+          {
+            path: ':id/my-team',
+            loadComponent: () => import('./pages/teams/my-team/my-team').then(m => m.MyTeamComponent)
+          },
+          {
+            path: ':id/edit-branding',
+            canActivate: [teamOwnerGuard],
+            loadComponent: () => import('./pages/teams/edit-branding/edit-branding').then(m => m.EditBrandingComponent)
+          },
+          {
+            path: ':id/manage-roster',
+            canActivate: [teamOwnerGuard],
+            loadComponent: () => import('./pages/teams/manage-roster/manage-roster').then(m => m.ManageRosterComponent)
+          }
+        ]
+      },
+
+      // 🆕 NFL TEAMS (Feature 10.1)
+      {
+        path: 'nfl-teams',
+        children: [
+          {
+            path: '',
+            loadComponent: () => import('./pages/nfl-teams/list/list').then(m => m.NflTeamsListComponent)
+          },
+          {
+            path: 'create',
+            loadComponent: () => import('./pages/nfl-teams/create/create').then(m => m.Create)
+          },
+          {
+            path: ':id',
+            loadComponent: () => import('./pages/nfl-teams/details/details').then(m => m.Details)
+          },
+          {
+            path: ':id/edit',
+            loadComponent: () => import('./pages/nfl-teams/edit/edit').then(m => m.Edit)
+          }
+        ]
+      },
+
+      // 🆕 PLAYERS (opcional)
+      {
+        path: 'players',
+        children: [
+          {
+            path: 'browser',
+            loadComponent: () => import('./pages/players/browser/browser').then(m => m.Browser)
+          }
+        ]
+      },
+
+      // DIRECTORY (existente)
+      {
+        path: 'directory',
+        loadComponent: () => import('./pages/directory/directory').then(m => m.Directory)
+      },
+
+
 
       // Admin-only (si lo usas)
       {

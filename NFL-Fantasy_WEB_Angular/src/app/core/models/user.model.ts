@@ -66,6 +66,18 @@ export interface UserSession {
   IsValid: boolean;
 }
 
+// src/app/core/models/user.model.ts
+// src/app/core/models/user.model.ts
+export interface UserTeam {
+  TeamID: number;
+  TeamName: string;
+  LeagueID: number;
+  LeagueName: string;
+  CreatedAt: string;       // ISO
+}
+
+
+
 export type UserSessionsResponse = ApiResponse<UserSession[]>;
 export type UserHeaderResponse = ApiResponse<UserHeader>;
 
