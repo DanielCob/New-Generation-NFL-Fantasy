@@ -9,6 +9,10 @@
 
 <mat-card class="ph-card" *ngIf="!loading(); else loadingTpl">
   <mat-card-header>
+    <img class="avatar"
+         [src]="avatarUrl()"
+         (error)="onAvatarError($event)"
+         alt="User avatar">
     <mat-card-title>
       <mat-icon>account_circle</mat-icon>
       <span>Mi Perfil</span>
@@ -29,7 +33,7 @@
                 [src]="p.ProfileImageUrl!"
                 alt="Profile image"
                 referrerpolicy="no-referrer"
-                (error)="onAvatarError()"
+                (error)="onAvatarError($event)"
               />
             </div>
           </div>

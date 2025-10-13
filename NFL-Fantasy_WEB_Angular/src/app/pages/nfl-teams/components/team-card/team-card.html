@@ -1,0 +1,24 @@
+<mat-card class="team-card">
+  <img
+    class="thumb"
+    [src]="imgUrl"
+    (error)="onImgError($event)"
+    [alt]="team.TeamName || 'NFL Team'"
+  />
+
+  <mat-card-content>
+    <div class="title">{{ team.TeamName }}</div>
+    <div class="subtitle">{{ team.City }}</div>
+  </mat-card-content>
+
+  <mat-card-actions>
+    <button mat-stroked-button color="primary" (click)="view.emit()">
+      <mat-icon>visibility</mat-icon>
+      View
+    </button>
+    <button mat-button (click)="edit.emit()">
+      <mat-icon>edit</mat-icon>
+      Edit
+    </button>
+  </mat-card-actions>
+</mat-card>

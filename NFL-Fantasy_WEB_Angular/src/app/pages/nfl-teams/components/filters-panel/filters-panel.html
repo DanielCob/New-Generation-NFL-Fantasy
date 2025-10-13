@@ -1,0 +1,22 @@
+<form [formGroup]="form" class="filters">
+  <mat-form-field class="full">
+    <mat-label>Search team</mat-label>
+    <input matInput formControlName="searchTeam" placeholder="Arizona, Bills..." />
+    <mat-icon matPrefix>search</mat-icon>
+  </mat-form-field>
+
+  <mat-form-field class="full">
+    <mat-label>City</mat-label>
+    <input matInput formControlName="city" placeholder="Seattle, Miami..." />
+    <mat-icon matPrefix>apartment</mat-icon>
+  </mat-form-field>
+
+  <div class="actions">
+    <button mat-stroked-button type="button" (click)="clear()">
+      <mat-icon>close</mat-icon> Clear
+    </button>
+    <button mat-raised-button color="primary" type="button" (click)="apply()">
+      <mat-icon>play_arrow</mat-icon> Apply
+    </button>
+  </div>
+</form>

@@ -1,0 +1,9 @@
+.team-card .thumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  display: block;
+  border-radius: 8px 8px 0 0;
+}
+.title { font-weight: 600; }
+.subtitle { color: #6b7280; }

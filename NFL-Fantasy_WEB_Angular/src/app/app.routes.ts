@@ -4,7 +4,6 @@ import { authGuard } from './core/guards/auth.guard';
 import { adminGuard } from './core/guards/admin.guard';
 import { noAuthGuard } from './core/guards/no-auth-guard';
 import { teamOwnerGuard } from './core/guards/team-owner.guard';
-import { Edit } from './pages/nfl-teams/edit/edit';
 import { redirectStoredTeamGuard } from './core/guards/redirect-stored-teams.guard';
 
 export const routes: Routes = [
@@ -128,7 +127,7 @@ export const routes: Routes = [
           },
           {
             path: 'create',
-            loadComponent: () => import('./pages/nfl-teams/create/create').then(m => m.Create)
+            loadComponent: () => import('./pages/nfl-teams/create/create').then(m => m.CreateNFLTeamComponent)
           },
           {
             path: ':id',
@@ -136,7 +135,7 @@ export const routes: Routes = [
           },
           {
             path: ':id/edit',
-            loadComponent: () => import('./pages/nfl-teams/edit/edit').then(m => m.Edit)
+            loadComponent: () => import('./pages/nfl-teams/edit/edit').then(m => m.EditNFLTeamComponent)
           }
         ]
       },

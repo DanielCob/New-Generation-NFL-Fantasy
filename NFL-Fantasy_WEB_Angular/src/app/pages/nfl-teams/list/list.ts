@@ -8,8 +8,8 @@ import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { NflTeamService } from '../../../core/services/nfl-team.service';
 import { ListNFLTeamsResponse, NFLTeamListItem } from '../../../core/models/nfl-team.model';
-import { FiltersPanel } from './components/filters-panel/filters-panel';
-import { TeamCard } from './components/team-card/team-card';
+import { FiltersPanel, FiltersChange } from '../components/filters-panel/filters-panel';
+import { TeamCard } from '../components/team-card/team-card';
 import { environment } from '../../../../environments/environment';
 
 @Component({
@@ -17,31 +17,26 @@ import { environment } from '../../../../environments/environment';
   standalone: true,
   imports: [
     CommonModule,
-    MatCardModule,
-    MatButtonModule,
-    MatIconModule,
-    MatPaginatorModule,
-    MatProgressSpinnerModule,
-    FiltersPanel,
-    TeamCard
+    MatCardModule, MatButtonModule, MatIconModule,
+    MatPaginatorModule, MatProgressSpinnerModule,
+    FiltersPanel, TeamCard
   ],
   templateUrl: './list.html',
   styleUrls: ['./list.css']
 })
 export class NflTeamsListComponent implements OnInit {
-  private nflTeamService = inject(NflTeamService);
+  private nfl = inject(NflTeamService);
   private router = inject(Router);
 
   teams = signal<NFLTeamListItem[]>([]);
   loading = signal(false);
 
-  // Paginación
   totalRecords = signal(0);
   currentPage = signal(1);
-  pageSize = signal(environment.nflTeamsPageSize);
+  pageSize = signal(environment.nflTeamsPageSize ?? 50);
 
-  // Filtros
-  searchTerm = signal<string | undefined>(undefined);
+  // 🔎 filtros
+  searchTeam = signal<string | undefined>(undefined);
   filterCity = signal<string | undefined>(undefined);
   filterIsActive = signal<boolean | undefined>(undefined);
 
@@ -51,25 +46,38 @@ export class NflTeamsListComponent implements OnInit {
 
   loadTeams(): void {
     this.loading.set(true);
-
-    this.nflTeamService.list({
+    this.nfl.list({
       PageNumber: this.currentPage(),
       PageSize: this.pageSize(),
-      SearchTerm: this.searchTerm(),
+      SearchTeam: this.searchTeam(),      // ✅ aquí va SearchTeam
       FilterCity: this.filterCity(),
       FilterIsActive: this.filterIsActive()
     }).subscribe({
-      next: (response) => {
-        if (response.success && response.data) {
-          this.teams.set(response.data.Teams);
-          this.totalRecords.set(response.data.TotalRecords);
+      next: (res) => {
+        if ((res as any)?.success && (res as any)?.data) {
+          const data = (res as any).data as ListNFLTeamsResponse;
+          this.teams.set(data.Teams ?? []);
+          this.totalRecords.set(data.TotalRecords ?? 0);
+        } else {
+          this.teams.set([]);
+          this.totalRecords.set(0);
         }
         this.loading.set(false);
       },
       error: () => {
+        this.teams.set([]);
+        this.totalRecords.set(0);
         this.loading.set(false);
       }
     });
+  }
+
+  onFiltersChange(evt: FiltersChange): void {
+    this.searchTeam.set(evt.searchTeam);
+    this.filterCity.set(evt.city);
+    this.filterIsActive.set(evt.isActive);
+    this.currentPage.set(1);
+    this.loadTeams();
   }
 
   onPageChange(event: PageEvent): void {
@@ -78,22 +86,12 @@ export class NflTeamsListComponent implements OnInit {
     this.loadTeams();
   }
 
-  onFiltersChange(filters: { search?: string; city?: string; isActive?: boolean }): void {
-    this.searchTerm.set(filters.search);
-    this.filterCity.set(filters.city);
-    this.filterIsActive.set(filters.isActive);
-    this.currentPage.set(1); // Reset a primera página
-    this.loadTeams();
-  }
-
   onViewDetails(teamId: number): void {
     this.router.navigate(['/nfl-teams', teamId]);
   }
-
   onEditTeam(teamId: number): void {
     this.router.navigate(['/nfl-teams', teamId, 'edit']);
   }
-
   goToCreate(): void {
     this.router.navigate(['/nfl-teams/create']);
   }

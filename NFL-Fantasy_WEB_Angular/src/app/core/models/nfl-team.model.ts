@@ -1,3 +1,11 @@
+/**
+ * nfl-team.model.ts
+ * -----------------------------------------------------------------------------
+ * Cambios:
+ * - ListNFLTeamsRequest usa SearchTeam (no SearchTerm) para alinear con la API.
+ * - Fechas tipadas como string (ISO) porque así llegan en el JSON de ejemplo.
+ */
+
 export interface CreateNFLTeamDTO {
   TeamName: string;
   City: string;
@@ -27,15 +35,12 @@ export interface UpdateNFLTeamDTO {
 export interface ListNFLTeamsRequest {
   PageNumber: number;
   PageSize: number;
-  SearchTerm?: string;
+  SearchTeam?: string;      // ✅ este es el nombre del request interno de la app
   FilterCity?: string;
   FilterIsActive?: boolean;
 }
 
-// ===================================
-// ViewModels (Response) - Feature 10.1
-// ===================================
-
+/** Respuesta del listado paginado */
 export interface ListNFLTeamsResponse {
   Teams: NFLTeamListItem[];
   TotalRecords: number;
@@ -51,8 +56,8 @@ export interface NFLTeamListItem {
   TeamImageUrl?: string;
   ThumbnailUrl?: string;
   IsActive: boolean;
-  CreatedAt: Date;
-  UpdatedAt: Date;
+  CreatedAt: string;          // ISO
+  UpdatedAt: string;          // ISO
 }
 
 export interface NFLTeamDetails {
@@ -68,9 +73,9 @@ export interface NFLTeamDetails {
   ThumbnailHeight?: number;
   ThumbnailBytes?: number;
   IsActive: boolean;
-  CreatedAt: Date;
+  CreatedAt: string;          // ISO
   CreatedByName?: string;
-  UpdatedAt: Date;
+  UpdatedAt: string;          // ISO
   UpdatedByName?: string;
   ChangeHistory: NFLTeamChange[];
   ActivePlayers: PlayerBasic[];
@@ -81,7 +86,7 @@ export interface NFLTeamChange {
   FieldName: string;
   OldValue?: string;
   NewValue?: string;
-  ChangedAt: Date;
+  ChangedAt: string;          // ISO
   ChangedByName: string;
 }
 

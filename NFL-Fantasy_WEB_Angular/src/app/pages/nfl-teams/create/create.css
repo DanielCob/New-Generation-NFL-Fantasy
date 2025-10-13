@@ -1,0 +1,35 @@
+.form-card {
+  max-width: 800px;
+  margin: 24px auto;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.grid > mat-form-field:nth-child(-n + 2) {
+  /* los dos primeros (name/city) se ven más anchos */
+  grid-column: span 1;
+}
+
+.full { width: 100%; }
+
+.actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #666;
+  margin-bottom: 8px;
+}

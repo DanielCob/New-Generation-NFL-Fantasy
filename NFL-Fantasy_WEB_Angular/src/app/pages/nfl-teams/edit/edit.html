@@ -1,1 +1,89 @@
-<p>edit works!</p>
+<mat-card class="form-card" *ngIf="!loading(); else loadingTpl">
+  <h2><mat-icon>edit</mat-icon> Edit NFL Team</h2>
+
+  <form [formGroup]="form" (ngSubmit)="save()">
+    <div class="grid">
+      <mat-form-field appearance="outline">
+        <mat-label>Team name</mat-label>
+        <input matInput formControlName="teamName" />
+        <mat-icon matPrefix>flag</mat-icon>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>City</mat-label>
+        <input matInput formControlName="city" />
+        <mat-icon matPrefix>location_city</mat-icon>
+      </mat-form-field>
+    </div>
+
+    <h3>Branding (optional)</h3>
+
+    <mat-form-field appearance="outline" class="full">
+      <mat-label>Team image URL</mat-label>
+      <input matInput formControlName="teamImageUrl" (change)="onTeamImageUrlChanged()" (blur)="onTeamImageUrlChanged()" />
+      <mat-icon matPrefix>image</mat-icon>
+    </mat-form-field>
+
+    <div class="grid">
+      <mat-form-field appearance="outline">
+        <mat-label>Width</mat-label>
+        <input matInput formControlName="teamImageWidth" readonly />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Height</mat-label>
+        <input matInput formControlName="teamImageHeight" readonly />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Bytes</mat-label>
+        <input matInput formControlName="teamImageBytes" readonly />
+      </mat-form-field>
+    </div>
+
+    <div class="meta" *ngIf="computingA()">
+      <mat-spinner diameter="18"></mat-spinner>
+      <span>Computing team image metadata…</span>
+    </div>
+
+    <mat-form-field appearance="outline" class="full">
+      <mat-label>Thumbnail URL</mat-label>
+      <input matInput formControlName="thumbnailUrl" (change)="onThumbUrlChanged()" (blur)="onThumbUrlChanged()" />
+      <mat-icon matPrefix>photo_size_select_small</mat-icon>
+    </mat-form-field>
+
+    <div class="grid">
+      <mat-form-field appearance="outline">
+        <mat-label>Width</mat-label>
+        <input matInput formControlName="thumbnailWidth" readonly />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Height</mat-label>
+        <input matInput formControlName="thumbnailHeight" readonly />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Bytes</mat-label>
+        <input matInput formControlName="thumbnailBytes" readonly />
+      </mat-form-field>
+    </div>
+
+    <div class="meta" *ngIf="computingB()">
+      <mat-spinner diameter="18"></mat-spinner>
+      <span>Computing thumbnail metadata…</span>
+    </div>
+
+    <div class="actions">
+      <button mat-stroked-button type="button" (click)="router.navigate(['/nfl-teams'])">
+        <mat-icon>arrow_back</mat-icon>
+        Back
+      </button>
+      <button mat-raised-button color="primary" type="submit" [disabled]="saving() || form.invalid || computingA() || computingB()">
+        <ng-container *ngIf="!saving(); else savingTpl">Save</ng-container>
+      </button>
+    </div>
+  </form>
+
+  <ng-template #savingTpl><mat-spinner diameter="18"></mat-spinner></ng-template>
+</mat-card>
+
+<ng-template #loadingTpl>
+  <div class="loading"><mat-spinner></mat-spinner></div>
+</ng-template>

@@ -52,6 +52,15 @@ export class ProfileHeader implements OnInit {
   private fb = inject(FormBuilder);
   private userService = inject(UserService);
   private snack = inject(MatSnackBar);
+  readonly avatarFallback =
+  'data:image/svg+xml;charset=UTF-8,' +
+  encodeURIComponent(
+    `<svg xmlns='http://www.w3.org/2000/svg' width='128' height='128' viewBox='0 0 128 128'>
+      <rect width='128' height='128' fill='#e5e7eb'/>
+      <circle cx='64' cy='48' r='22' fill='#cbd5e1'/>
+      <rect x='24' y='80' width='80' height='28' rx='14' fill='#cbd5e1'/>
+    </svg>`
+  );
 
   // Estado general
   loading = signal(true);
@@ -144,9 +153,17 @@ export class ProfileHeader implements OnInit {
     this.editing.set(false);
   }
 
-  /** Si el <img> falla, ocultamos el avatar para no mostrar ícono roto */
-  onAvatarError(): void {
-    this.showAvatar.set(false);
+  avatarUrl(): string {
+    const p = this.profile();
+    const url = (p?.ProfileImageUrl ?? '').trim();
+    return url || this.avatarFallback;
+  }
+
+  onAvatarError(ev: Event) {
+    const el = ev.target as HTMLImageElement;
+    if (!el.src.startsWith('data:image/svg+xml')) {
+      el.src = this.avatarFallback;
+    }
   }
 
   /** Cálculo de metadatos al cambiar URL en edición */
