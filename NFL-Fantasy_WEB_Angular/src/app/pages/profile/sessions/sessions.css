@@ -1,40 +1,129 @@
-/* src/app/pages/profile/sessions/sessions.css */
-.full-width { width: 100%; }
+.ph-card {
+  max-width: 800px;
+  margin: 24px auto;
+  border-radius: 12px;
+  background-color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+  border: 1px solid rgba(0, 0, 0, 0.03);
+}
+
+mat-card-header {
+  padding: 24px 24px 0;
+  margin-bottom: 0;
+  background-color: #ffffff;
+}
+
+mat-card-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 24px;
+  margin-bottom: 8px !important;
+}
+
+mat-card-title mat-icon {
+  color: #3f51b5;
+  font-size: 28px;
+  width: 28px;
+  height: 28px;
+}
+
+mat-card-subtitle {
+  color: #6b7280;
+  font-size: 16px;
+}
+
+mat-card-content {
+  padding: 24px;
+}
+
+.full-width { 
+  width: 100%; 
+}
 
 .id-cell {
   display: flex;
   align-items: center;
-  gap: .5rem;
+  gap: 8px;
 }
 
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+.mono { 
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  color: #444;
+}
 
 .badge {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: .25rem;
+  gap: 4px;
+  background: #e8eaf6;
+  color: #3f51b5;
+  padding: 4px 8px;
+  border-radius: 12px;
   font-size: 12px;
-  padding: 0 .5rem;
-  border-radius: 999px;
-  background: rgba(25, 118, 210, .1);
-  color: #1976d2;
 }
 
-.ok { color: #2e7d32; }   /* verde */
-.bad { color: #c62828; }  /* rojo */
+.badge mat-icon {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+}
+
+.ok { 
+  color: #43a047;
+}
+
+.bad { 
+  color: #e53935;
+}
+
+table {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #f0f0f0;
+}
+
+.mat-mdc-header-row {
+  background-color: #fafbfc;
+}
+
+.mat-mdc-row {
+  transition: background-color 0.2s;
+}
+
+.mat-mdc-row:hover {
+  background-color: #f8f9ff;
+}
 
 .current-row {
-  background: rgba(25, 118, 210, .06);
+  background-color: #e8f0fe !important;
 }
 
 .empty {
   display: flex;
-  gap: .5rem;
   align-items: center;
-  padding: 1rem 0;
-  color: rgba(0,0,0,.6);
+  justify-content: center;
+  gap: 8px;
+  padding: 32px;
+  color: #6b7280;
+  background-color: #fafbfc;
+  border-radius: 8px;
+  border: 1px solid #f0f0f0;
+}
+
+.ph-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+}
+
+mat-card-actions {
+  padding: 16px 24px;
+  border-top: 1px solid #f0f0f0;
 }
 
 mat-card-actions button mat-spinner {
-  margin-left: .5rem;
+  margin-left: 8px;
 }
