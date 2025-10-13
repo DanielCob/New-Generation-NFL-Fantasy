@@ -4,6 +4,12 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 
+const normalizeResponse = (r: any) => ({
+  success: (r?.success ?? r?.Success) ?? false,
+  message: (r?.message ?? r?.Message) ?? '',
+  data: (r?.data ?? r?.Data) ?? ''
+});
+
 @Component({
   selector: 'app-reset',
   standalone: true,
@@ -69,7 +75,6 @@ export class Reset implements OnInit {
     this.message.set('');
     this.isError.set(false);
 
-    console.log('Enviando solicitud con token:', this.token());
 
     // Usar el método existente del AuthService
     this.authService.resetWithToken(
@@ -79,7 +84,10 @@ export class Reset implements OnInit {
     ).subscribe({
       next: (response) => {
         this.isLoading.set(false);
-        if (response.success) {
+
+        const normalizedResponse = normalizeResponse(response);
+        
+        if (normalizedResponse.success) {
           this.isSuccess.set(true);
           this.message.set(response.message || 'Contraseña restablecida exitosamente');
           
