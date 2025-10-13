@@ -22,7 +22,7 @@ export const routes: Routes = [
   { path: 'request-reset',
     loadComponent: () => import('./pages/auth/request-reset/request-reset').then(m => m.RequestReset)
   },
-  { path: 'reset/:token',
+  { path: 'reset-password',
     loadComponent: () => import('./pages/auth/reset/reset').then(m => m.Reset)
   },
 

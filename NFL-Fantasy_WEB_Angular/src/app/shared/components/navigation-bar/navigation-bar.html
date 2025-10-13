@@ -93,18 +93,21 @@
           <span>Sessions</span>
         </button>
 
-        <button mat-menu-item (click)="navigateToSettings()">
-          <mat-icon>settings</mat-icon>
-          <span>Settings</span>
-        </button>
+      <mat-divider></mat-divider>
 
-        <mat-divider></mat-divider>
+      <button mat-menu-item (click)="logout()">
+        <mat-icon>logout</mat-icon>
+        <span>Logout</span>
+      </button>
+
+
+    </mat-menu>
 
         <button mat-menu-item (click)="logout()">
           <mat-icon>logout</mat-icon>
           <span>Logout</span>
         </button>
-      </mat-menu>
+
     </div>
   }
 </mat-toolbar>

@@ -1,1 +1,56 @@
-<p>table-simple works!</p>
+<!--
+  table-simple.html
+  -----------------------------------------------------------
+  FIX: reemplazar `String(col.key)` por `columnKey(col)` (helper TS) para
+  evitar el error TS2339 en templates estrictos.
+-->
+
+<div class="app-table-simple-wrapper">
+  <table
+    mat-table
+    [dataSource]="data || []"
+    [trackBy]="trackBy"
+    class="mat-elevation-z1 full-width">
+
+    <!-- Columnas dinámicas -->
+    <ng-container *ngFor="let col of columns" [matColumnDef]="columnKey(col)">
+      <th mat-header-cell *matHeaderCellDef> {{ col.label }} </th>
+
+      <td mat-cell *matCellDef="let row">
+        <!-- 1) Si hay formatter custom, se usa primero -->
+        <ng-container *ngIf="col.formatter; else noFormatter">
+          {{ col.formatter!(row) }}
+        </ng-container>
+
+        <!-- 2) Si no hay formatter, aplicar formatos básicos -->
+        <ng-template #noFormatter>
+          <ng-container [ngSwitch]="col.format">
+            <!-- Fecha -->
+            <span *ngSwitchCase="'date'">
+              {{ cellValue(row, col) | date: (col.dateFormat || 'medium') }}
+            </span>
+
+            <!-- Sí/No -->
+            <span *ngSwitchCase="'yesno'">
+              {{ cellValue(row, col) ? 'Yes' : 'No' }}
+            </span>
+
+            <!-- Valor plano -->
+            <span *ngSwitchDefault>
+              {{ cellValue(row, col) }}
+            </span>
+          </ng-container>
+        </ng-template>
+      </td>
+    </ng-container>
+
+    <!-- Header y Rows -->
+    <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+    <tr mat-row        *matRowDef="let row; columns: displayedColumns"></tr>
+  </table>
+
+  <!-- Estado vacío -->
+  <div class="empty-hint" *ngIf="(data || []).length === 0">
+    <span>{{ emptyMessage }}</span>
+  </div>
+</div>

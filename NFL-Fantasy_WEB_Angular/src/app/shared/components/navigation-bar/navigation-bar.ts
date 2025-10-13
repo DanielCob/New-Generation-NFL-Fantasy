@@ -73,6 +73,8 @@ export class NavigationBar implements OnDestroy {
     this.router.navigate(['/teams/manage-roster']); // 👈 sin :id
   }
 
+
+
   openSetTeamIdDialog(): void {
     const ref = this.dialog.open(SelectTeamDialog, { width: '420px' });
     ref.afterClosed().subscribe((id?: number) => {

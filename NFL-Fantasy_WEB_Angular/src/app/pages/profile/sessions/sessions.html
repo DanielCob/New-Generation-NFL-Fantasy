@@ -1,4 +1,3 @@
-<!-- src/app/pages/profile/sessions/sessions.html -->
 <mat-card class="ph-card" *ngIf="!loading(); else loadingTpl">
   <mat-card-header>
     <mat-card-title>
@@ -9,12 +8,18 @@
   </mat-card-header>
 
   <mat-card-content>
-    <table mat-table [dataSource]="sessions()" class="mat-elevation-z1 full-width">
+    <!-- CHANGE: añadimos [trackBy]="trackBySession" en la tabla -->
+    <table
+      mat-table
+      [dataSource]="sessions()"
+      [trackBy]="trackBySession"
+      class="mat-elevation-z1 full-width">
 
       <!-- SessionID -->
       <ng-container matColumnDef="SessionID">
         <th mat-header-cell *matHeaderCellDef> Session ID </th>
-        <td mat-cell *matCellDef="let s" [class.current]="currentSessionId() === s.SessionID">
+        <!-- CHANGE: removido [class.current] porque usamos .current-row en <tr> -->
+        <td mat-cell *matCellDef="let s">
           <div class="id-cell">
             <span class="mono">{{ s.SessionID }}</span>
             @if (currentSessionId() === s.SessionID) {
@@ -55,9 +60,12 @@
       </ng-container>
 
       <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-      <tr mat-row
-          *matRowDef="let row; columns: displayedColumns; trackBy: trackBySession"
-          [class.current-row]="currentSessionId() === row.SessionID">
+
+      <!-- CHANGE: quitamos 'trackBy: trackBySession' de la microsintaxis -->
+      <tr
+        mat-row
+        *matRowDef="let row; columns: displayedColumns"
+        [class.current-row]="currentSessionId() === row.SessionID">
       </tr>
     </table>
 
@@ -70,9 +78,11 @@
   </mat-card-content>
 
   <mat-card-actions align="end">
-    <button mat-flat-button color="warn"
-            (click)="closeAll()"
-            [disabled]="loadingAction() || sessions().length === 0">
+    <button
+      mat-flat-button
+      color="warn"
+      (click)="closeAll()"
+      [disabled]="loadingAction() || sessions().length === 0">
       <mat-icon>logout</mat-icon>
       Cerrar todas
       @if (loadingAction()) {

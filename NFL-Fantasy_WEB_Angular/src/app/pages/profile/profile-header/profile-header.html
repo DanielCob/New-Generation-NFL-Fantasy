@@ -1,15 +1,40 @@
+<!--
+  profile-header.html
+  -----------------------------------------------------------------------------
+  Cambios:
+  - Se muestra avatar si p.ProfileImageUrl existe.
+  - Si la imagen falla al cargar, se oculta para evitar ícono roto.
+  - Prefill de URL ya se hace en el TS.
+-->
+
 <mat-card class="ph-card" *ngIf="!loading(); else loadingTpl">
   <mat-card-header>
     <mat-card-title>
-      <mat-icon>badge</mat-icon>
-      <span>Profile Header</span>
+      <mat-icon>account_circle</mat-icon>
+      <span>Mi Perfil</span>
     </mat-card-title>
-    <mat-card-subtitle>Información básica de tu cuenta</mat-card-subtitle>
+    <mat-card-subtitle>Gestiona tu información personal y preferencias de cuenta</mat-card-subtitle>
   </mat-card-header>
 
   <mat-card-content>
     @if (profile(); as p) {
       <div class="grid">
+        <!-- AVATAR (solo si existe URL y no falló la carga) -->
+        @if (p.ProfileImageUrl && showAvatar()) {
+          <div class="row photo-row">
+            <div class="label">Photo</div>
+            <div class="value">
+              <img
+                class="avatar-img"
+                [src]="p.ProfileImageUrl!"
+                alt="Profile image"
+                referrerpolicy="no-referrer"
+                (error)="onAvatarError()"
+              />
+            </div>
+          </div>
+        }
+
         <!-- No editables -->
         <div class="row">
           <div class="label">User ID</div>
@@ -34,7 +59,7 @@
 
         <mat-divider class="my-16"></mat-divider>
 
-        <!-- Editables -->
+        <!-- Vista normal -->
         @if (!editing()) {
           <div class="row">
             <div class="label">Name</div>
@@ -50,11 +75,12 @@
           </div>
 
           <div class="actions">
-            <button mat-raised-button color="primary" (click)="enableEdit()">
+            <button mat-raised-button color="primary" (click)="editing.set(true)">
               <mat-icon>edit</mat-icon> Editar perfil
             </button>
           </div>
         } @else {
+          <!-- Modo edición -->
           <form [formGroup]="form" (ngSubmit)="save()">
             <mat-form-field appearance="outline" class="full">
               <mat-label>Name</mat-label>
@@ -78,11 +104,46 @@
               <mat-icon matPrefix>translate</mat-icon>
             </mat-form-field>
 
+            <!-- URL de imagen -->
             <mat-form-field appearance="outline" class="full">
               <mat-label>Profile image URL (opcional)</mat-label>
-              <input matInput formControlName="profileImageUrl" />
+              <input
+                matInput
+                formControlName="profileImageUrl"
+                (change)="onProfileImageUrlChanged()"
+                (blur)="onProfileImageUrlChanged()"
+                placeholder="https://..."
+              />
               <mat-icon matPrefix>image</mat-icon>
+              <mat-hint>
+                Si indicas una URL, se calcularán Width/Height/Bytes automáticamente
+                (requeridos por la API).
+              </mat-hint>
             </mat-form-field>
+
+            <!-- Metadatos (solo lectura) -->
+            <div class="row meta-row">
+              <mat-form-field appearance="outline">
+                <mat-label>Width (px)</mat-label>
+                <input matInput formControlName="profileImageWidth" readonly />
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Height (px)</mat-label>
+                <input matInput formControlName="profileImageHeight" readonly />
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Bytes</mat-label>
+                <input matInput formControlName="profileImageBytes" readonly />
+              </mat-form-field>
+            </div>
+
+            <!-- Spinner de metadatos -->
+            <div class="actions" *ngIf="computingImageMeta()">
+              <mat-spinner diameter="20"></mat-spinner>
+              <span>Calculando metadatos de imagen…</span>
+            </div>
 
             <div class="actions">
               <button mat-button type="button" (click)="cancelEdit()">Cancelar</button>
@@ -90,7 +151,7 @@
                 mat-raised-button
                 color="primary"
                 type="submit"
-                [disabled]="form.invalid || saving()"
+                [disabled]="form.invalid || saving() || computingImageMeta()"
               >
                 @if (saving()) {
                   <mat-spinner diameter="18"></mat-spinner>

@@ -1,1 +1,88 @@
-<p>reset works!</p>
+<div class="reset-container">
+  <div class="reset-card">
+    <div class="reset-header">
+      <h2>Restablecer Contraseña</h2>
+      <p>Ingresa tu nueva contraseña</p>
+    </div>
+
+    <form (ngSubmit)="onSubmit()" class="reset-form">
+      <!-- Campo Nueva Contraseña -->
+      <div class="form-group">
+        <label for="newPassword">Nueva Contraseña</label>
+        <input
+          type="password"
+          id="newPassword"
+          [value]="newPassword()"
+          (input)="newPassword.set($any($event.target).value)"
+          placeholder="Ingresa tu nueva contraseña"
+          required
+          minlength="6"
+          class="form-control"
+        />
+      </div>
+
+      <!-- Campo Confirmar Contraseña -->
+      <div class="form-group">
+        <label for="confirmPassword">Confirmar Contraseña</label>
+        <input
+          type="password"
+          id="confirmPassword"
+          [value]="confirmPassword()"
+          (input)="confirmPassword.set($any($event.target).value)"
+          placeholder="Confirma tu nueva contraseña"
+          required
+          minlength="6"
+          class="form-control"
+        />
+      </div>
+
+      <!-- Mensajes de estado -->
+      @if (message()) {
+        <div 
+          class="alert" 
+          [class.alert-error]="isError()" 
+          [class.alert-success]="isSuccess()"
+        >
+          {{ message() }}
+        </div>
+      }
+
+      <!-- Botón de envío -->
+      <button 
+        type="submit" 
+        class="btn btn-primary btn-block"
+        [disabled]="isLoading() || isSuccess()"
+      >
+        @if (isLoading()) {
+          <span>Procesando...</span>
+        } @else {
+          <span>Restablecer Contraseña</span>
+        }
+      </button>
+
+      <!-- Enlace para volver al login -->
+      @if (isSuccess()) {
+        <div class="success-actions">
+          <p>Serás redirigido automáticamente al login...</p>
+          <button 
+            type="button" 
+            class="btn btn-link" 
+            (click)="goToLogin()"
+          >
+            Ir al Login ahora
+          </button>
+        </div>
+      } @else {
+        <div class="form-footer">
+          <button 
+            type="button" 
+            class="btn btn-link" 
+            (click)="goToLogin()"
+          >
+            Volver al Login
+          </button>
+        </div>
+      }
+    </form>
+  </div>
+</div>

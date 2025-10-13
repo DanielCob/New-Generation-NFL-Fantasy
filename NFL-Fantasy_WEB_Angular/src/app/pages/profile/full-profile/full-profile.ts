@@ -1,4 +1,12 @@
-// src/app/pages/profile/full-profile/full-profile.ts
+/**
+ * full-profile.ts
+ * ---------------------------------------------------------
+ * Cambios clave:
+ * - Se reemplaza la carga por userSvc.getProfile() para traer
+ *   el perfil COMPLETO (ligas + equipos) desde /api/User/profile.
+ * - Se mantiene la tabla reutilizable <app-table-simple>.
+ */
+
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
@@ -10,7 +18,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatButtonModule } from '@angular/material/button';
 
 import { UserService } from '../../../core/services/user.service';
-import { UserProfile } from '../../../core/models/user.model';
+import { UserProfile, CommissionedLeague, UserTeam } from '../../../core/models/user.model';
+import { TableSimple, TableColumn } from '../../../shared/components/table-simple/table-simple';
 
 @Component({
   selector: 'app-full-profile',
@@ -24,6 +33,7 @@ import { UserProfile } from '../../../core/models/user.model';
     MatChipsModule,
     MatProgressSpinnerModule,
     MatButtonModule,
+    TableSimple,
   ],
   templateUrl: './full-profile.html',
   styleUrl: './full-profile.css'
@@ -35,14 +45,36 @@ export class FullProfile implements OnInit {
   error   = signal<string | null>(null);
   profile = signal<UserProfile | null>(null);
 
+  // Columnas: Ligas como comisionado
+  commissionedColumns: TableColumn<CommissionedLeague>[] = [
+    { label: 'League',   key: 'LeagueName' },
+    { label: 'Slots',    key: 'TeamSlots' },
+    { label: 'Role',     key: 'RoleCode' },
+    { label: 'Primary',  key: 'IsPrimaryCommissioner', format: 'yesno' },
+    { label: 'Status',   key: 'Status', formatter: (r) => this.statusLabel(r.Status) },
+    { label: 'Joined',   key: 'JoinedAt', format: 'date', dateFormat: 'mediumDate' },
+  ];
+
+  // Columnas: Mis equipos
+  teamsColumns: TableColumn<UserTeam>[] = [
+    { label: 'Team',   key: 'TeamName' },
+    { label: 'League', key: 'LeagueName' },
+    { label: 'Since',  key: 'CreatedAt', format: 'date', dateFormat: 'mediumDate' },
+  ];
+
+  trackByLeague = (_: number, l: CommissionedLeague) => l.LeagueID;
+  trackByTeam   = (_: number, t: UserTeam)         => t.TeamID;
+
   ngOnInit(): void {
     this.load();
   }
 
+  /** Carga perfil COMPLETO (sp_GetUserProfile) */
   load(): void {
     this.loading.set(true);
     this.error.set(null);
-    this.userSvc.getHeader().subscribe({
+
+    this.userSvc.getProfile().subscribe({
       next: (p) => {
         this.profile.set(p);
         this.loading.set(false);
@@ -56,9 +88,19 @@ export class FullProfile implements OnInit {
     });
   }
 
-  // Helpers para vista
+  /** Mapeo visual del status de liga (ajusta a tu catálogo real) */
+  statusLabel(status: number): string {
+    switch (status) {
+      case 0: return 'Draft';
+      case 1: return 'Active';
+      case 2: return 'Paused';
+      case 3: return 'Closed';
+      default: return String(status);
+    }
+  }
+
+  /** Color de chip para status (referencia futura) */
   statusChipColor(status: number): 'primary' | 'accent' | 'warn' {
-    // Ajusta según tus códigos: 1=Activa, 2=Pausada, 3=Cerrada… (ejemplo)
     if (status === 1) return 'primary';
     if (status === 2) return 'accent';
     return 'warn';
