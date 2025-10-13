@@ -65,9 +65,10 @@ export class SelectTeamDialog implements OnInit {
   }
 
   select(t: UserTeam): void {
-    if (!t) return;
-    localStorage.setItem('xnf.currentTeamId', String(t.TeamID));
-    this.ref.close(t.TeamID);
+    const id = t.TeamID;                 // 👈 usa el TeamID numérico
+    if (!id) return;
+    localStorage.setItem('xnf.currentTeamId', String(id));
+    this.ref.close(String(id));
   }
 
   close(): void { this.ref.close(); }

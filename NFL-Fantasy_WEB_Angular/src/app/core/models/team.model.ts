@@ -13,6 +13,20 @@ export interface UpdateTeamBrandingDTO {
   thumbnailBytes?: number;
 }
 
+// src/app/core/models/team.model.ts (o donde tengas los DTOs)
+export interface ApiUpdateTeamBrandingBody {
+  TeamName?: string;
+  TeamImageUrl?: string;
+  TeamImageWidth?: number;
+  TeamImageHeight?: number;
+  TeamImageBytes?: number;
+  ThumbnailUrl?: string;
+  ThumbnailWidth?: number;
+  ThumbnailHeight?: number;
+  ThumbnailBytes?: number;
+}
+
+
 export type AcquisitionType = 'Draft' | 'Waivers' | 'FreeAgent' | 'Trade';
 
 export interface AddPlayerToRosterDTO {

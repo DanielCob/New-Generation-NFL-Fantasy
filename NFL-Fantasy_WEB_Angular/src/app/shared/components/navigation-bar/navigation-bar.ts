@@ -66,6 +66,7 @@ export class NavigationBar implements OnDestroy {
     this.router.navigate(['/my-team']); // 👈 sin :id
   }
   navigateToEditBranding(): void {
+    localStorage.getItem('xnf.currentTeamId')  // debe ser "1", "2", ...
     this.router.navigate(['/teams/edit-branding']); // 👈 sin :id
   }
   navigateToManageRoster(): void {

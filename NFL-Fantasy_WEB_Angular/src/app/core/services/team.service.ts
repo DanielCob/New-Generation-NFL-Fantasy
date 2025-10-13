@@ -3,13 +3,14 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { OwnedTeamOption } from '../models/team.model';
+import { map } from 'rxjs/operators';
 import {
   MyTeamResponse,
-  UpdateTeamBrandingDTO,
   AddPlayerToRosterDTO,
   RosterDistribution,
   FantasyTeamDetails
 } from '../models/team.model';
+import { ApiUpdateTeamBrandingBody, UpdateTeamBrandingDTO } from '../models/team.model';
 import { ApiResponse } from '../models/common.model';
 
 @Injectable({ providedIn: 'root' })
@@ -22,22 +23,15 @@ export class TeamService {
    * PUT /api/team/{id}/branding
    * Feature 3.1 - Solo el dueño puede editar
    */
-  updateBranding(teamId: number, dto: UpdateTeamBrandingDTO): Observable<ApiResponse<void>> {
-    return this.http.put<ApiResponse<void>>(`${this.baseUrl}/${teamId}/branding`, dto);
-  }
+  // team.service.ts
 
-  /**
-   * Obtiene información completa del equipo con roster
-   * GET /api/team/{id}/my-team
-   * Feature 3.1 - Con filtros opcionales
-   */
-  getMyTeam(teamId: number, filterPosition?: string, searchPlayer?: string): Observable<ApiResponse<MyTeamResponse>> {
-    let params: any = {};
+  getMyTeam(teamId: number, filterPosition?: string, searchPlayer?: string) {
+    const params: any = {};
     if (filterPosition) params.filterPosition = filterPosition;
     if (searchPlayer) params.searchPlayer = searchPlayer;
-
     return this.http.get<ApiResponse<MyTeamResponse>>(`${this.baseUrl}/${teamId}/my-team`, { params });
   }
+
 
   /**
    * Obtiene distribución porcentual del roster
@@ -68,4 +62,33 @@ export class TeamService {
   listOwnedTeams(): Observable<ApiResponse<OwnedTeamOption[]>> {
   return this.http.get<ApiResponse<OwnedTeamOption[]>>(`${this.baseUrl}/my-teams`);
   }
+   private mapBrandingToApi(dto: UpdateTeamBrandingDTO): ApiUpdateTeamBrandingBody {
+    const body: ApiUpdateTeamBrandingBody = {};
+    const trim = (s?: string | null) => (s?.trim() ? s.trim() : undefined);
+    const isNum = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
+
+    const name = trim(dto.teamName);
+    if (name) body.TeamName = name;
+
+    const imgUrl = trim(dto.teamImageUrl);
+    if (imgUrl) {
+      body.TeamImageUrl = imgUrl;
+      if (isNum(dto.teamImageWidth))  body.TeamImageWidth  = dto.teamImageWidth;
+      if (isNum(dto.teamImageHeight)) body.TeamImageHeight = dto.teamImageHeight;
+      if (isNum(dto.teamImageBytes))  body.TeamImageBytes  = dto.teamImageBytes;
+
+      const thUrl = trim(dto.thumbnailUrl);
+      if (thUrl) body.ThumbnailUrl = thUrl;
+      if (isNum(dto.thumbnailWidth))  body.ThumbnailWidth  = dto.thumbnailWidth;
+      if (isNum(dto.thumbnailHeight)) body.ThumbnailHeight = dto.thumbnailHeight;
+      if (isNum(dto.thumbnailBytes))  body.ThumbnailBytes  = dto.thumbnailBytes;
+    }
+    return body;
+  }
+
+ updateBranding(teamId: number, dto: UpdateTeamBrandingDTO): Observable<ApiResponse<void>> {
+  const body: ApiUpdateTeamBrandingBody = this.mapBrandingToApi(dto); // ✅ tipa bien
+  return this.http.put<ApiResponse<void>>(`${this.baseUrl}/${teamId}/branding`, body);
+}
+
 }

@@ -14,6 +14,7 @@ import { MatInputModule } from '@angular/material/input';
 import { TeamService } from '../../../core/services/team.service';
 import { ApiResponse } from '../../../core/models/common.model';
 import { UpdateTeamBrandingDTO, MyTeamResponse } from '../../../core/models/team.model';
+import { Api } from '../../../core/services/api';
 
 @Component({
   selector: 'app-edit-branding',
@@ -52,6 +53,7 @@ export class EditBrandingComponent implements OnInit {
   ngOnInit(): void {
     const id = Number(this.route.snapshot.paramMap.get('id'));
     this.teamId.set(id);
+    localStorage.setItem('xnf.currentTeamId', String(id));
     // Prefill nombre e imagen desde /my-team para mejor UX
     this.teamSrv.getMyTeam(id).subscribe({
       next: (res: ApiResponse<MyTeamResponse>) => {
@@ -72,41 +74,53 @@ export class EditBrandingComponent implements OnInit {
   }
 
   save(): void {
-    if (this.saving() || this.form.invalid) return;
-    const v = this.form.value;
+  if (this.saving() || this.form.invalid) return;
+  const v = this.form.value;
 
-    // Solo enviar opcionales con valor real
-    const dto: UpdateTeamBrandingDTO = {
-      ...(v.teamName?.trim() ? { teamName: v.teamName.trim() } : {}),
-      ...(v.teamImageUrl?.trim()
-        ? {
-            teamImageUrl: v.teamImageUrl.trim(),
-            ...(this.toNumberOrUndef(v.teamImageWidth) !== undefined ? { teamImageWidth: this.toNumberOrUndef(v.teamImageWidth)! } : {}),
-            ...(this.toNumberOrUndef(v.teamImageHeight) !== undefined ? { teamImageHeight: this.toNumberOrUndef(v.teamImageHeight)! } : {}),
-            ...(this.toNumberOrUndef(v.teamImageBytes)  !== undefined ? { teamImageBytes:  this.toNumberOrUndef(v.teamImageBytes)! }  : {}),
-            ...(v.thumbnailUrl?.trim() ? { thumbnailUrl: v.thumbnailUrl.trim() } : {}),
-            ...(this.toNumberOrUndef(v.thumbnailWidth)  !== undefined ? { thumbnailWidth:  this.toNumberOrUndef(v.thumbnailWidth)! }  : {}),
-            ...(this.toNumberOrUndef(v.thumbnailHeight) !== undefined ? { thumbnailHeight: this.toNumberOrUndef(v.thumbnailHeight)! } : {}),
-            ...(this.toNumberOrUndef(v.thumbnailBytes)  !== undefined ? { thumbnailBytes:  this.toNumberOrUndef(v.thumbnailBytes)! }  : {}),
-          }
-        : {})
-    };
+  // DTO camelCase para el front/servicio
+  const dto: UpdateTeamBrandingDTO = {
+    ...(v.teamName?.trim() ? { teamName: v.teamName.trim() } : {})
+  };
 
-    this.saving.set(true);
-    this.teamSrv.updateBranding(this.teamId(), dto).subscribe({
-      next: (res) => {
-        if (res.success) {
-          this.snack.open(res.message || 'Branding updated', 'Close', { duration: 2500 });
-          this.router.navigate(['/teams', this.teamId(), 'my-team']);
-        } else {
-          this.snack.open(res.message || 'Could not update branding', 'Close', { duration: 3500, panelClass: ['error-snackbar'] });
-        }
-        this.saving.set(false);
-      },
-      error: () => {
-        this.snack.open('Could not update branding', 'Close', { duration: 3500, panelClass: ['error-snackbar'] });
-        this.saving.set(false);
-      }
+  if (v.teamImageUrl?.trim()) {
+    Object.assign(dto, {
+      teamImageUrl: v.teamImageUrl.trim(),
+      ...(this.toNumberOrUndef(v.teamImageWidth)  !== undefined ? { teamImageWidth:  this.toNumberOrUndef(v.teamImageWidth)! }  : {}),
+      ...(this.toNumberOrUndef(v.teamImageHeight) !== undefined ? { teamImageHeight: this.toNumberOrUndef(v.teamImageHeight)! } : {}),
+      ...(this.toNumberOrUndef(v.teamImageBytes)  !== undefined ? { teamImageBytes:  this.toNumberOrUndef(v.teamImageBytes)! }  : {}),
+      ...(v.thumbnailUrl?.trim() ? { thumbnailUrl: v.thumbnailUrl.trim() } : {}),
+      ...(this.toNumberOrUndef(v.thumbnailWidth)  !== undefined ? { thumbnailWidth:  this.toNumberOrUndef(v.thumbnailWidth)! }  : {}),
+      ...(this.toNumberOrUndef(v.thumbnailHeight) !== undefined ? { thumbnailHeight: this.toNumberOrUndef(v.thumbnailHeight)! } : {}),
+      ...(this.toNumberOrUndef(v.thumbnailBytes)  !== undefined ? { thumbnailBytes:  this.toNumberOrUndef(v.thumbnailBytes)! }  : {}),
     });
   }
+
+  this.saving.set(true);
+  this.teamSrv.updateBranding(this.teamId(), dto).subscribe({
+    next: (res) => {
+      if (res.success) {
+        this.snack.open(res.message || 'Branding updated', 'Close', { duration: 2500 });
+        this.router.navigate(['/teams', this.teamId(), 'my-team']);
+      } else {
+        this.snack.open(res.message || 'Could not update branding', 'Close', { duration: 3500, panelClass: ['error-snackbar'] });
+      }
+      this.saving.set(false);
+    },
+    error: (err) => {
+      const e = err?.error ?? err;
+
+      const backendMsg =
+        e?.message ??
+        e?.Message ??
+        e?.title ??
+        e?.detail ??
+        (e?.errors ? Object.values(e.errors as Record<string, string[]>).flat().join(' | ') : undefined);
+
+      const msg = backendMsg ?? 'Could not update branding';
+
+      this.snack.open(msg, 'Close', { duration: 4000, panelClass: ['error-snackbar'] });
+      this.saving.set(false);
+    }
+  });
+}
 }

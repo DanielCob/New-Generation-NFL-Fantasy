@@ -4,49 +4,34 @@ import { map, catchError, of } from 'rxjs';
 import { TeamService } from '../services/team.service';
 import { AuthService } from '../services/auth.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { UserService } from '../services/user.service';
 
 /**
  * Guard que valida que el usuario sea dueño del equipo
  * Usado en: /teams/:id/edit-branding, /teams/:id/manage-roster
  */
-export const teamOwnerGuard: CanActivateFn = (route: ActivatedRouteSnapshot) => {
-  const teamService = inject(TeamService);
-  const authService = inject(AuthService);
-  const router = inject(Router);
-  const snackBar = inject(MatSnackBar);
+export const teamOwnerGuard: CanActivateFn = (route) => {
+  const userSvc = inject(UserService);
+  const router  = inject(Router);
+  const snack   = inject(MatSnackBar);
 
-  const teamId = Number(route.paramMap.get('id'));
-  const currentUserId = authService.getCurrentUserId(); // Método a agregar en AuthService
-
-  if (!teamId || isNaN(teamId)) {
-    router.navigate(['/not-found']);
-    return false;
+  const rawId = route.paramMap.get('id');
+  const id = rawId ? Number(rawId) : NaN;      // 👈 numérico
+  if (!Number.isFinite(id) || id <= 0) {
+    snack.open('Invalid team id', 'Close', { duration: 2500 });
+    return router.createUrlTree(['/nfl-teams']);
   }
 
-  return teamService.getMyTeam(teamId).pipe(
-    map(response => {
-      if (response.success && response.data) {
-        // Verificar que el usuario actual sea el dueño
-        // Esto se valida en el backend, pero aquí verificamos para UX
-        return true;
-      }
-
-      snackBar.open('No tienes permisos para editar este equipo', 'Cerrar', {
-        duration: 3000,
-        panelClass: ['error-snackbar']
-      });
-      router.navigate(['/leagues']);
-      return false;
+  return userSvc.getProfile().pipe(
+    map(p => {
+      const owns = (p?.Teams ?? []).some(t => t.TeamID === id); // 👈 compara TeamID
+      if (owns) return true;
+      snack.open('You don’t own this team. Select one of your teams.', 'Close', { duration: 3000 });
+      return router.createUrlTree(['/my-team']);
     }),
-    catchError(error => {
-      if (error.status === 403) {
-        snackBar.open('No eres el dueño de este equipo', 'Cerrar', {
-          duration: 3000,
-          panelClass: ['error-snackbar']
-        });
-      }
-      router.navigate(['/leagues']);
-      return of(false);
+    catchError(() => {
+      snack.open('Could not verify team ownership.', 'Close', { duration: 2500 });
+      return of(router.createUrlTree(['/nfl-teams']));
     })
   );
 };
