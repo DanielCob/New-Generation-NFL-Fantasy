@@ -1,19 +1,3 @@
-/**
- * table-simple.ts
- * ---------------------------------------------------------
- * FIXES:
- * 1) Se agrega el helper `columnKey(col)` para obtener la clave string
- *    de columna en TypeScript, y así evitar usar `String(...)` en el
- *    template (que causaba el error TS2339 en Angular templates).
- * 2) Se cambia el re-export a `export type { ... }` para cumplir con
- *    `isolatedModules` (TS1205).
- *
- * Descripción:
- * - Tabla genérica minimalista (MatTable) para listas simples.
- * - Soporta columnas dinámicas, formateos básicos (date/yesno),
- *   formateador custom por columna y trackBy opcional.
- */
-
 import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatTableModule } from '@angular/material/table';

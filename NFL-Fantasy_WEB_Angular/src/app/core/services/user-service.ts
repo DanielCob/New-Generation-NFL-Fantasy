@@ -12,13 +12,13 @@ import { HttpClient } from '@angular/common/http';
 import { map, Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
-import { ApiResponse } from '../models/auth.model';
+import { ApiResponse } from '../models/auth-model';
 import {
   UserProfile,
   UserSession,
   EditUserProfileRequest,
   EditUserProfileResponse
-} from '../models/user.model';
+} from '../models/user-model';
 
 @Injectable({ providedIn: 'root' })
 export class UserService {

@@ -1,10 +1,9 @@
-// image-upload.component.ts
 import { Component, Input, Output, EventEmitter, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { getImageDimensions, imageTypeValidator } from '../../validators/image.validator';
+import { getImageDimensions, imageTypeValidator } from '../../validators/image-validator';
 import { environment } from '../../../../environments/environment';
 
 @Component({

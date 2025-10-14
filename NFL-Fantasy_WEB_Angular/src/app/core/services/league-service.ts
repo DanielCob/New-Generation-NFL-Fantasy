@@ -19,7 +19,7 @@ import {
   LeagueDirectoryResponse,
   LeagueMembersResponse,
   LeagueTeamsResponse,
-} from '../models/league.model';
+} from '../models/league-model';
 
 @Injectable({ providedIn: 'root' })
 export class LeagueService {

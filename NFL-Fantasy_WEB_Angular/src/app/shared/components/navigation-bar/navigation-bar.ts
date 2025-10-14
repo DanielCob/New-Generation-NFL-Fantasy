@@ -1,4 +1,3 @@
-// src/app/shared/components/navigation-bar/navigation-bar.ts
 import { Component, computed, inject, signal, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
@@ -9,10 +8,10 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar'; // 👈
-import { AuthService, AuthSession } from '../../../core/services/auth.service';
 import { Subscription } from 'rxjs';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { SelectTeamDialog } from '../select-team-dialog/select-team-dialog';
+import { AuthService, AuthSession } from '../../../core/services/auth-service';
 
 @Component({
   selector: 'app-navigation-bar',

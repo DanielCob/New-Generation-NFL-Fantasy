@@ -1,15 +1,14 @@
-// src/app/core/services/api.ts
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { Storage } from './storage';
+import { StorageService } from './storage-service';
 
 @Injectable({
   providedIn: 'root'
 })
-export class Api {
+export class ApiService {
   private readonly http = inject(HttpClient);
-  private readonly storage = inject(Storage);
+  private readonly storage = inject(StorageService);
   private readonly apiUrl = 'https://localhost:7221/api';
 
   private getHeaders(): HttpHeaders {

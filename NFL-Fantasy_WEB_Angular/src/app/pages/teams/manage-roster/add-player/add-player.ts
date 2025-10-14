@@ -7,7 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 
-import { AddPlayerToRosterDTO } from '../../../../core/models/team.model';
+import { AddPlayerToRosterDTO } from '../../../../core/models/team-model';
 
 @Component({
   selector: 'app-add-player-dialog',

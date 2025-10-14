@@ -1,10 +1,9 @@
-// src/app/core/services/storage.ts
 import { Injectable } from '@angular/core';
 
 @Injectable({
   providedIn: 'root'
 })
-export class Storage {
+export class StorageService {
   private readonly TOKEN_KEY = 'sessionToken';
   private readonly USER_KEY = 'currentUser';
 

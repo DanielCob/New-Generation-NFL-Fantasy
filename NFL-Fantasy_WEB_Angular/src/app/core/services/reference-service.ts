@@ -8,7 +8,7 @@ import {
   CurrentSeasonResponse,
   PositionFormatsResponse,
   PositionSlotsResponse,
-} from '../models/reference.model';
+} from '../models/reference-model';
 
 @Injectable({ providedIn: 'root' })
 export class ReferenceService {

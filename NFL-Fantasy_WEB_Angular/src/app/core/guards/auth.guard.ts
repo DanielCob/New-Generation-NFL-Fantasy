@@ -3,9 +3,8 @@ import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { catchError, map, take } from 'rxjs/operators';
-
-import { AuthService } from '../services/auth.service';
-import { UserService } from '../services/user.service';
+import { AuthService } from '../services/auth-service';
+import { UserService } from '../services/user-service';
 
 /**
  * Reglas:

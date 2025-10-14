@@ -6,11 +6,11 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { NflTeamService } from '../../../core/services/nfl-team.service';
-import { ListNFLTeamsResponse, NFLTeamListItem } from '../../../core/models/nfl-team.model';
+import { ListNFLTeamsResponse, NFLTeamListItem } from '../../../core/models/nfl-team-model';
 import { FiltersPanel, FiltersChange } from '../components/filters-panel/filters-panel';
 import { TeamCard } from '../components/team-card/team-card';
 import { environment } from '../../../../environments/environment';
+import { NFLTeamService } from '../../../core/services/nfl-team-service';
 
 @Component({
   selector: 'app-nfl-teams-list',
@@ -25,7 +25,7 @@ import { environment } from '../../../../environments/environment';
   styleUrls: ['./list.css']
 })
 export class NflTeamsListComponent implements OnInit {
-  private nfl = inject(NflTeamService);
+  private nfl = inject(NFLTeamService);
   private router = inject(Router);
 
   teams = signal<NFLTeamListItem[]>([]);

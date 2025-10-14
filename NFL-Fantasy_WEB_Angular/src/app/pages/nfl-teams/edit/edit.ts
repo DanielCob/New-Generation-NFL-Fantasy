@@ -1,16 +1,7 @@
-/**
- * EditNFLTeamComponent
- * -----------------------------------------------------------------------------
- * - Carga detalles por :id.
- * - Permite editar name/city; branding opcional con metadatos auto.
- * - Envío sólo incluye campos con valor (parcial).
- */
-
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -18,8 +9,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { NflTeamService } from '../../../core/services/nfl-team.service';
-import { NFLTeamDetails, UpdateNFLTeamDTO } from '../../../core/models/nfl-team.model';
+import { NFLTeamDetails, UpdateNFLTeamDTO } from '../../../core/models/nfl-team-model';
+import { NFLTeamService } from '../../../core/services/nfl-team-service';
 
 @Component({
   selector: 'app-nfl-team-edit',
@@ -34,7 +25,7 @@ import { NFLTeamDetails, UpdateNFLTeamDTO } from '../../../core/models/nfl-team.
 })
 export class EditNFLTeamComponent {
   private fb = inject(FormBuilder);
-  private nfl = inject(NflTeamService);
+  private nfl = inject(NFLTeamService);
   private route = inject(ActivatedRoute);
   public router = inject(Router);
   private snack = inject(MatSnackBar);

@@ -2,16 +2,16 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { OwnedTeamOption } from '../models/team.model';
+import { OwnedTeamOption } from '../models/team-model';
 import { map } from 'rxjs/operators';
 import {
   MyTeamResponse,
   AddPlayerToRosterDTO,
   RosterDistribution,
   FantasyTeamDetails
-} from '../models/team.model';
-import { ApiUpdateTeamBrandingBody, UpdateTeamBrandingDTO } from '../models/team.model';
-import { ApiResponse } from '../models/common.model';
+} from '../models/team-model';
+import { ApiUpdateTeamBrandingBody, UpdateTeamBrandingDTO } from '../models/team-model';
+import { ApiResponse } from '../models/common-model';
 
 @Injectable({ providedIn: 'root' })
 export class TeamService {

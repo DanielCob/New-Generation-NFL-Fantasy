@@ -10,12 +10,12 @@ import {
   LoginRequest,
   LoginResponse,
   SimpleOkResponse,
-} from '../models/auth.model';
+} from '../models/auth-model';
 
 import {
   UserProfile,
   EditUserProfileRequest,
-} from '../models/user.model';
+} from '../models/user-model';
 
 export interface AuthSession {
   SessionID: string;
@@ -129,6 +129,3 @@ export class AuthService {
 
 
 }
-
-
-

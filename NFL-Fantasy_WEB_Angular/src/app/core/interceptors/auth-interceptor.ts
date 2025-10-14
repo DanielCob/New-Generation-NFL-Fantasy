@@ -5,7 +5,7 @@ import {
 } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { Observable, catchError, throwError } from 'rxjs';
-import { AuthService } from '../services/auth.service';
+import { AuthService } from '../services/auth-service';
 
 /** Endpoints públicos: NO llevan Authorization */
 function isPublicRequest(url: string): boolean {

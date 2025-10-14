@@ -1,12 +1,10 @@
-// src/app/shared/components/select-team-dialog/select-team-dialog.ts
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-
-import { UserService } from '../../../core/services/user.service';
-import { UserTeam } from '../../../core/models/user.model';
+import { UserTeam } from '../../../core/models/user-model';
+import { UserService } from '../../../core/services/user-service';
 
 @Component({
   standalone: true,

@@ -7,14 +7,11 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-
-import { TeamService } from '../../../core/services/team.service';
-import { ApiResponse } from '../../../core/models/common.model';
-import { UpdateTeamBrandingDTO, MyTeamResponse } from '../../../core/models/team.model';
-import { Api } from '../../../core/services/api';
+import { ApiResponse } from '../../../core/models/common-model';
+import { UpdateTeamBrandingDTO, MyTeamResponse } from '../../../core/models/team-model';
+import { TeamService } from '../../../core/services/team-service';
 
 @Component({
   selector: 'app-edit-branding',

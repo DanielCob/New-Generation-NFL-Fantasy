@@ -1,7 +1,6 @@
-// src/app/pages/teams/my-team/subcomponents/roster-list/roster-list.component.ts
 import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RosterItem } from '../../../../../core/models/team.model';
+import { RosterItem } from '../../../../../core/models/team-model';
 
 @Component({
   selector: 'app-roster-list',

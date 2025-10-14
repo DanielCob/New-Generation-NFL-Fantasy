@@ -2,8 +2,8 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { PlayerBasic, AvailablePlayer, PlayerFilters } from '../models/player.model';
-import { ApiResponse } from '../models/common.model';
+import { PlayerBasic, AvailablePlayer, PlayerFilters } from '../models/player-model';
+import { ApiResponse } from '../models/common-model';
 
 @Injectable({ providedIn: 'root' })
 export class PlayerService {

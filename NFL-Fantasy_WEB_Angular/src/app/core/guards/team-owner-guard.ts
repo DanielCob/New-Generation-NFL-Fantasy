@@ -1,10 +1,8 @@
 import { inject } from '@angular/core';
 import { Router, CanActivateFn, ActivatedRouteSnapshot } from '@angular/router';
 import { map, catchError, of } from 'rxjs';
-import { TeamService } from '../services/team.service';
-import { AuthService } from '../services/auth.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { UserService } from '../services/user.service';
+import { UserService } from '../services/user-service';
 
 /**
  * Guard que valida que el usuario sea dueño del equipo

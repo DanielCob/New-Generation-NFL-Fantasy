@@ -9,11 +9,11 @@ import {
   ListNFLTeamsResponse,
   NFLTeamDetails,
   NFLTeamBasic
-} from '../models/nfl-team.model';
-import { ApiResponse } from '../models/common.model';
+} from '../models/nfl-team-model';
+import { ApiResponse } from '../models/common-model';
 
 @Injectable({ providedIn: 'root' })
-export class NflTeamService {
+export class NFLTeamService {
   private http = inject(HttpClient);
   private baseUrl = `${environment.apiUrl}/nflteam`;
 

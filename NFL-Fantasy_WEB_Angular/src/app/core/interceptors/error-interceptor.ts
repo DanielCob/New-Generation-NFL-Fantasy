@@ -4,7 +4,7 @@ import { inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { AuthService } from '../services/auth.service';
+import { AuthService } from '../services/auth-service';
 
 /** Intenta extraer un mensaje útil del error devuelto por la API */
 function extractApiMessage(err: HttpErrorResponse): string {

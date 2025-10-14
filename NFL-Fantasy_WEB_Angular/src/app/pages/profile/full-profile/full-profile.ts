@@ -1,12 +1,3 @@
-/**
- * full-profile.ts
- * ---------------------------------------------------------
- * Cambios clave:
- * - Se reemplaza la carga por userSvc.getProfile() para traer
- *   el perfil COMPLETO (ligas + equipos) desde /api/User/profile.
- * - Se mantiene la tabla reutilizable <app-table-simple>.
- */
-
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
@@ -16,10 +7,9 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatButtonModule } from '@angular/material/button';
-
-import { UserService } from '../../../core/services/user.service';
-import { UserProfile, CommissionedLeague, UserTeam } from '../../../core/models/user.model';
+import { UserProfile, CommissionedLeague, UserTeam } from '../../../core/models/user-model';
 import { TableSimple, TableColumn } from '../../../shared/components/table-simple/table-simple';
+import { UserService } from '../../../core/services/user-service';
 
 @Component({
   selector: 'app-full-profile',

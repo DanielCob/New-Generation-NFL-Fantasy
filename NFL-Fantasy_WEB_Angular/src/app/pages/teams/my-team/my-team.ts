@@ -1,4 +1,3 @@
-// src/app/pages/teams/my-team/my-team.ts
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, ActivatedRoute } from '@angular/router';
@@ -6,14 +5,11 @@ import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-
-import { TeamService } from '../../../core/services/team.service';
-import { MyTeamResponse, RosterItem, RosterDistribution } from '../../../core/models/team.model';
-
-// ⬇️ importa los hijos (creados abajo)
+import { MyTeamResponse, RosterItem, RosterDistribution } from '../../../core/models/team-model';
 import { RosterFiltersComponent} from './components/roster-filters/roster-filters';
 import { RosterListComponent } from './components/roster-list/roster-list';
 import { DistributionPanelComponent } from './components/distribution-panel/distribution-panel';
+import { TeamService } from '../../../core/services/team-service';
 
 @Component({
   selector: 'app-my-team',

@@ -1,7 +1,7 @@
 // src/app/pages/teams/my-team/subcomponents/distribution-panel/distribution-panel.component.ts
 import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RosterDistribution } from '../../../../../core/models/team.model';
+import { RosterDistribution } from '../../../../../core/models/team-model';
 
 @Component({
   selector: 'app-distribution-panel',

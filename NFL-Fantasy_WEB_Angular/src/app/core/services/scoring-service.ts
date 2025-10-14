@@ -7,7 +7,7 @@ import { environment } from '../../../environments/environment';
 import {
   ScoringSchemasResponse,
   ScoringSchemaRulesResponse,
-} from '../models/scoring.model';
+} from '../models/scoring-model';
 
 @Injectable({ providedIn: 'root' })
 export class ScoringService {

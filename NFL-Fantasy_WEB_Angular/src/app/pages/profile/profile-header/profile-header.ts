@@ -1,21 +1,6 @@
-/**
- * profile-header.ts
- * -----------------------------------------------------------------------------
- * NUEVO:
- * - Se muestra imagen del usuario (si existe ProfileImageUrl).
- * - Si /User/header no trae la URL, intentamos una sola vez /User/profile
- *   para enriquecer con ProfileImageUrl desde el SP.
- * - Prefill de la URL al entrar a editar si ya existe imagen.
- * - Manejo de error de carga (oculta la imagen si falla).
- *
- * Además mantiene la lógica previa de metadatos de imagen (W/H/Bytes)
- * obligatorios cuando se envía una URL al guardar.
- */
-
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -25,9 +10,8 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-
-import { UserService } from '../../../core/services/user.service';
-import { UserProfile, EditUserProfileRequest } from '../../../core/models/user.model';
+import { UserProfile, EditUserProfileRequest } from '../../../core/models/user-model';
+import { UserService } from '../../../core/services/user-service';
 
 @Component({
   selector: 'app-profile-header',

@@ -8,11 +8,10 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-
-import { TeamService } from '../../../core/services/team.service';
-import { ApiResponse } from '../../../core/models/common.model';
-import { MyTeamResponse, RosterItem, AddPlayerToRosterDTO } from '../../../core/models/team.model';
+import { ApiResponse } from '../../../core/models/common-model';
+import { MyTeamResponse, RosterItem, AddPlayerToRosterDTO } from '../../../core/models/team-model';
 import { AddPlayerDialogComponent } from './add-player/add-player';
+import { TeamService } from '../../../core/services/team-service';
 
 @Component({
   selector: 'app-manage-roster',

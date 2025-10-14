@@ -1,14 +1,3 @@
-/**
- * sessions.ts
- * -----------------------------------------------------------------------------
- * FIX:
- * - Al hacer logoutAll(), NO volvemos a llamar this.load() porque la sesión
- *   ya se limpia en finalize() del AuthService y esa recarga provocaba un
- *   GET /api/User/sessions -> 401 -> redirección por interceptor.
- * - En su lugar, navegamos explícitamente al /login tras la respuesta (tanto
- *   en success como en error), eliminando el "request fantasma" y el 401.
- */
-
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
@@ -18,11 +7,10 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { Router } from '@angular/router';
-
-import { UserService } from '../../../core/services/user.service';
-import { AuthService } from '../../../core/services/auth.service';
-import { UserSession } from '../../../core/models/user.model';
-import { ApiResponse } from '../../../core/models/auth.model';
+import { UserSession } from '../../../core/models/user-model';
+import { ApiResponse } from '../../../core/models/auth-model';
+import { UserService } from '../../../core/services/user-service';
+import { AuthService } from '../../../core/services/auth-service';
 
 @Component({
   selector: 'app-sessions',
