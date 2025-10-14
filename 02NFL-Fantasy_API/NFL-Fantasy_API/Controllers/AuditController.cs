@@ -124,8 +124,6 @@ namespace NFL_Fantasy_API.Controllers
                 return Unauthorized(ApiResponseDTO.ErrorResponse("No autenticado."));
             }
 
-            // TODO: Verificar rol ADMIN
-
             if (!ModelState.IsValid)
             {
                 var errors = ModelState.Values.SelectMany(v => v.Errors.Select(e => e.ErrorMessage));
@@ -156,8 +154,6 @@ namespace NFL_Fantasy_API.Controllers
             {
                 return Unauthorized(ApiResponseDTO.ErrorResponse("No autenticado."));
             }
-
-            // TODO: Verificar rol ADMIN
 
             if (!ModelState.IsValid)
             {

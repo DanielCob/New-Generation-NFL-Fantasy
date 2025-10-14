@@ -9,8 +9,8 @@ using NFL_Fantasy_API.Services.Interfaces;
 namespace NFL_Fantasy_API.Services.Implementations
 {
     /// <summary>
-    /// Implementación del servicio de autenticación
-    /// Maneja registro, login, logout, reset de contraseña y validación de sesiones
+    /// Implementacion del servicio de autenticacion
+    /// Maneja registro, login, logout, reset de contrasena y validacion de sesiones
     /// </summary>
     public class AuthService : IAuthService
     {
@@ -22,8 +22,8 @@ namespace NFL_Fantasy_API.Services.Implementations
         /// <summary>
         /// Crea una instancia de <see cref="AuthService"/>.
         /// </summary>
-        /// <param name="configuration">Configuración de la aplicación.</param>
-        /// <param name="email">Servicio de envío de correo.</param>
+        /// <param name="configuration">Configuracion de la aplicacion.</param>
+        /// <param name="email">Servicio de envio de correo.</param>
         /// <param name="logger">Logger de infraestructura.</param>
         public AuthService(IConfiguration configuration, IEmailSender email, ILogger<AuthService> logger)
         {
@@ -44,25 +44,25 @@ namespace NFL_Fantasy_API.Services.Implementations
         {
             try
             {
-                // Validación adicional de contraseña (complejidad)
+                // Validacion adicional de contrasena (complejidad)
                 var passwordErrors = ValidatePasswordComplexity(dto.Password);
                 if (passwordErrors.Any())
                 {
                     return ApiResponseDTO.ErrorResponse(string.Join(" ", passwordErrors));
                 }
 
-                // Validación de formato de email (adicional a [EmailAddress])
+                // Validacion de formato de email (adicional a [EmailAddress])
                 if (!IsValidEmail(dto.Email))
                 {
-                    return ApiResponseDTO.ErrorResponse("Formato de correo electrónico inválido.");
+                    return ApiResponseDTO.ErrorResponse("Formato de correo electronico invalido.");
                 }
 
-                // Validación de imagen si viene
+                // Validacion de imagen si viene
                 if (dto.ProfileImageBytes.HasValue)
                 {
                     if (!dto.ProfileImageWidth.HasValue || !dto.ProfileImageHeight.HasValue)
                     {
-                        return ApiResponseDTO.ErrorResponse("Si proporciona tamaño de imagen, debe incluir ancho y alto.");
+                        return ApiResponseDTO.ErrorResponse("Si proporciona tamano de imagen, debe incluir ancho y alto.");
                     }
                 }
 
@@ -101,7 +101,7 @@ namespace NFL_Fantasy_API.Services.Implementations
             }
             catch (SqlException ex)
             {
-                // Los THROW del SP llegan aquí con mensajes específicos
+                // Los THROW del SP llegan aqui con mensajes especificos
                 return ApiResponseDTO.ErrorResponse(ex.Message);
             }
             catch (Exception ex)
@@ -115,9 +115,9 @@ namespace NFL_Fantasy_API.Services.Implementations
         #region Login
 
         /// <summary>
-        /// Inicia sesión de usuario
+        /// Inicia sesion de usuario
         /// SP: app.sp_Login (usa OUTPUT parameters)
-        /// Feature 1.1 - Inicio de sesión
+        /// Feature 1.1 - Inicio de sesion
         /// </summary>
         public async Task<ApiResponseDTO> LoginAsync(LoginDTO dto, string? sourceIp = null, string? userAgent = null)
         {
@@ -138,7 +138,6 @@ namespace NFL_Fantasy_API.Services.Implementations
                     parameters
                 );
 
-                // Leer OUTPUT params
                 var sessionId = outputValues.ContainsKey("@SessionID") && outputValues["@SessionID"] != null
                     ? (Guid)outputValues["@SessionID"]
                     : Guid.Empty;
@@ -149,10 +148,9 @@ namespace NFL_Fantasy_API.Services.Implementations
 
                 if (!success || sessionId == Guid.Empty)
                 {
-                    return ApiResponseDTO.ErrorResponse(message ?? "Credenciales inválidas.");
+                    return ApiResponseDTO.ErrorResponse(message ?? "Credenciales invalidas.");
                 }
 
-                // Obtener datos adicionales del usuario para la respuesta
                 var userInfo = await GetUserBasicInfoAsync(dto.Email);
 
                 var loginResponse = new LoginResponseDTO
@@ -181,7 +179,7 @@ namespace NFL_Fantasy_API.Services.Implementations
         #region Validate Session
 
         /// <summary>
-        /// Valida y refresca una sesión (sliding expiration)
+        /// Valida y refresca una sesion (sliding expiration)
         /// SP: app.sp_ValidateAndRefreshSession
         /// Usado por: AuthenticationMiddleware
         /// </summary>
@@ -226,9 +224,9 @@ namespace NFL_Fantasy_API.Services.Implementations
         #region Logout
 
         /// <summary>
-        /// Cierra una sesión específica
+        /// Cierra una sesion especifica
         /// SP: app.sp_Logout
-        /// Feature 1.1 - Cierre de sesión
+        /// Feature 1.1 - Cierre de sesion
         /// </summary>
         public async Task<ApiResponseDTO> LogoutAsync(Guid sessionId, string? sourceIp = null, string? userAgent = null)
         {
@@ -250,14 +248,14 @@ namespace NFL_Fantasy_API.Services.Implementations
             }
             catch (Exception ex)
             {
-                return ApiResponseDTO.ErrorResponse($"Error al cerrar sesión: {ex.Message}");
+                return ApiResponseDTO.ErrorResponse($"Error al cerrar sesion: {ex.Message}");
             }
         }
 
         /// <summary>
         /// Cierra todas las sesiones activas de un usuario
         /// SP: app.sp_LogoutAllSessions
-        /// Feature 1.1 - Cierre de sesión global
+        /// Feature 1.1 - Cierre de sesion global
         /// </summary>
         public async Task<ApiResponseDTO> LogoutAllAsync(int userId, string? sourceIp = null, string? userAgent = null)
         {
@@ -288,7 +286,7 @@ namespace NFL_Fantasy_API.Services.Implementations
         #region Password Reset
 
         /// <summary>
-        /// Solicita restablecimiento de contraseña: genera token y envía correo.
+        /// Solicita restablecimiento de contrasena: genera token y envia correo.
         /// Nunca expone el token en la respuesta de la API.
         /// SP: app.sp_RequestPasswordReset
         /// </summary>
@@ -296,7 +294,6 @@ namespace NFL_Fantasy_API.Services.Implementations
         {
             try
             {
-                // Salidas tipadas para evitar errores de lectura.
                 var pEmail = new SqlParameter("@Email", SqlDbType.NVarChar, 50) { Value = dto.Email };
                 var pSourceIp = new SqlParameter("@SourceIp", SqlDbType.NVarChar, 45) { Value = (object?)sourceIp ?? DBNull.Value };
                 var pToken = new SqlParameter("@Token", SqlDbType.NVarChar, 100) { Direction = ParameterDirection.Output };
@@ -307,19 +304,16 @@ namespace NFL_Fantasy_API.Services.Implementations
                     new[] { pEmail, pSourceIp, pToken, pExpiresAt }
                 );
 
-                // Si el email no existe, el SP deja Token/Expires null -> seguimos devolviendo mensaje genérico.
                 var token = pToken.Value == DBNull.Value ? null : (pToken.Value?.ToString());
                 var expiresAtUtc = pExpiresAt.Value == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(pExpiresAt.Value);
 
                 if (!string.IsNullOrWhiteSpace(token) && expiresAtUtc.HasValue)
                 {
-                    // URL del frontend para página de reseteo (agrega token como querystring).
                     var baseUrl = _config["Frontend:ResetPasswordUrl"];
                     if (string.IsNullOrWhiteSpace(baseUrl))
                     {
-                        // fallback simple si no configuras Frontend:ResetPasswordUrl
                         baseUrl = "https://example.com/reset-password";
-                        _logger.LogWarning("Frontend:ResetPasswordUrl no está configurado; usando fallback {Url}", baseUrl);
+                        _logger.LogWarning("Frontend:ResetPasswordUrl no esta configurado; usando fallback {Url}", baseUrl);
                     }
 
                     var resetUrl = $"{baseUrl}?token={Uri.EscapeDataString(token)}";
@@ -327,17 +321,15 @@ namespace NFL_Fantasy_API.Services.Implementations
 
                     var html = EmailTemplates.PasswordReset(appName, resetUrl, expiresAtUtc.Value);
 
-                    await _email.SendAsync(dto.Email, $"{appName} – Restablecimiento de contraseña", html);
+                    await _email.SendAsync(dto.Email, $"{appName} - Restablecimiento de contrasena", html);
 
                     _logger.LogInformation("Reset solicitado para {Email}. Token generado y enviado por correo.", dto.Email);
                 }
                 else
                 {
-                    // Email no existe o no se generó token (se mantiene respuesta genérica)
-                    _logger.LogInformation("Reset solicitado para {Email}. No se generó token (posible email inexistente).", dto.Email);
+                    _logger.LogInformation("Reset solicitado para {Email}. No se genero token (posible email inexistente).", dto.Email);
                 }
 
-                // Seguridad: jamás exponer token/fecha en API
                 return ApiResponseDTO.SuccessResponse("Si el correo existe, se ha enviado un enlace de restablecimiento.");
             }
             catch (Exception ex)
@@ -348,7 +340,7 @@ namespace NFL_Fantasy_API.Services.Implementations
         }
 
         /// <summary>
-        /// Restablece contraseña con token
+        /// Restablece contrasena con token
         /// SP: app.sp_ResetPasswordWithToken
         /// Feature 1.1 - Desbloqueo de cuenta bloqueada
         /// </summary>
@@ -356,7 +348,6 @@ namespace NFL_Fantasy_API.Services.Implementations
         {
             try
             {
-                // Validación de complejidad de contraseña
                 var passwordErrors = ValidatePasswordComplexity(dto.NewPassword);
                 if (passwordErrors.Any())
                 {
@@ -369,7 +360,7 @@ namespace NFL_Fantasy_API.Services.Implementations
                     new SqlParameter("@NewPassword", dto.NewPassword),
                     new SqlParameter("@ConfirmPassword", dto.ConfirmPassword),
                     new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
-            new SqlParameter("@UserAgent", DatabaseHelper.DbNullIfNull(userAgent))
+                    new SqlParameter("@UserAgent", DatabaseHelper.DbNullIfNull(userAgent))
                 };
 
                 await _db.ExecuteStoredProcedureNonQueryAsync(
@@ -377,16 +368,15 @@ namespace NFL_Fantasy_API.Services.Implementations
                     parameters
                 );
 
-                return ApiResponseDTO.SuccessResponse("Contraseña restablecida exitosamente.");
+                return ApiResponseDTO.SuccessResponse("Contrasena restablecida exitosamente.");
             }
             catch (SqlException ex)
             {
-                // Errores específicos del SP (token inválido, expirado, etc.)
                 return ApiResponseDTO.ErrorResponse(ex.Message);
             }
             catch (Exception ex)
             {
-                return ApiResponseDTO.ErrorResponse($"Error al restablecer contraseña: {ex.Message}");
+                return ApiResponseDTO.ErrorResponse($"Error al restablecer contrasena: {ex.Message}");
             }
         }
 
@@ -395,8 +385,8 @@ namespace NFL_Fantasy_API.Services.Implementations
         #region Validation Helpers
 
         /// <summary>
-        /// Valida complejidad de contraseña según reglas del sistema
-        /// Reglas: 8-12 caracteres, alfanumérica, al menos 1 mayúscula, 1 minúscula, 1 dígito
+        /// Valida complejidad de contrasena segun reglas del sistema
+        /// Reglas: 8-12 caracteres, alfanumerica, al menos 1 mayuscula, 1 minuscula, 1 digito
         /// </summary>
         public List<string> ValidatePasswordComplexity(string password)
         {
@@ -404,33 +394,33 @@ namespace NFL_Fantasy_API.Services.Implementations
 
             if (string.IsNullOrEmpty(password))
             {
-                errors.Add("La contraseña es obligatoria.");
+                errors.Add("La contrasena es obligatoria.");
                 return errors;
             }
 
             if (password.Length < 8 || password.Length > 12)
             {
-                errors.Add("La contraseña debe tener entre 8 y 12 caracteres.");
+                errors.Add("La contrasena debe tener entre 8 y 12 caracteres.");
             }
 
             if (!Regex.IsMatch(password, @"[A-Z]"))
             {
-                errors.Add("La contraseña debe incluir al menos una letra mayúscula.");
+                errors.Add("La contrasena debe incluir al menos una letra mayuscula.");
             }
 
             if (!Regex.IsMatch(password, @"[a-z]"))
             {
-                errors.Add("La contraseña debe incluir al menos una letra minúscula.");
+                errors.Add("La contrasena debe incluir al menos una letra minuscula.");
             }
 
             if (!Regex.IsMatch(password, @"[0-9]"))
             {
-                errors.Add("La contraseña debe incluir al menos un dígito.");
+                errors.Add("La contrasena debe incluir al menos un digito.");
             }
 
             if (!Regex.IsMatch(password, @"^[a-zA-Z0-9]+$"))
             {
-                errors.Add("La contraseña debe ser alfanumérica (solo letras y números, sin caracteres especiales).");
+                errors.Add("La contrasena debe ser alfanumerica (solo letras y numeros, sin caracteres especiales).");
             }
 
             return errors;
@@ -446,7 +436,6 @@ namespace NFL_Fantasy_API.Services.Implementations
 
             try
             {
-                // Regex básico para validación de email
                 var regex = new Regex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$");
                 return regex.IsMatch(email);
             }
@@ -457,7 +446,7 @@ namespace NFL_Fantasy_API.Services.Implementations
         }
 
         /// <summary>
-        /// Obtiene información básica de un usuario por email (helper interno)
+        /// Obtiene informacion basica de un usuario por email (helper interno)
         /// </summary>
         private async Task<UserProfileBasicDTO?> GetUserBasicInfoAsync(string email)
         {

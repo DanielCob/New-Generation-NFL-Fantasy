@@ -7,7 +7,7 @@ using System.Diagnostics;
 var builder = WebApplication.CreateBuilder(args);
 
 // ============================================================================
-// CONFIGURACIÓN DE SERVICIOS (Dependency Injection Container)
+// CONFIGURACION DE SERVICIOS (Dependency Injection Container)
 // ============================================================================
 
 #region Logging Configuration
@@ -17,7 +17,7 @@ builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.Logging.AddDebug();
 
-// Ajustar nivel de logging según entorno
+// Ajustar nivel de logging segun entorno
 if (builder.Environment.IsDevelopment())
 {
     builder.Logging.SetMinimumLevel(LogLevel.Information);
@@ -41,7 +41,7 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader();
     });
 
-    // Configuración más restrictiva para producción (descomentar y ajustar)
+    // Configuracion mas restrictiva para produccion (descomentar y ajustar)
     /*
     options.AddPolicy("ProductionCors", policy =>
     {
@@ -61,7 +61,7 @@ builder.Services.AddCors(options =>
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
-        // Configurar serialización JSON
+        // Configurar serializacion JSON
         options.JsonSerializerOptions.PropertyNamingPolicy = null; // PascalCase
         options.JsonSerializerOptions.WriteIndented = true; // JSON formateado en desarrollo
         options.JsonSerializerOptions.DefaultIgnoreCondition =
@@ -72,17 +72,17 @@ builder.Services.AddControllers()
 
 #region Dependency Injection - Services
 
-// Registrar todos los servicios de la aplicación
+// Registrar todos los servicios de la aplicacion
 // Usar Scoped para servicios que necesitan mantener estado durante una request
 
-// Servicios de autenticación y usuarios
+// Servicios de autenticacion y usuarios
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 
 // Servicios de ligas
 builder.Services.AddScoped<ILeagueService, LeagueService>();
 
-// Servicios de referencia y configuración
+// Servicios de referencia y configuracion
 builder.Services.AddScoped<IReferenceService, ReferenceService>();
 builder.Services.AddScoped<IScoringService, ScoringService>();
 
@@ -94,7 +94,7 @@ builder.Services.AddScoped<IPlayerService, PlayerService>();
 // Servicios de vistas/reportes
 builder.Services.AddScoped<IViewsService, ViewsService>();
 
-// Servicio de auditoría y mantenimiento
+// Servicio de auditoria y mantenimiento
 builder.Services.AddScoped<IAuditService, AuditService>();
 
 // Servicio de email (SMTP)
@@ -105,7 +105,7 @@ builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 
 #region Swagger Configuration
 
-// Configurar Swagger/OpenAPI para documentación
+// Configurar Swagger/OpenAPI para documentacion
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -115,14 +115,14 @@ builder.Services.AddSwaggerGen(options =>
         Version = "v1.0",
         Description = "API REST para el sistema X-NFL Fantasy Draft Optimizer.\n\n" +
                       "**Features implementados:**\n" +
-                      "- Feature 1.1: Registro, autenticación y gestión de perfiles de usuarios\n" +
-                      "- Feature 1.2: Creación y administración de ligas de fantasy\n\n" +
-                      "- Feature 3.1: Creación y administración de equipos fantasy (branding, roster, distribución)\n\n" +
-                      "- Feature 10.1: Gestión de Equipos NFL (CRUD completo con validaciones)\n\n" +
-        "**Autenticación:**\n" +
-                      "La mayoría de endpoints requieren autenticación Bearer token.\n" +
+                      "- Feature 1.1: Registro, autenticacion y gestion de perfiles de usuarios\n" +
+                      "- Feature 1.2: Creacion y administracion de ligas de fantasy\n\n" +
+                      "- Feature 3.1: Creacion y administracion de equipos fantasy (branding, roster, distribucion)\n\n" +
+                      "- Feature 10.1: Gestion de Equipos NFL (CRUD completo con validaciones)\n\n" +
+        "**Autenticacion:**\n" +
+                      "La mayoria de endpoints requieren autenticacion Bearer token.\n" +
                       "1. Registrarse en POST /api/auth/register\n" +
-                      "2. Iniciar sesión en POST /api/auth/login (retorna SessionID)\n" +
+                      "2. Iniciar sesion en POST /api/auth/login (retorna SessionID)\n" +
                       "3. Usar SessionID como Bearer token en header Authorization",
         Contact = new OpenApiContact
         {
@@ -139,7 +139,7 @@ builder.Services.AddSwaggerGen(options =>
         Scheme = "bearer",
         BearerFormat = "GUID",
         In = ParameterLocation.Header,
-        Description = "Ingrese el SessionID (GUID) obtenido al iniciar sesión.\n\n" +
+        Description = "Ingrese el SessionID (GUID) obtenido al iniciar sesion.\n\n" +
                       "Ejemplo: `3fa85f64-5717-4562-b3fc-2c963f66afa6`\n\n" +
                       "No incluir la palabra 'Bearer', solo el GUID."
     });
@@ -189,7 +189,7 @@ builder.Services.AddHttpsRedirection(options =>
 var app = builder.Build();
 
 // ============================================================================
-// CONFIGURACIÓN DEL PIPELINE DE MIDDLEWARE
+// CONFIGURACION DEL PIPELINE DE MIDDLEWARE
 // ============================================================================
 
 #region Development vs Production Configuration
@@ -203,7 +203,7 @@ if (app.Environment.IsDevelopment())
         options.SwaggerEndpoint("/swagger/v1/swagger.json", "X-NFL Fantasy API v1");
         options.RoutePrefix = "swagger"; // Acceder en /swagger
         options.DocumentTitle = "X-NFL Fantasy API Documentation";
-        options.DisplayRequestDuration(); // Mostrar duración de requests
+        options.DisplayRequestDuration(); // Mostrar duracion de requests
     });
 
     // Mostrar excepciones detalladas en desarrollo
@@ -211,10 +211,10 @@ if (app.Environment.IsDevelopment())
 }
 else
 {
-    // En producción, usar manejador de excepciones genérico
+    // En produccion, usar manejador de excepciones generico
     app.UseExceptionHandler("/error");
 
-    // Forzar HTTPS en producción
+    // Forzar HTTPS en produccion
     app.UseHsts();
 }
 
@@ -228,14 +228,14 @@ else
 app.UseHttpsRedirection();
 
 // 2. CORS (debe ir antes de UseRouting)
-app.UseCors("AllowAllOrigins"); // En producción, usar "ProductionCors"
+app.UseCors("AllowAllOrigins"); // En produccion, usar "ProductionCors"
 
 // 3. Routing
 app.UseRouting();
 
 // 4. AUTHENTICATION MIDDLEWARE PERSONALIZADO
 // Este middleware valida el Bearer token y agrega UserID al contexto
-// DEBE ir DESPUÉS de UseRouting y ANTES de UseAuthorization
+// DEBE ir DESPUES de UseRouting y ANTES de UseAuthorization
 app.UseAuthenticationMiddleware();
 
 // 5. Authorization (si usaras [Authorize] attributes)
@@ -248,10 +248,10 @@ app.MapControllers();
 
 #region Root Endpoint
 
-// Endpoint raíz para verificar que la API está funcionando
+// Endpoint raiz para verificar que la API esta funcionando
 app.MapGet("/", () => Results.Ok(new
 {
-    message = "X-NFL Fantasy API está funcionando correctamente.",
+    message = "X-NFL Fantasy API esta funcionando correctamente.",
     version = "v1.0",
     timestamp = DateTime.UtcNow,
     endpoints = new
@@ -337,12 +337,12 @@ app.MapGet("/", () => Results.Ok(new
     },
     features = new
     {
-        feature_1_1 = "Registro, autenticación y gestión de perfiles de usuarios",
-        feature_1_2 = "Creación y administración de ligas de fantasy",
-        feature_3_1 = "Creación y administración de equipos fantasy (branding, roster, distribución)",
-        feature_10_1 = "Gestión de Equipos NFL (CRUD completo con validaciones)",
-        audit = "Sistema de auditoría completo con captura de IP y UserAgent",
-        maintenance = "Limpieza automática de sesiones y tokens expirados"
+        feature_1_1 = "Registro, autenticacion y gestion de perfiles de usuarios",
+        feature_1_2 = "Creacion y administracion de ligas de fantasy",
+        feature_3_1 = "Creacion y administracion de equipos fantasy (branding, roster, distribucion)",
+        feature_10_1 = "Gestion de Equipos NFL (CRUD completo con validaciones)",
+        audit = "Sistema de auditoria completo con captura de IP y UserAgent",
+        maintenance = "Limpieza automatica de sesiones y tokens expirados"
     }
 }))
 .WithName("Root")
@@ -366,7 +366,7 @@ app.MapGet("/health", () => Results.Ok(new
 
 #region Error Handling Endpoint
 
-// Endpoint para manejo de errores en producción
+// Endpoint para manejo de errores en produccion
 app.MapGet("/error", () => Results.Problem(
     title: "Un error ha ocurrido",
     detail: "Por favor, contacte al administrador del sistema.",
