@@ -5,11 +5,12 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatSelectModule } from '@angular/material/select';
 
 export interface FiltersChange {
   searchTeam?: string;
   city?: string;
-  isActive?: boolean;
+  isActive?: boolean; // undefined => no enviar el parámetro
 }
 
 @Component({
@@ -17,7 +18,7 @@ export interface FiltersChange {
   standalone: true,
   imports: [
     CommonModule, ReactiveFormsModule,
-    MatFormFieldModule, MatInputModule, MatButtonModule, MatIconModule
+    MatFormFieldModule, MatInputModule, MatButtonModule, MatIconModule, MatSelectModule
   ],
   templateUrl: './filters-panel.html',
   styleUrls: ['./filters-panel.css']
@@ -25,6 +26,7 @@ export interface FiltersChange {
 export class FiltersPanel {
   @Input() initialSearch: string | undefined;
   @Input() initialCity: string | undefined;
+  @Input() initialIsActive: boolean | undefined;
 
   @Output() filtersChange = new EventEmitter<FiltersChange>();
 
@@ -34,23 +36,31 @@ export class FiltersPanel {
     this.form = this.fb.group({
       searchTeam: [''],
       city: [''],
-      isActive: [undefined]
+      isActive: [undefined as boolean | undefined] // tri-state: undefined/true/false
     });
   }
 
   ngOnInit(): void {
     this.form.patchValue({
       searchTeam: this.initialSearch ?? '',
-      city: this.initialCity ?? ''
+      city: this.initialCity ?? '',
+      isActive: this.initialIsActive // puede ser undefined/true/false
     });
   }
 
   apply(): void {
     const v = this.form.value;
+    const searchTeam = (v.searchTeam || '').trim();
+    const city = (v.city || '').trim();
+
+    // mantener undefined cuando el usuario deja "Any"
+    const isActive: boolean | undefined =
+      v.isActive === true ? true : (v.isActive === false ? false : undefined);
+
     this.filtersChange.emit({
-      searchTeam: (v.searchTeam || '').trim() || undefined,
-      city: (v.city || '').trim() || undefined,
-      isActive: v.isActive
+      searchTeam: searchTeam.length ? searchTeam : undefined,
+      city: city.length ? city : undefined,
+      isActive
     });
   }
 

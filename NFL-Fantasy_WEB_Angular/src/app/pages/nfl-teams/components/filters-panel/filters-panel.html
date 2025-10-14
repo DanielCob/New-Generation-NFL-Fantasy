@@ -1,4 +1,4 @@
-<form [formGroup]="form" class="filters">
+<form [formGroup]="form" class="fpanel">
   <mat-form-field class="full">
     <mat-label>Search team</mat-label>
     <input matInput formControlName="searchTeam" placeholder="Arizona, Bills..." />
@@ -9,6 +9,15 @@
     <mat-label>City</mat-label>
     <input matInput formControlName="city" placeholder="Seattle, Miami..." />
     <mat-icon matPrefix>apartment</mat-icon>
+  </mat-form-field>
+
+  <mat-form-field class="full">
+    <mat-label>Status</mat-label>
+    <mat-select formControlName="isActive">
+      <mat-option [value]="undefined">Any</mat-option>
+      <mat-option [value]="true">Active</mat-option>
+      <mat-option [value]="false">Inactive</mat-option>
+    </mat-select>
   </mat-form-field>
 
   <div class="actions">

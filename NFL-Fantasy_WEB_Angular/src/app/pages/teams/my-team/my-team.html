@@ -1,47 +1,83 @@
-<mat-card *ngIf="!loading(); else loadingTpl" class="mt-card">
-  <mat-card-header>
-    <div mat-card-avatar class="team-avatar">
-      @if (myTeam()?.thumbnailUrl) {
-        <img [src]="myTeam()?.thumbnailUrl" alt="team" />
-      } @else if (myTeam()?.teamImageUrl) {
-        <img [src]="myTeam()?.teamImageUrl" alt="team" />
-      } @else {
-        <mat-icon>shield</mat-icon>
-      }
-    </div>
-    <mat-card-title>{{ myTeam()?.teamName }}</mat-card-title>
-    <mat-card-subtitle>
-      {{ myTeam()?.leagueName ?? '' }} · Roster: {{ myTeam()?.roster?.length ?? 0 }}
-    </mat-card-subtitle>
-    <span class="spacer"></span>
-    <button mat-stroked-button [routerLink]="['/teams', teamId(), 'edit-branding']">
-      <mat-icon>edit</mat-icon>&nbsp;Branding
-    </button>
-    <button mat-flat-button color="primary" [routerLink]="['/teams', teamId(), 'manage-roster']">
-      <mat-icon>group_add</mat-icon>&nbsp;Manage roster
-    </button>
-  </mat-card-header>
+<ng-container *ngIf="!loading(); else loadingTpl">
 
-  <mat-card-content>
-    <app-roster-filters
-      class="mb-3"
-      (filtersChange)="onFiltersChange($event)">
-    </app-roster-filters>
+  <!-- Vista cuando NO hay equipo -->
+  <ng-template [ngIf]="noTeam()">
+    <mat-card class="mt-card">
+      <mat-card-header>
+        <div mat-card-avatar class="team-avatar">
+          <mat-icon>group_off</mat-icon>
+        </div>
+        <mat-card-title>Sin equipo todavía</mat-card-title>
+        <mat-card-subtitle>
+          Crea o únete a una liga para gestionar tu equipo.
+        </mat-card-subtitle>
+      </mat-card-header>
 
-    <app-roster-list
-      [roster]="filteredRoster()">
-    </app-roster-list>
+      <mat-card-content>
+        <p class="muted">Cuando tengas un equipo, verás aquí tu branding, tu roster y su distribución.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button mat-flat-button color="primary" [routerLink]="['/leagues/directory']">
+            <mat-icon>travel_explore</mat-icon>&nbsp;Explorar ligas
+          </button>
+          <button mat-stroked-button [routerLink]="['/nfl-teams/create']">
+            <mat-icon>add</mat-icon>&nbsp;Crear equipo
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </ng-template>
 
-    <section class="mt-4">
-      <h3 class="section-title">
-        <mat-icon>pie_chart</mat-icon>&nbsp; Distribution
-      </h3>
-      <app-distribution-panel
-        [distribution]="myTeam()?.distribution || []">
-      </app-distribution-panel>
-    </section>
-  </mat-card-content>
-</mat-card>
+  <!-- Vista normal cuando SÍ hay equipo -->
+  <ng-template [ngIf]="!noTeam()">
+    <mat-card class="mt-card">
+      <mat-card-header>
+        <div mat-card-avatar class="team-avatar">
+          @if (myTeam()?.thumbnailUrl) {
+            <img [src]="myTeam()?.thumbnailUrl" alt="team" />
+          } @else if (myTeam()?.teamImageUrl) {
+            <img [src]="myTeam()?.teamImageUrl" alt="team" />
+          } @else {
+            <mat-icon>shield</mat-icon>
+          }
+        </div>
+        <mat-card-title>{{ myTeam()?.teamName }}</mat-card-title>
+        <mat-card-subtitle>
+          {{ myTeam()?.leagueName ?? '' }} · Roster: {{ myTeam()?.roster?.length ?? 0 }}
+        </mat-card-subtitle>
+        <span class="spacer"></span>
+        <button mat-stroked-button [routerLink]="['/teams', teamId(), 'edit-branding']">
+          <mat-icon>edit</mat-icon>&nbsp;Branding
+        </button>
+        <button mat-flat-button color="primary" [routerLink]="['/teams', teamId(), 'manage-roster']">
+          <mat-icon>group_add</mat-icon>&nbsp;Manage roster
+        </button>
+      </mat-card-header>
+
+      <mat-card-content>
+        <app-roster-filters class="mb-3" (filtersChange)="onFiltersChange($event)">
+        </app-roster-filters>
+
+        <app-roster-list [roster]="filteredRoster()">
+        </app-roster-list>
+
+        <section class="mt-4">
+          <h3 class="section-title">
+            <mat-icon>pie_chart</mat-icon>&nbsp; Distribution
+          </h3>
+          <app-distribution-panel [distribution]="myTeam()?.distribution || []">
+          </app-distribution-panel>
+        </section>
+
+        <!-- Mensaje de error genérico cuando no es 404 -->
+        <div *ngIf="errorMessage()" class="api-error" style="margin-top:12px; display:flex; align-items:center; gap:6px;">
+          <mat-icon>error</mat-icon>
+          <span>{{ errorMessage() }}</span>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </ng-template>
+
+</ng-container>
 
 <ng-template #loadingTpl>
   <div class="center"><mat-spinner></mat-spinner></div>

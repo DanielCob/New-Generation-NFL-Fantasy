@@ -49,19 +49,25 @@ export class NflTeamsListComponent implements OnInit {
     this.nfl.list({
       PageNumber: this.currentPage(),
       PageSize: this.pageSize(),
-      SearchTeam: this.searchTeam(),      // ✅ aquí va SearchTeam
+      SearchTeam: this.searchTeam(),
       FilterCity: this.filterCity(),
       FilterIsActive: this.filterIsActive()
     }).subscribe({
       next: (res) => {
-        if ((res as any)?.success && (res as any)?.data) {
-          const data = (res as any).data as ListNFLTeamsResponse;
+        // Soportar casing del API: Success/Data vs success/data
+        const payload: any = res;
+        const data: ListNFLTeamsResponse | undefined =
+          payload?.data ?? payload?.Data;
+
+        if (data) {
           this.teams.set(data.Teams ?? []);
           this.totalRecords.set(data.TotalRecords ?? 0);
         } else {
-          this.teams.set([]);
-          this.totalRecords.set(0);
+          // fallback por si viniera la colección en la raíz (no debería)
+          this.teams.set(payload?.Teams ?? []);
+          this.totalRecords.set(payload?.TotalRecords ?? 0);
         }
+
         this.loading.set(false);
       },
       error: () => {

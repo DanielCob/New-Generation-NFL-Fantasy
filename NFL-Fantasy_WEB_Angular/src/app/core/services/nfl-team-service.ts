@@ -15,7 +15,8 @@ import { ApiResponse } from '../models/common-model';
 @Injectable({ providedIn: 'root' })
 export class NFLTeamService {
   private http = inject(HttpClient);
-  private baseUrl = `${environment.apiUrl}/nflteam`;
+  // Usar el casing del Swagger/Backend para evitar sorpresas
+  private baseUrl = `${environment.apiUrl}/NFLTeam`;
 
   create(dto: CreateNFLTeamDTO): Observable<ApiResponse<{ nflTeamID: number; teamName: string }>> {
     return this.http.post<ApiResponse<any>>(`${this.baseUrl}`, dto);
@@ -26,14 +27,17 @@ export class NFLTeamService {
       .set('PageNumber', String(request.PageNumber))
       .set('PageSize', String(request.PageSize));
 
+    // Sólo incluir parámetros cuando tienen valor ("cuando algo no está, NO se incluye")
     if (request.SearchTeam && request.SearchTeam.trim().length) {
-      // 👇 Swagger muestra "SearchTerm", así que lo mapeamos aquí
+      // El backend espera SearchTerm
       params = params.set('SearchTerm', request.SearchTeam.trim());
-      // Si tu backend en realidad espera "SearchTeam", cambia la línea anterior por:
-      // params = params.set('SearchTeam', request.SearchTeam.trim());
     }
     if (request.FilterCity && request.FilterCity.trim().length) {
       params = params.set('FilterCity', request.FilterCity.trim());
+    }
+    if (request.FilterIsActive !== undefined) {
+      // incluir explícitamente true/false cuando el usuario lo selecciona
+      params = params.set('FilterIsActive', String(request.FilterIsActive));
     }
 
     return this.http.get<ApiResponse<ListNFLTeamsResponse>>(`${this.baseUrl}`, { params });
