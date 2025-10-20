@@ -101,6 +101,9 @@ builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("Smtp"));
 builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 
+// Servicio de almacenamiento MinIO
+builder.Services.AddSingleton<IStorageService, MinIOStorageService>();
+
 #endregion
 
 #region Swagger Configuration
@@ -119,7 +122,8 @@ builder.Services.AddSwaggerGen(options =>
                       "- Feature 1.2: Creacion y administracion de ligas de fantasy\n\n" +
                       "- Feature 3.1: Creacion y administracion de equipos fantasy (branding, roster, distribucion)\n\n" +
                       "- Feature 10.1: Gestion de Equipos NFL (CRUD completo con validaciones)\n\n" +
-        "**Autenticacion:**\n" +
+                      "- Storage: Manejo de imágenes con MinIO\n\n" +
+                      "**Autenticacion:**\n" +
                       "La mayoria de endpoints requieren autenticacion Bearer token.\n" +
                       "1. Registrarse en POST /api/auth/register\n" +
                       "2. Iniciar sesion en POST /api/auth/login (retorna SessionID)\n" +
@@ -159,15 +163,8 @@ builder.Services.AddSwaggerGen(options =>
         }
     });
 
-    // Incluir comentarios XML (opcional, si generas XML documentation)
-    /*
-    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-    if (File.Exists(xmlPath))
-    {
-        options.IncludeXmlComments(xmlPath);
-    }
-    */
+    // IMPORTANTE: Configuración para manejar file uploads
+    options.OperationFilter<NFL_Fantasy_API.Filters.SwaggerFileOperationFilter>();
 });
 
 #endregion

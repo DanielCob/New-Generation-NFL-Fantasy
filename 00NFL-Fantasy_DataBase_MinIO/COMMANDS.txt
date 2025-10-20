@@ -1,0 +1,15 @@
+# Crear carpeta base y la de datos dentro
+New-Item -ItemType Directory -Path "C:\minio\minio-data" -Force | Out-Null
+
+# Descargar el servidor Community (sin licencia)
+Invoke-WebRequest -Uri "https://dl.min.io/server/minio/release/windows-amd64/minio.exe" `
+  -OutFile "C:\minio\minio.exe"
+
+# Setear el ambiente con un usuario individual
+$env:MINIO_ROOT_USER="admin"
+$env:MINIO_ROOT_PASSWORD="supersecret"
+
+& "C:\minio\minio.exe" --version   # Verifica que NO diga AIStor/Enterprise
+
+#INICIALIZACION DE LA BASE DE DATOS DE IMAGENES:
+& "C:\minio\minio.exe" server "C:\minio\minio-data" --address ":9000" --console-address ":9090"
