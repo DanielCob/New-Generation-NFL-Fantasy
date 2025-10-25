@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using NFL_Fantasy_API.Extensions;
 using NFL_Fantasy_API.Models.DTOs;
 using NFL_Fantasy_API.Services.Interfaces;
@@ -127,6 +128,57 @@ namespace NFL_Fantasy_API.Controllers
             {
                 _logger.LogError(ex, "Error getting system stats");
                 return StatusCode(500, ApiResponseDTO.ErrorResponse("Error al obtener estadísticas."));
+            }
+        }
+
+        /// <summary>
+        /// Obtiene lista de roles del sistema disponibles
+        /// GET /api/views/system-roles
+        /// Para dropdowns y selección
+        /// </summary>
+        [HttpGet("system-roles")]
+        public async Task<ActionResult> GetSystemRoles()
+        {
+            if (!HttpContext.IsAuthenticated())
+            {
+                return Unauthorized(ApiResponseDTO.ErrorResponse("No autenticado."));
+            }
+
+            try
+            {
+                var roles = await _viewsService.GetSystemRolesAsync();
+                return Ok(ApiResponseDTO.SuccessResponse("Roles del sistema obtenidos.", roles));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting system roles");
+                return StatusCode(500, ApiResponseDTO.ErrorResponse("Error al obtener roles."));
+            }
+        }
+
+        /// <summary>
+        /// Obtiene lista completa de usuarios con roles y estadísticas
+        /// GET /api/views/users-with-roles
+        /// Solo para ADMIN
+        /// </summary>
+        [HttpGet("users-with-roles")]
+        [Authorize(Policy = "AdminOnly")]
+        public async Task<ActionResult> GetUsersWithRoles()
+        {
+            if (!HttpContext.IsAuthenticated())
+            {
+                return Unauthorized(ApiResponseDTO.ErrorResponse("No autenticado."));
+            }
+
+            try
+            {
+                var users = await _viewsService.GetUsersWithRolesAsync();
+                return Ok(ApiResponseDTO.SuccessResponse("Usuarios con roles obtenidos.", users));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting users with roles");
+                return StatusCode(500, ApiResponseDTO.ErrorResponse("Error al obtener usuarios."));
             }
         }
     }

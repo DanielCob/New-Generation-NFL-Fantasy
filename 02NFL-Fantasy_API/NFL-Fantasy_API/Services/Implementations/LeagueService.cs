@@ -1,10 +1,10 @@
 ﻿using Microsoft.Data.SqlClient;
-using System.Text.RegularExpressions;
-using Microsoft.Extensions.Configuration;
+using Microsoft.EntityFrameworkCore;
 using NFL_Fantasy_API.Data;
 using NFL_Fantasy_API.Models.DTOs;
 using NFL_Fantasy_API.Models.ViewModels;
 using NFL_Fantasy_API.Services.Interfaces;
+using System.Text.RegularExpressions;
 
 namespace NFL_Fantasy_API.Services.Implementations
 {
@@ -378,7 +378,10 @@ namespace NFL_Fantasy_API.Services.Implementations
                     {
                         LeagueID = DatabaseHelper.GetSafeInt32(reader, "LeagueID"),
                         UserID = DatabaseHelper.GetSafeInt32(reader, "UserID"),
-                        RoleCode = DatabaseHelper.GetSafeString(reader, "RoleCode"),
+                        LeagueRoleCode = DatabaseHelper.GetSafeString(reader, "LeagueRoleCode"),
+                        UserAlias = DatabaseHelper.GetSafeNullableString(reader, "UserAlias"),
+                        SystemRoleDisplay = DatabaseHelper.GetSafeString(reader, "SystemRoleDisplay"),
+                        ProfileImageUrl = DatabaseHelper.GetSafeNullableString(reader, "ProfileImageUrl"),
                         IsPrimaryCommissioner = DatabaseHelper.GetSafeBool(reader, "IsPrimaryCommissioner"),
                         JoinedAt = DatabaseHelper.GetSafeDateTime(reader, "JoinedAt"),
                         LeftAt = DatabaseHelper.GetSafeNullableDateTime(reader, "LeftAt"),
@@ -417,6 +420,7 @@ namespace NFL_Fantasy_API.Services.Implementations
                         IsActive = DatabaseHelper.GetSafeBool(reader, "IsActive"),
                         RosterCount = DatabaseHelper.GetSafeInt32(reader, "RosterCount"),
                         UpdatedAt = DatabaseHelper.GetSafeDateTime(reader, "UpdatedAt"),
+                        OwnerProfileImage = DatabaseHelper.GetSafeNullableString(reader, "OwnerProfileImage"),
                         CreatedAt = DatabaseHelper.GetSafeDateTime(reader, "CreatedAt")
                     },
                     whereClause: $"LeagueID = {leagueId}",
@@ -426,6 +430,68 @@ namespace NFL_Fantasy_API.Services.Implementations
             catch
             {
                 return new List<LeagueTeamVM>();
+            }
+        }
+
+        /// <summary>
+        /// Obtiene todos los roles efectivos de un usuario en una liga
+        /// SP: app.sp_GetUserRolesInLeague
+        /// Retorna roles (explícitos + derivados) y resumen
+        /// </summary>
+        public async Task<GetUserRolesInLeagueResponseDTO?> GetUserRolesInLeagueAsync(int userId, int leagueId)
+        {
+            try
+            {
+                var parameters = new SqlParameter[]
+                {
+            new SqlParameter("@UserID", userId),
+            new SqlParameter("@LeagueID", leagueId)
+                };
+
+                GetUserRolesInLeagueResponseDTO? result = null;
+
+                await _db.ExecuteStoredProcedureWithCustomReaderAsync(
+                    "app.sp_GetUserRolesInLeague",
+                    parameters,
+                    async (reader) =>
+                    {
+                        result = new GetUserRolesInLeagueResponseDTO();
+
+                        // Primer result set: roles individuales
+                        while (await reader.ReadAsync())
+                        {
+                            result.Roles.Add(new UserLeagueRoleDTO
+                            {
+                                RoleName = DatabaseHelper.GetSafeString(reader, "RoleName"),
+                                IsExplicit = DatabaseHelper.GetSafeBool(reader, "IsExplicit"),
+                                IsDerived = DatabaseHelper.GetSafeBool(reader, "IsDerived"),
+                                IsPrimaryCommissioner = DatabaseHelper.GetSafeBool(reader, "IsPrimaryCommissioner"),
+                                JoinedAt = DatabaseHelper.GetSafeDateTime(reader, "JoinedAt")
+                            });
+                        }
+
+                        // Segundo result set: resumen
+                        if (await reader.NextResultAsync() && await reader.ReadAsync())
+                        {
+                            result.Summary = new UserLeagueRoleSummaryDTO
+                            {
+                                PrimaryRole = DatabaseHelper.GetSafeString(reader, "PrimaryRole"),
+                                AllRoles = DatabaseHelper.GetSafeString(reader, "AllRoles"),
+                                IsPrimaryCommissioner = DatabaseHelper.GetSafeBool(reader, "IsPrimaryCommissioner")
+                            };
+                        }
+                    }
+                );
+
+                return result;
+            }
+            catch (SqlException ex)
+            {
+                throw new Exception($"Error en base de datos al obtener roles: {ex.Message}", ex);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Error al obtener roles de usuario en liga: {ex.Message}", ex);
             }
         }
 
@@ -551,5 +617,377 @@ namespace NFL_Fantasy_API.Services.Implementations
         }
 
         #endregion
+
+        // ============================================================================
+        // IMPLEMENTACIÓN - Búsqueda y Unión
+        // ============================================================================
+
+        public async Task<List<SearchLeaguesResultDTO>> SearchLeaguesAsync(SearchLeaguesRequestDTO request)
+        {
+            var parameters = new SqlParameter[]
+            {
+        new SqlParameter("@SearchTerm", DatabaseHelper.DbNullIfNull(request.SearchTerm)),
+        new SqlParameter("@SeasonID", DatabaseHelper.DbNullIfNull(request.SeasonID)),
+        new SqlParameter("@MinSlots", DatabaseHelper.DbNullIfNull(request.MinSlots)),
+        new SqlParameter("@MaxSlots", DatabaseHelper.DbNullIfNull(request.MaxSlots)),
+        new SqlParameter("@PageNumber", request.PageNumber),
+        new SqlParameter("@PageSize", request.PageSize)
+            };
+
+            var results = new List<SearchLeaguesResultDTO>();
+            var connectionString = _db.ConnectionString;
+
+            using (var connection = new SqlConnection(connectionString))
+            {
+                await connection.OpenAsync();
+
+                using (var command = new SqlCommand("app.sp_SearchLeagues", connection))
+                {
+                    command.CommandType = System.Data.CommandType.StoredProcedure;
+                    command.Parameters.AddRange(parameters);
+
+                    using (var reader = await command.ExecuteReaderAsync())
+                    {
+                        while (await reader.ReadAsync())
+                        {
+                            results.Add(new SearchLeaguesResultDTO
+                            {
+                                LeagueID = DatabaseHelper.GetSafeInt32(reader, "LeagueID"),
+                                Name = DatabaseHelper.GetSafeString(reader, "Name"),
+                                Description = DatabaseHelper.GetSafeString(reader, "Description"),
+                                TeamSlots = DatabaseHelper.GetSafeByte(reader, "TeamSlots"),
+                                TeamsCount = DatabaseHelper.GetSafeInt32(reader, "TeamsCount"),
+                                AvailableSlots = DatabaseHelper.GetSafeInt32(reader, "AvailableSlots"),
+                                PlayoffTeams = DatabaseHelper.GetSafeByte(reader, "PlayoffTeams"),
+                                AllowDecimals = DatabaseHelper.GetSafeBool(reader, "AllowDecimals"),
+                                SeasonLabel = DatabaseHelper.GetSafeString(reader, "SeasonLabel"),
+                                SeasonYear = DatabaseHelper.GetSafeInt32(reader, "SeasonYear"),
+                                CreatedByName = DatabaseHelper.GetSafeString(reader, "CreatedByName"),
+                                CreatedAt = DatabaseHelper.GetSafeDateTime(reader, "CreatedAt"),
+                                TotalRecords = DatabaseHelper.GetSafeInt32(reader, "TotalRecords"),
+                                CurrentPage = DatabaseHelper.GetSafeInt32(reader, "CurrentPage"),
+                                PageSize = DatabaseHelper.GetSafeInt32(reader, "PageSize"),
+                                TotalPages = DatabaseHelper.GetSafeInt32(reader, "TotalPages")
+                            });
+                        }
+                    }
+                }
+            }
+
+            return results;
+        }
+
+        public async Task<JoinLeagueResultDTO> JoinLeagueAsync(
+    int userId,
+    JoinLeagueRequestDTO request,
+    string? sourceIp,
+    string? userAgent)
+        {
+            var parameters = new SqlParameter[]
+            {
+        new SqlParameter("@UserID", userId),
+        new SqlParameter("@LeagueID", request.LeagueID),
+        new SqlParameter("@LeaguePassword", request.LeaguePassword),
+        new SqlParameter("@TeamName", request.TeamName),
+        new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
+        new SqlParameter("@UserAgent", DatabaseHelper.DbNullIfNull(userAgent))
+            };
+
+            // Retorna un solo resultado, igual que CreateLeague
+            var result = await _db.ExecuteStoredProcedureAsync<JoinLeagueResultDTO>(
+                "app.sp_JoinLeague",
+                parameters,
+                reader => new JoinLeagueResultDTO
+                {
+                    TeamID = DatabaseHelper.GetSafeInt32(reader, "TeamID"),
+                    LeagueID = DatabaseHelper.GetSafeInt32(reader, "LeagueID"),
+                    TeamName = DatabaseHelper.GetSafeString(reader, "TeamName"),
+                    LeagueName = DatabaseHelper.GetSafeString(reader, "LeagueName"),
+                    AvailableSlots = DatabaseHelper.GetSafeInt32(reader, "AvailableSlots"),
+                    Message = DatabaseHelper.GetSafeString(reader, "Message")
+                }
+            );
+
+            if (result == null)
+            {
+                throw new InvalidOperationException("No se recibió respuesta del procedimiento almacenado sp_JoinLeague.");
+            }
+
+            return result;
+        }
+
+        public async Task<ValidateLeaguePasswordResultDTO> ValidateLeaguePasswordAsync(
+    ValidateLeaguePasswordRequestDTO request)
+        {
+            var parameters = new SqlParameter[]
+            {
+        new SqlParameter("@LeagueID", request.LeagueID),
+        new SqlParameter("@LeaguePassword", request.LeaguePassword)
+            };
+
+            var result = await _db.ExecuteStoredProcedureAsync<ValidateLeaguePasswordResultDTO>(
+                "app.sp_ValidateLeaguePassword",
+                parameters,
+                reader => new ValidateLeaguePasswordResultDTO
+                {
+                    IsValid = DatabaseHelper.GetSafeBool(reader, "IsValid"),
+                    Message = DatabaseHelper.GetSafeString(reader, "Message")
+                }
+            );
+
+            return result ?? new ValidateLeaguePasswordResultDTO
+            {
+                IsValid = false,
+                Message = "Error al validar contraseña de la liga."
+            };
+        }
+
+        // ============================================================================
+        // IMPLEMENTACIÓN - Gestión de Miembros
+        // ============================================================================
+
+        public async Task<ApiResponseDTO> RemoveTeamFromLeagueAsync(
+    int actorUserId,
+    int leagueId,
+    RemoveTeamRequestDTO request,
+    string? sourceIp,
+    string? userAgent)
+        {
+            var parameters = new SqlParameter[]
+            {
+        new SqlParameter("@ActorUserID", actorUserId),
+        new SqlParameter("@LeagueID", leagueId),
+        new SqlParameter("@TeamID", request.TeamID),
+        new SqlParameter("@Reason", DatabaseHelper.DbNullIfNull(request.Reason)),
+        new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
+        new SqlParameter("@UserAgent", DatabaseHelper.DbNullIfNull(userAgent))
+            };
+
+            var result = await _db.ExecuteStoredProcedureAsync<RemoveTeamResultDTO>(
+                "app.sp_RemoveTeamFromLeague",
+                parameters,
+                reader => new RemoveTeamResultDTO
+                {
+                    AvailableSlots = DatabaseHelper.GetSafeInt32(reader, "AvailableSlots"),
+                    Message = DatabaseHelper.GetSafeString(reader, "Message")
+                }
+            );
+
+            return ApiResponseDTO.SuccessResponse(
+                result?.Message ?? "Equipo removido exitosamente.",
+                new { AvailableSlots = result?.AvailableSlots ?? 0 }
+            );
+        }
+
+        public async Task<ApiResponseDTO> LeaveLeagueAsync(
+    int userId,
+    int leagueId,
+    string? sourceIp,
+    string? userAgent)
+        {
+            var parameters = new SqlParameter[]
+            {
+        new SqlParameter("@UserID", userId),
+        new SqlParameter("@LeagueID", leagueId),
+        new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
+        new SqlParameter("@UserAgent", DatabaseHelper.DbNullIfNull(userAgent))
+            };
+
+            var result = await _db.ExecuteStoredProcedureAsync<LeaveLeagueResultDTO>(
+                "app.sp_LeaveLeague",
+                parameters,
+                reader => new LeaveLeagueResultDTO
+                {
+                    Message = DatabaseHelper.GetSafeString(reader, "Message")
+                }
+            );
+
+            return ApiResponseDTO.SuccessResponse(
+                result?.Message ?? "Has salido exitosamente de la liga."
+            );
+        }
+
+        public async Task<ApiResponseDTO> AssignCoCommissionerAsync(
+    int actorUserId,
+    int leagueId,
+    AssignCoCommissionerRequestDTO request,
+    string? sourceIp,
+    string? userAgent)
+        {
+            var parameters = new SqlParameter[]
+            {
+        new SqlParameter("@ActorUserID", actorUserId),
+        new SqlParameter("@LeagueID", leagueId),
+        new SqlParameter("@TargetUserID", request.TargetUserID),
+        new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
+        new SqlParameter("@UserAgent", DatabaseHelper.DbNullIfNull(userAgent))
+            };
+
+            var result = await _db.ExecuteStoredProcedureAsync<AssignCoCommissionerResultDTO>(
+                "app.sp_AssignCoCommissioner",
+                parameters,
+                reader => new AssignCoCommissionerResultDTO
+                {
+                    Message = DatabaseHelper.GetSafeString(reader, "Message"),
+                    UserID = DatabaseHelper.GetSafeInt32(reader, "UserID"),
+                    UserName = DatabaseHelper.GetSafeString(reader, "UserName"),
+                    NewRole = DatabaseHelper.GetSafeString(reader, "NewRole")
+                }
+            );
+
+            return ApiResponseDTO.SuccessResponse(
+                result?.Message ?? "Co-comisionado asignado exitosamente.",
+                new
+                {
+                    UserID = result?.UserID,
+                    UserName = result?.UserName,
+                    NewRole = result?.NewRole
+                }
+            );
+        }
+
+        public async Task<ApiResponseDTO> RemoveCoCommissionerAsync(
+    int actorUserId,
+    int leagueId,
+    RemoveCoCommissionerRequestDTO request,
+    string? sourceIp,
+    string? userAgent)
+        {
+            var parameters = new SqlParameter[]
+            {
+        new SqlParameter("@ActorUserID", actorUserId),
+        new SqlParameter("@LeagueID", leagueId),
+        new SqlParameter("@TargetUserID", request.TargetUserID),
+        new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
+        new SqlParameter("@UserAgent", DatabaseHelper.DbNullIfNull(userAgent))
+            };
+
+            var result = await _db.ExecuteStoredProcedureAsync<RemoveCoCommissionerResultDTO>(
+                "app.sp_RemoveCoCommissioner",
+                parameters,
+                reader => new RemoveCoCommissionerResultDTO
+                {
+                    Message = DatabaseHelper.GetSafeString(reader, "Message"),
+                    UserID = DatabaseHelper.GetSafeInt32(reader, "UserID"),
+                    UserName = DatabaseHelper.GetSafeString(reader, "UserName")
+                }
+            );
+
+            return ApiResponseDTO.SuccessResponse(
+                result?.Message ?? "Co-comisionado removido exitosamente.",
+                new
+                {
+                    UserID = result?.UserID,
+                    UserName = result?.UserName
+                }
+            );
+        }
+
+        public async Task<ApiResponseDTO> TransferCommissionerAsync(
+    int actorUserId,
+    int leagueId,
+    TransferCommissionerRequestDTO request,
+    string? sourceIp,
+    string? userAgent)
+        {
+            var parameters = new SqlParameter[]
+            {
+        new SqlParameter("@ActorUserID", actorUserId),
+        new SqlParameter("@LeagueID", leagueId),
+        new SqlParameter("@NewCommissionerID", request.NewCommissionerID),
+        new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
+        new SqlParameter("@UserAgent", DatabaseHelper.DbNullIfNull(userAgent))
+            };
+
+            var result = await _db.ExecuteStoredProcedureAsync<TransferCommissionerResultDTO>(
+                "app.sp_TransferCommissioner",
+                parameters,
+                reader => new TransferCommissionerResultDTO
+                {
+                    Message = DatabaseHelper.GetSafeString(reader, "Message"),
+                    NewCommissionerID = DatabaseHelper.GetSafeInt32(reader, "NewCommissionerID"),
+                    NewCommissionerName = DatabaseHelper.GetSafeString(reader, "NewCommissionerName")
+                }
+            );
+
+            return ApiResponseDTO.SuccessResponse(
+                result?.Message ?? "Comisionado transferido exitosamente.",
+                new
+                {
+                    NewCommissionerID = result?.NewCommissionerID,
+                    NewCommissionerName = result?.NewCommissionerName
+                }
+            );
+        }
+
+        public async Task<LeaguePasswordInfoDTO> GetLeaguePasswordInfoAsync(
+    int actorUserId,
+    int leagueId)
+        {
+            var parameters = new SqlParameter[]
+            {
+        new SqlParameter("@ActorUserID", actorUserId),
+        new SqlParameter("@LeagueID", leagueId)
+            };
+
+            var result = await _db.ExecuteStoredProcedureAsync<LeaguePasswordInfoDTO>(
+                "app.sp_GetLeaguePassword",
+                parameters,
+                reader => new LeaguePasswordInfoDTO
+                {
+                    LeagueID = DatabaseHelper.GetSafeInt32(reader, "LeagueID"),
+                    LeagueName = DatabaseHelper.GetSafeString(reader, "LeagueName"),
+                    Status = DatabaseHelper.GetSafeByte(reader, "Status"),
+                    TeamSlots = DatabaseHelper.GetSafeByte(reader, "TeamSlots"),
+                    TeamsCount = DatabaseHelper.GetSafeInt32(reader, "TeamsCount"),
+                    AvailableSlots = DatabaseHelper.GetSafeInt32(reader, "AvailableSlots"),
+                    Message = DatabaseHelper.GetSafeString(reader, "Message")
+                }
+            );
+
+            if (result == null)
+            {
+                throw new InvalidOperationException("No se pudo obtener información de la liga.");
+            }
+
+            return result;
+        }
+
+        // ============================================================================
+        // CLASES AUXILIARES PRIVADAS PARA MAPEO DE RESULTADOS
+        // ============================================================================
+
+        private class RemoveTeamResultDTO
+        {
+            public int AvailableSlots { get; set; }
+            public string Message { get; set; } = string.Empty;
+        }
+
+        private class LeaveLeagueResultDTO
+        {
+            public string Message { get; set; } = string.Empty;
+        }
+
+        private class AssignCoCommissionerResultDTO
+        {
+            public string Message { get; set; } = string.Empty;
+            public int UserID { get; set; }
+            public string UserName { get; set; } = string.Empty;
+            public string NewRole { get; set; } = string.Empty;
+        }
+
+        private class RemoveCoCommissionerResultDTO
+        {
+            public string Message { get; set; } = string.Empty;
+            public int UserID { get; set; }
+            public string UserName { get; set; } = string.Empty;
+        }
+
+        private class TransferCommissionerResultDTO
+        {
+            public string Message { get; set; } = string.Empty;
+            public int NewCommissionerID { get; set; }
+            public string NewCommissionerName { get; set; } = string.Empty;
+        }
     }
 }

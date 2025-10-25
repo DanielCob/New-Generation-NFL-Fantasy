@@ -1,4 +1,5 @@
-﻿using Microsoft.Data.SqlClient;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using NFL_Fantasy_API.Data;
 using NFL_Fantasy_API.Models.DTOs;
@@ -289,6 +290,7 @@ namespace NFL_Fantasy_API.Services.Implementations
 
         #region Deactivate / Reactivate
 
+        [Authorize(Policy = "AdminOnly")]
         public async Task<ApiResponseDTO> DeactivateNFLTeamAsync(int nflTeamId, int actorUserId, string? sourceIp = null, string? userAgent = null)
         {
             try
@@ -318,6 +320,7 @@ namespace NFL_Fantasy_API.Services.Implementations
             }
         }
 
+        [Authorize(Policy = "AdminOnly")]
         public async Task<ApiResponseDTO> ReactivateNFLTeamAsync(int nflTeamId, int actorUserId, string? sourceIp = null, string? userAgent = null)
         {
             try

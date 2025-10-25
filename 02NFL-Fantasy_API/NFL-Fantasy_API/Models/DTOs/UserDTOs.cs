@@ -48,7 +48,7 @@ namespace NFL_Fantasy_API.Models.DTOs
         public byte AccountStatus { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
-        public string Role { get; set; } = "MANAGER"; // Rol global inicial
+        public string SystemRoleCode { get; set; } = "USER"; // Rol global inicial
 
         // Ligas donde soy comisionado (principal o co-comisionado)
         public List<UserCommissionedLeagueDTO> CommissionedLeagues { get; set; } = new();
@@ -100,7 +100,7 @@ namespace NFL_Fantasy_API.Models.DTOs
         public byte AccountStatus { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
-        public string Role { get; set; } = "MANAGER";
+        public string SystemRoleCode { get; set; } = "USER";
     }
 
     /// <summary>
@@ -115,4 +115,33 @@ namespace NFL_Fantasy_API.Models.DTOs
         public DateTime ExpiresAt { get; set; }
         public bool IsValid { get; set; }
     }
+
+    public class UserHeaderDTO
+    {
+        public int UserID { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Alias { get; set; }
+        public string Email { get; set; } = string.Empty;
+        public string SystemRoleCode { get; set; } = "USER";
+        public string? ProfileImageUrl { get; set; }
+        public byte AccountStatus { get; set; }
+        public string LanguageCode { get; set; } = "en";
+    }
+
+    public class UserWithRoleVM
+    {
+        public int UserID { get; set; }
+        public string Email { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? Alias { get; set; }
+        public string SystemRoleCode { get; set; } = "USER";
+        public string? SystemRoleDisplay { get; set; }
+        public byte AccountStatus { get; set; }
+        public int TeamsCount { get; set; }
+        public int CommissionedLeaguesCount { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
+
+
 }

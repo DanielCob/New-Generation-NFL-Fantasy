@@ -2,7 +2,7 @@
 {
     /// <summary>
     /// Mapea vw_FantasyTeamDetails
-    /// Vista: Detalles completos de equipo fantasy
+    /// Vista: Detalles completos de equipo fantasy con información del manager
     /// </summary>
     public class FantasyTeamDetailsVM
     {
@@ -14,6 +14,8 @@
         public string ManagerName { get; set; } = string.Empty;
         public string ManagerEmail { get; set; } = string.Empty;
         public string? ManagerAlias { get; set; }
+        public string ManagerSystemRoleCode { get; set; } = "USER";
+        public string? ManagerProfileImage { get; set; } // NUEVO
         public string TeamName { get; set; } = string.Empty;
         public string? TeamImageUrl { get; set; }
         public short? TeamImageWidth { get; set; }

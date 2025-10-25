@@ -87,6 +87,16 @@ namespace NFL_Fantasy_API.Services.Interfaces
         Task<List<LeagueTeamVM>> GetLeagueTeamsAsync(int leagueId);
 
         /// <summary>
+        /// Obtiene todos los roles efectivos de un usuario en una liga
+        /// SP: app.sp_GetUserRolesInLeague
+        /// Retorna roles explícitos, derivados y resumen
+        /// </summary>
+        /// <param name="userId">ID del usuario</param>
+        /// <param name="leagueId">ID de la liga</param>
+        /// <returns>Roles y resumen del usuario en la liga</returns>
+        Task<GetUserRolesInLeagueResponseDTO?> GetUserRolesInLeagueAsync(int userId, int leagueId);
+
+        /// <summary>
         /// Obtiene las ligas donde un usuario es comisionado
         /// VIEW: vw_UserCommissionedLeagues
         /// Feature 1.1 - Ver perfil (sección de ligas como comisionado)
@@ -119,5 +129,54 @@ namespace NFL_Fantasy_API.Services.Interfaces
         /// <param name="password">Contraseña a validar</param>
         /// <returns>Lista de errores (vacía si es válida)</returns>
         List<string> ValidateLeaguePasswordComplexity(string password);
+
+        /// <summary>
+        /// Busca ligas disponibles para unirse
+        /// </summary>
+        Task<List<SearchLeaguesResultDTO>> SearchLeaguesAsync(SearchLeaguesRequestDTO request);
+
+        /// <summary>
+        /// Une a un usuario a una liga existente
+        /// </summary>
+        Task<JoinLeagueResultDTO> JoinLeagueAsync(int userId, JoinLeagueRequestDTO request, string? sourceIp, string? userAgent);
+
+        /// <summary>
+        /// Valida si una contraseña de liga es correcta
+        /// </summary>
+        Task<ValidateLeaguePasswordResultDTO> ValidateLeaguePasswordAsync(ValidateLeaguePasswordRequestDTO request);
+
+        // ============================================================================
+        // NUEVOS MÉTODOS - Gestión de Miembros
+        // ============================================================================
+
+        /// <summary>
+        /// Remueve un equipo de la liga (solo comisionado)
+        /// </summary>
+        Task<ApiResponseDTO> RemoveTeamFromLeagueAsync(int actorUserId, int leagueId, RemoveTeamRequestDTO request, string? sourceIp, string? userAgent);
+
+        /// <summary>
+        /// Permite a un usuario salir voluntariamente de una liga
+        /// </summary>
+        Task<ApiResponseDTO> LeaveLeagueAsync(int userId, int leagueId, string? sourceIp, string? userAgent);
+
+        /// <summary>
+        /// Asigna a un miembro como co-comisionado
+        /// </summary>
+        Task<ApiResponseDTO> AssignCoCommissionerAsync(int actorUserId, int leagueId, AssignCoCommissionerRequestDTO request, string? sourceIp, string? userAgent);
+
+        /// <summary>
+        /// Remueve el rol de co-comisionado a un miembro
+        /// </summary>
+        Task<ApiResponseDTO> RemoveCoCommissionerAsync(int actorUserId, int leagueId, RemoveCoCommissionerRequestDTO request, string? sourceIp, string? userAgent);
+
+        /// <summary>
+        /// Transfiere el rol de comisionado principal a otro miembro
+        /// </summary>
+        Task<ApiResponseDTO> TransferCommissionerAsync(int actorUserId, int leagueId, TransferCommissionerRequestDTO request, string? sourceIp, string? userAgent);
+
+        /// <summary>
+        /// Obtiene información sobre la contraseña de la liga (solo comisionado)
+        /// </summary>
+        Task<LeaguePasswordInfoDTO> GetLeaguePasswordInfoAsync(int actorUserId, int leagueId);
     }
 }

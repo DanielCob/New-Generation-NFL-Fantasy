@@ -56,6 +56,7 @@ namespace NFL_Fantasy_API.Models.DTOs
     public class RegisterResponseDTO
     {
         public int UserID { get; set; }
+        public string SystemRoleCode { get; set; } = "USER";
         public string Message { get; set; } = string.Empty;
     }
 
@@ -82,6 +83,7 @@ namespace NFL_Fantasy_API.Models.DTOs
         public int UserID { get; set; }
         public string Email { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
+        public string SystemRoleCode { get; set; } = "USER";
     }
 
     /// <summary>

@@ -88,6 +88,7 @@ namespace NFL_Fantasy_API.Services.Implementations
                     reader => new RegisterResponseDTO
                     {
                         UserID = DatabaseHelper.GetSafeInt32(reader, "UserID"),
+                        SystemRoleCode = DatabaseHelper.GetSafeString(reader, "SystemRoleCode"),
                         Message = DatabaseHelper.GetSafeString(reader, "Message")
                     }
                 );
@@ -159,7 +160,8 @@ namespace NFL_Fantasy_API.Services.Implementations
                     Message = message ?? "Login exitoso.",
                     UserID = userInfo?.UserID ?? 0,
                     Email = userInfo?.Email ?? dto.Email,
-                    Name = userInfo?.Name ?? string.Empty
+                    Name = userInfo?.Name ?? string.Empty,
+                    SystemRoleCode = userInfo?.SystemRoleCode ?? "USER"
                 };
 
                 return ApiResponseDTO.SuccessResponse(message ?? "Login exitoso.", loginResponse);
@@ -453,7 +455,7 @@ namespace NFL_Fantasy_API.Services.Implementations
             try
             {
                 var users = await _db.ExecuteViewAsync<UserProfileBasicDTO>(
-                    "auth.UserAccount",
+                    "vw_UserProfileHeader", // <� usa la vista ligera
                     reader => new UserProfileBasicDTO
                     {
                         UserID = DatabaseHelper.GetSafeInt32(reader, "UserID"),
@@ -464,9 +466,11 @@ namespace NFL_Fantasy_API.Services.Implementations
                         ProfileImageUrl = DatabaseHelper.GetSafeNullableString(reader, "ProfileImageUrl"),
                         AccountStatus = DatabaseHelper.GetSafeByte(reader, "AccountStatus"),
                         CreatedAt = DatabaseHelper.GetSafeDateTime(reader, "CreatedAt"),
-                        UpdatedAt = DatabaseHelper.GetSafeDateTime(reader, "UpdatedAt")
+                        UpdatedAt = DatabaseHelper.GetSafeDateTime(reader, "UpdatedAt"),
+                        SystemRoleCode = DatabaseHelper.GetSafeString(reader, "SystemRoleCode")
                     },
-                    whereClause: $"Email = '{email}'"
+                    // Evita interpolar el email crudo; si tu helper lo permite, usa par�metros.
+                    whereClause: $"Email = '{email.Replace("'", "''")}'"
                 );
 
                 return users.FirstOrDefault();

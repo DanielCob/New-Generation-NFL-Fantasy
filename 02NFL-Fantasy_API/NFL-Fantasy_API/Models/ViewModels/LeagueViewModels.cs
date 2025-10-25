@@ -39,6 +39,7 @@
         // Creador
         public int CreatedByUserID { get; set; }
         public string CreatedByName { get; set; } = string.Empty;
+        public string CreatedBySystemRoleCode { get; set; } = "USER";
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
     }
@@ -62,23 +63,27 @@
 
     /// <summary>
     /// Mapea vw_LeagueMembers
-    /// Vista: miembros de una liga con sus roles
+    /// Vista: miembros de una liga con sus roles (tanto de liga como del sistema)
     /// </summary>
     public class LeagueMemberVM
     {
         public int LeagueID { get; set; }
         public int UserID { get; set; }
-        public string RoleCode { get; set; } = string.Empty;
+        public string LeagueRoleCode { get; set; } = string.Empty; // RENOMBRADO de RoleCode
         public bool IsPrimaryCommissioner { get; set; }
         public DateTime JoinedAt { get; set; }
         public DateTime? LeftAt { get; set; }
         public string UserName { get; set; } = string.Empty;
         public string UserEmail { get; set; } = string.Empty;
+        public string? UserAlias { get; set; } // NUEVO
+        public string SystemRoleCode { get; set; } = "USER";
+        public string SystemRoleDisplay { get; set; } = string.Empty; // NUEVO
+        public string? ProfileImageUrl { get; set; } // NUEVO
     }
 
     /// <summary>
     /// Mapea vw_LeagueTeams
-    /// Vista: equipos dentro de una liga
+    /// Vista: equipos dentro de una liga con información del owner
     /// </summary>
     public class LeagueTeamVM
     {
@@ -87,13 +92,14 @@
         public string TeamName { get; set; } = string.Empty;
         public int OwnerUserID { get; set; }
         public string OwnerName { get; set; } = string.Empty;
+        public string OwnerSystemRoleCode { get; set; } = "USER";
+        public string? OwnerProfileImage { get; set; } // NUEVO
         public string? TeamImageUrl { get; set; }
         public string? ThumbnailUrl { get; set; }
         public bool IsActive { get; set; }
+        public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
         public int RosterCount { get; set; }
-
-        public DateTime CreatedAt { get; set; }
     }
 
     /// <summary>
