@@ -2,6 +2,7 @@
 using Minio.DataModel.Args;
 using Minio.Exceptions;
 using NFL_Fantasy_API.Services.Interfaces;
+using System.Text.Json;
 
 namespace NFL_Fantasy_API.Services.Implementations
 {
@@ -15,6 +16,7 @@ namespace NFL_Fantasy_API.Services.Implementations
         private readonly ILogger<MinIOStorageService> _logger;
         private readonly string _bucketName;
         private readonly string _endpoint;
+        private bool _bucketInitialized = false;
 
         public MinIOStorageService(IConfiguration configuration, ILogger<MinIOStorageService> logger)
         {
@@ -36,12 +38,17 @@ namespace NFL_Fantasy_API.Services.Implementations
                 .WithSSL(useSSL)
                 .Build();
 
-            // Asegurarse de que el bucket existe al inicializar
-            Task.Run(async () => await EnsureBucketExistsAsync());
+            _logger.LogInformation("MinIO client inicializado con endpoint: {Endpoint}", _endpoint);
         }
 
+        /// <summary>
+        /// Asegura que el bucket existe y tiene política pública
+        /// </summary>
         private async Task EnsureBucketExistsAsync()
         {
+            if (_bucketInitialized)
+                return;
+
             try
             {
                 var beArgs = new BucketExistsArgs().WithBucket(_bucketName);
@@ -53,10 +60,48 @@ namespace NFL_Fantasy_API.Services.Implementations
                     await _minioClient.MakeBucketAsync(mbArgs);
                     _logger.LogInformation("Bucket {BucketName} creado exitosamente.", _bucketName);
                 }
+
+                // Configurar política pública para permitir lectura anónima
+                var policyJson = $$"""
+                {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "AWS": ["*"]
+                            },
+                            "Action": [
+                                "s3:GetBucketLocation",
+                                "s3:ListBucket"
+                            ],
+                            "Resource": ["arn:aws:s3:::{{_bucketName}}"]
+                        },
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "AWS": ["*"]
+                            },
+                            "Action": ["s3:GetObject"],
+                            "Resource": ["arn:aws:s3:::{{_bucketName}}/*"]
+                        }
+                    ]
+                }
+                """;
+
+                var spArgs = new SetPolicyArgs()
+                    .WithBucket(_bucketName)
+                    .WithPolicy(policyJson);
+
+                await _minioClient.SetPolicyAsync(spArgs);
+
+                _logger.LogInformation("Política pública configurada para bucket {BucketName}.", _bucketName);
+                _bucketInitialized = true;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error asegurando que el bucket existe");
+                throw;
             }
         }
 
@@ -64,6 +109,9 @@ namespace NFL_Fantasy_API.Services.Implementations
         {
             try
             {
+                // Asegurar que el bucket existe antes de cargar
+                await EnsureBucketExistsAsync();
+
                 // Generar nombre único para evitar colisiones
                 var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 var cleanFileName = Path.GetFileNameWithoutExtension(fileName).Replace(" ", "_");

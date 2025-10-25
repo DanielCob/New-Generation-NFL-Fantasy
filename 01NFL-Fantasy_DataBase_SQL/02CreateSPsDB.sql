@@ -12,7 +12,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'app_executor
 GO
 
 -- ============================================================================
--- sp_RegisterUser
+-- sp_RegisterUser - VERSIÓN ACTUALIZADA
+-- Ahora establece explícitamente SystemRoleCode = 'USER'
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_RegisterUser
   @Name               NVARCHAR(50),
@@ -25,8 +26,8 @@ CREATE OR ALTER PROCEDURE app.sp_RegisterUser
   @ProfileImageWidth  SMALLINT = NULL,
   @ProfileImageHeight SMALLINT = NULL,
   @ProfileImageBytes  INT = NULL,
-  @SourceIp           NVARCHAR(45) = NULL,      -- NUEVO
-  @UserAgent          NVARCHAR(300) = NULL      -- NUEVO
+  @SourceIp           NVARCHAR(45) = NULL,
+  @UserAgent          NVARCHAR(300) = NULL
 AS
 BEGIN
   SET NOCOUNT ON;
@@ -74,24 +75,23 @@ BEGIN
 
     BEGIN TRAN;
       INSERT INTO auth.UserAccount
-      (Email, PasswordHash, PasswordSalt, Name, Alias, LanguageCode,
+      (Email, PasswordHash, PasswordSalt, Name, Alias, SystemRoleCode, LanguageCode,
        ProfileImageUrl, ProfileImageWidth, ProfileImageHeight, ProfileImageBytes,
        AccountStatus, FailedLoginCount, LockedUntil)
       VALUES
-      (@Email, @Hash, @Salt, @Name, @Alias, @LanguageCode,
+      (@Email, @Hash, @Salt, @Name, @Alias, N'USER', @LanguageCode,
        @ProfileImageUrl, @ProfileImageWidth, @ProfileImageHeight, @ProfileImageBytes,
        1, 0, NULL);
 
       SET @UserID = SCOPE_IDENTITY();
 
-      -- Auditoría con IP y UserAgent
       INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
       VALUES(@UserID, N'USER_PROFILE', CAST(@UserID AS NVARCHAR(50)), N'CREATE', 
-             N'Registro exitoso', @SourceIp, @UserAgent);
+             N'Registro exitoso con rol USER', @SourceIp, @UserAgent);
 
     COMMIT;
 
-    SELECT @UserID AS UserID, N'Registro exitoso.' AS Message;
+    SELECT @UserID AS UserID, N'USER' AS SystemRoleCode, N'Registro exitoso.' AS Message;
   END TRY
   BEGIN CATCH
     IF @@TRANCOUNT > 0 ROLLBACK;
@@ -513,18 +513,21 @@ GO
 GRANT EXECUTE ON OBJECT::app.sp_UpdateUserProfile TO app_executor;
 GO
 
+-- ============================================================================
+-- sp_GetUserProfile - VERSIÓN ACTUALIZADA
+-- Devuelve el SystemRoleCode real del usuario
+-- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_GetUserProfile
   @UserID INT
 AS
 BEGIN
   SET NOCOUNT ON;
 
-  -- 1) Perfil (incluye Role global inicial = 'MANAGER')
+  -- 1) Perfil (incluye SystemRoleCode real)
   SELECT
     u.UserID, u.Email, u.Name, u.Alias, u.LanguageCode,
     u.ProfileImageUrl, u.ProfileImageWidth, u.ProfileImageHeight, u.ProfileImageBytes,
-    u.AccountStatus, u.CreatedAt, u.UpdatedAt,
-    CAST(N'MANAGER' AS NVARCHAR(20)) AS [Role]
+    u.AccountStatus, u.SystemRoleCode, u.CreatedAt, u.UpdatedAt
   FROM auth.UserAccount u
   WHERE u.UserID = @UserID;
 
@@ -551,8 +554,218 @@ GRANT EXECUTE ON OBJECT::app.sp_GetUserProfile TO app_executor;
 GO
 
 -- ============================================================================
+-- sp_ChangeUserSystemRole
+-- Permite a un ADMIN cambiar el rol del sistema de un usuario
+-- Solo puede cambiar entre USER y BRAND_MANAGER (no a ADMIN)
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_ChangeUserSystemRole
+  @ActorUserID      INT,
+  @TargetUserID     INT,
+  @NewRoleCode      NVARCHAR(20),
+  @Reason           NVARCHAR(300) = NULL,
+  @SourceIp         NVARCHAR(45) = NULL,
+  @UserAgent        NVARCHAR(300) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+  BEGIN TRY
+    -- Validar que el actor es ADMIN
+    DECLARE @ActorRole NVARCHAR(20);
+    SELECT @ActorRole = SystemRoleCode FROM auth.UserAccount WHERE UserID = @ActorUserID;
+
+    IF @ActorRole IS NULL
+      THROW 50200, 'Usuario actor no existe.', 1;
+
+    IF @ActorRole <> N'ADMIN'
+      THROW 50201, 'Solo un ADMIN puede cambiar roles del sistema.', 1;
+
+    -- Validar que el nuevo rol es válido
+    IF @NewRoleCode NOT IN (N'USER', N'BRAND_MANAGER')
+      THROW 50202, 'El rol destino debe ser USER o BRAND_MANAGER.', 1;
+
+    -- Validar que el rol existe en la tabla de referencia
+    IF NOT EXISTS (SELECT 1 FROM auth.SystemRole WHERE RoleCode = @NewRoleCode)
+      THROW 50203, 'El rol especificado no existe en el sistema.', 1;
+
+    -- Obtener información del usuario target
+    DECLARE @OldRoleCode NVARCHAR(20), @TargetEmail NVARCHAR(50), @TargetName NVARCHAR(50);
+    SELECT 
+      @OldRoleCode = SystemRoleCode,
+      @TargetEmail = Email,
+      @TargetName = Name
+    FROM auth.UserAccount 
+    WHERE UserID = @TargetUserID;
+
+    IF @OldRoleCode IS NULL
+      THROW 50204, 'Usuario destino no existe.', 1;
+
+    -- No permitir cambiar roles de otros ADMINs
+    IF @OldRoleCode = N'ADMIN'
+      THROW 50205, 'No se puede cambiar el rol de un ADMIN.', 1;
+
+    -- Si no hay cambio real, no hacer nada
+    IF @OldRoleCode = @NewRoleCode
+    BEGIN
+      SELECT N'El usuario ya tiene ese rol asignado.' AS Message;
+      RETURN;
+    END
+
+    BEGIN TRAN;
+
+      -- Actualizar el rol
+      UPDATE auth.UserAccount
+         SET SystemRoleCode = @NewRoleCode,
+             UpdatedAt = SYSUTCDATETIME()
+       WHERE UserID = @TargetUserID;
+
+      -- Registrar en el log de cambios de rol
+      INSERT INTO auth.SystemRoleChangeLog(
+        UserID, ChangedByUserID, OldRoleCode, NewRoleCode, Reason, SourceIp
+      )
+      VALUES(
+        @TargetUserID, @ActorUserID, @OldRoleCode, @NewRoleCode, @Reason, @SourceIp
+      );
+
+      -- Auditoría general
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+      VALUES(@ActorUserID, N'USER_PROFILE', CAST(@TargetUserID AS NVARCHAR(50)), N'CHANGE_SYSTEM_ROLE',
+             CONCAT(N'Rol cambiado de ', @OldRoleCode, N' a ', @NewRoleCode, N' para ', @TargetName, N' (', @TargetEmail, N'). Razón: ', ISNULL(@Reason, N'No especificada')),
+             @SourceIp, @UserAgent);
+
+    COMMIT;
+
+    SELECT 
+      @TargetUserID AS UserID,
+      @OldRoleCode AS OldRole,
+      @NewRoleCode AS NewRole,
+      N'Rol del sistema actualizado exitosamente.' AS Message;
+  END TRY
+  BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK;
+    THROW;
+  END CATCH
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_ChangeUserSystemRole TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_GetUsersBySystemRole
+-- Lista usuarios filtrados por rol del sistema con paginación
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_GetUsersBySystemRole
+  @ActorUserID    INT,
+  @FilterRole     NVARCHAR(20) = NULL,
+  @SearchTerm     NVARCHAR(100) = NULL,
+  @PageNumber     INT = 1,
+  @PageSize       INT = 50
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  -- Validar que el actor es ADMIN
+  DECLARE @ActorRole NVARCHAR(20);
+  SELECT @ActorRole = SystemRoleCode FROM auth.UserAccount WHERE UserID = @ActorUserID;
+
+  IF @ActorRole <> N'ADMIN'
+    THROW 50210, 'Solo un ADMIN puede listar usuarios por rol.', 1;
+
+  -- Validar paginación
+  IF @PageNumber < 1 SET @PageNumber = 1;
+  IF @PageSize < 1 OR @PageSize > 100 SET @PageSize = 50;
+
+  DECLARE @Offset INT = (@PageNumber - 1) * @PageSize;
+
+  -- Total de registros
+  DECLARE @TotalRecords INT;
+  SELECT @TotalRecords = COUNT(*)
+  FROM auth.UserAccount
+  WHERE (@FilterRole IS NULL OR SystemRoleCode = @FilterRole)
+    AND (@SearchTerm IS NULL OR (Name LIKE N'%' + @SearchTerm + N'%' OR Email LIKE N'%' + @SearchTerm + N'%' OR Alias LIKE N'%' + @SearchTerm + N'%'));
+
+  -- Resultados paginados
+  SELECT
+    u.UserID,
+    u.Email,
+    u.Name,
+    u.Alias,
+    u.SystemRoleCode,
+    sr.Display AS SystemRoleDisplay,
+    u.AccountStatus,
+    u.LanguageCode,
+    u.CreatedAt,
+    u.UpdatedAt,
+    @TotalRecords AS TotalRecords,
+    @PageNumber AS CurrentPage,
+    @PageSize AS PageSize,
+    CEILING(CAST(@TotalRecords AS FLOAT) / @PageSize) AS TotalPages
+  FROM auth.UserAccount u
+  JOIN auth.SystemRole sr ON sr.RoleCode = u.SystemRoleCode
+  WHERE (@FilterRole IS NULL OR u.SystemRoleCode = @FilterRole)
+    AND (@SearchTerm IS NULL OR (u.Name LIKE N'%' + @SearchTerm + N'%' OR u.Email LIKE N'%' + @SearchTerm + N'%' OR u.Alias LIKE N'%' + @SearchTerm + N'%'))
+  ORDER BY u.CreatedAt DESC
+  OFFSET @Offset ROWS
+  FETCH NEXT @PageSize ROWS ONLY;
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_GetUsersBySystemRole TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_GetSystemRoleHistory
+-- Obtiene el historial de cambios de rol del sistema de un usuario
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_GetSystemRoleHistory
+  @ActorUserID    INT,
+  @TargetUserID   INT = NULL,
+  @Top            INT = 50
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  -- Validar que el actor es ADMIN
+  DECLARE @ActorRole NVARCHAR(20);
+  SELECT @ActorRole = SystemRoleCode FROM auth.UserAccount WHERE UserID = @ActorUserID;
+
+  IF @ActorRole <> N'ADMIN'
+    THROW 50220, 'Solo un ADMIN puede ver el historial de cambios de roles.', 1;
+
+  IF @Top > 500 SET @Top = 500;
+  IF @Top < 1 SET @Top = 50;
+
+  SELECT TOP (@Top)
+    src.ChangeID,
+    src.UserID,
+    u.Name AS UserName,
+    u.Email AS UserEmail,
+    src.OldRoleCode,
+    oldRole.Display AS OldRoleDisplay,
+    src.NewRoleCode,
+    newRole.Display AS NewRoleDisplay,
+    src.ChangedByUserID,
+    changer.Name AS ChangedByName,
+    src.ChangedAt,
+    src.Reason,
+    src.SourceIp
+  FROM auth.SystemRoleChangeLog src
+  JOIN auth.UserAccount u ON u.UserID = src.UserID
+  JOIN auth.SystemRole oldRole ON oldRole.RoleCode = src.OldRoleCode
+  JOIN auth.SystemRole newRole ON newRole.RoleCode = src.NewRoleCode
+  JOIN auth.UserAccount changer ON changer.UserID = src.ChangedByUserID
+  WHERE (@TargetUserID IS NULL OR src.UserID = @TargetUserID)
+  ORDER BY src.ChangedAt DESC;
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_GetSystemRoleHistory TO app_executor;
+GO
+
+-- ============================================================================
 -- sp_CreateLeague - VERSIÓN ACTUALIZADA
 -- Ahora valida nombre contra equipos NFL reales y desactiva ligas activas
+-- NOTA: El creador recibe rol COMMISSIONER explícito + MANAGER derivado (por tener equipo)
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_CreateLeague
   @CreatorUserID        INT,
@@ -1257,8 +1470,8 @@ GRANT EXECUTE ON OBJECT::app.sp_GetAuditStats TO app_executor;
 GO
 
 -- ============================================================================
--- sp_CreateNFLTeam
--- Crea un equipo NFL manualmente con validaciones completas
+-- sp_CreateNFLTeam - VERSIÓN ACTUALIZADA
+-- Solo ADMIN puede crear equipos NFL
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_CreateNFLTeam
   @ActorUserID        INT,
@@ -1278,6 +1491,16 @@ AS
 BEGIN
   SET NOCOUNT ON;
   BEGIN TRY
+    -- Validar que el actor es ADMIN
+    DECLARE @ActorRole NVARCHAR(20);
+    SELECT @ActorRole = SystemRoleCode FROM auth.UserAccount WHERE UserID = @ActorUserID;
+
+    IF @ActorRole IS NULL
+      THROW 50099, 'Usuario actor no existe.', 1;
+
+    IF @ActorRole <> N'ADMIN'
+      THROW 50098, 'Solo un ADMIN puede crear equipos NFL.', 1;
+
     -- Validaciones de campos requeridos
     IF @TeamName IS NULL OR LEN(@TeamName) < 1 OR LEN(@TeamName) > 100
       THROW 50100, 'Nombre de equipo inválido: debe tener entre 1 y 100 caracteres.', 1;
@@ -1285,11 +1508,9 @@ BEGIN
     IF @City IS NULL OR LEN(@City) < 1 OR LEN(@City) > 100
       THROW 50101, 'Ciudad inválida: debe tener entre 1 y 100 caracteres.', 1;
 
-    -- Validar que no exista el nombre
     IF EXISTS (SELECT 1 FROM ref.NFLTeam WHERE TeamName = @TeamName)
       THROW 50102, 'Ya existe un equipo NFL con ese nombre.', 1;
 
-    -- Validar dimensiones de imagen principal
     IF @TeamImageBytes IS NOT NULL AND @TeamImageBytes > 5242880
       THROW 50103, 'Imagen supera 5MB.', 1;
     IF @TeamImageWidth IS NOT NULL AND (@TeamImageWidth < 300 OR @TeamImageWidth > 1024)
@@ -1297,7 +1518,6 @@ BEGIN
     IF @TeamImageHeight IS NOT NULL AND (@TeamImageHeight < 300 OR @TeamImageHeight > 1024)
       THROW 50105, 'Alto de imagen fuera de rango (300-1024).', 1;
 
-    -- Validar dimensiones de thumbnail
     IF @ThumbnailBytes IS NOT NULL AND @ThumbnailBytes > 5242880
       THROW 50106, 'Thumbnail supera 5MB.', 1;
     IF @ThumbnailWidth IS NOT NULL AND (@ThumbnailWidth < 300 OR @ThumbnailWidth > 1024)
@@ -1324,7 +1544,6 @@ BEGIN
 
       SET @NFLTeamID = SCOPE_IDENTITY();
 
-      -- Auditoría en UserActionLog
       INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
       VALUES(@ActorUserID, N'NFL_TEAM', CAST(@NFLTeamID AS NVARCHAR(50)), N'CREATE',
              CONCAT(N'Equipo NFL creado: ', @TeamName, N' (', @City, N')'), @SourceIp, @UserAgent);
@@ -1348,8 +1567,8 @@ GRANT EXECUTE ON OBJECT::app.sp_CreateNFLTeam TO app_executor;
 GO
 
 -- ============================================================================
--- sp_UpdateNFLTeam
--- Actualiza información de un equipo NFL existente
+-- sp_UpdateNFLTeam - VERSIÓN ACTUALIZADA
+-- Solo ADMIN puede actualizar equipos NFL
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_UpdateNFLTeam
   @ActorUserID        INT,
@@ -1370,6 +1589,16 @@ AS
 BEGIN
   SET NOCOUNT ON;
   BEGIN TRY
+    -- Validar que el actor es ADMIN
+    DECLARE @ActorRole NVARCHAR(20);
+    SELECT @ActorRole = SystemRoleCode FROM auth.UserAccount WHERE UserID = @ActorUserID;
+
+    IF @ActorRole IS NULL
+      THROW 50109, 'Usuario actor no existe.', 1;
+
+    IF @ActorRole <> N'ADMIN'
+      THROW 50108, 'Solo un ADMIN puede actualizar equipos NFL.', 1;
+
     -- Validaciones
     IF @TeamName IS NOT NULL AND (LEN(@TeamName) < 1 OR LEN(@TeamName) > 100)
       THROW 50110, 'Nombre de equipo inválido (1-100).', 1;
@@ -1391,7 +1620,6 @@ BEGIN
     IF @ThumbnailHeight IS NOT NULL AND (@ThumbnailHeight < 300 OR @ThumbnailHeight > 1024)
       THROW 50117, 'Alto de thumbnail fuera de rango (300-1024).', 1;
 
-    -- Obtener valores actuales
     DECLARE
       @OldName NVARCHAR(100),
       @OldCity NVARCHAR(100),
@@ -1413,7 +1641,6 @@ BEGIN
     IF @OldName IS NULL
       THROW 50118, 'Equipo NFL no existe.', 1;
 
-    -- Validar nombre único (si se está cambiando)
     IF @TeamName IS NOT NULL AND @TeamName <> @OldName
       IF EXISTS (SELECT 1 FROM ref.NFLTeam WHERE TeamName = @TeamName AND NFLTeamID <> @NFLTeamID)
         THROW 50119, 'Ya existe otro equipo NFL con ese nombre.', 1;
@@ -1435,7 +1662,6 @@ BEGIN
              UpdatedAt = SYSUTCDATETIME()
        WHERE NFLTeamID = @NFLTeamID;
 
-      -- Log de cambios por campo
       IF @TeamName IS NOT NULL AND @TeamName <> @OldName
         INSERT INTO ref.NFLTeamChangeLog(NFLTeamID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent)
         VALUES(@NFLTeamID, @ActorUserID, N'TeamName', @OldName, @TeamName, @SourceIp, @UserAgent);
@@ -1452,7 +1678,6 @@ BEGIN
         INSERT INTO ref.NFLTeamChangeLog(NFLTeamID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent)
         VALUES(@NFLTeamID, @ActorUserID, N'ThumbnailUrl', @OldThumbUrl, @ThumbnailUrl, @SourceIp, @UserAgent);
 
-      -- Auditoría en UserActionLog
       INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
       VALUES(@ActorUserID, N'NFL_TEAM', CAST(@NFLTeamID AS NVARCHAR(50)), N'UPDATE',
              N'Equipo NFL actualizado', @SourceIp, @UserAgent);
@@ -1472,8 +1697,8 @@ GRANT EXECUTE ON OBJECT::app.sp_UpdateNFLTeam TO app_executor;
 GO
 
 -- ============================================================================
--- sp_DeactivateNFLTeam
--- Desactiva un equipo NFL si no tiene partidos en la temporada actual
+-- sp_DeactivateNFLTeam - VERSIÓN ACTUALIZADA
+-- Solo ADMIN puede desactivar equipos NFL
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_DeactivateNFLTeam
   @ActorUserID   INT,
@@ -1484,18 +1709,25 @@ AS
 BEGIN
   SET NOCOUNT ON;
   BEGIN TRY
-    -- Validar que el equipo existe
+    -- Validar que el actor es ADMIN
+    DECLARE @ActorRole NVARCHAR(20);
+    SELECT @ActorRole = SystemRoleCode FROM auth.UserAccount WHERE UserID = @ActorUserID;
+
+    IF @ActorRole IS NULL
+      THROW 50119, 'Usuario actor no existe.', 1;
+
+    IF @ActorRole <> N'ADMIN'
+      THROW 50118, 'Solo un ADMIN puede desactivar equipos NFL.', 1;
+
     DECLARE @TeamName NVARCHAR(100);
     SELECT @TeamName = TeamName FROM ref.NFLTeam WHERE NFLTeamID = @NFLTeamID;
 
     IF @TeamName IS NULL
       THROW 50120, 'Equipo NFL no existe.', 1;
 
-    -- Obtener temporada actual
     DECLARE @CurrentSeasonID INT;
     SELECT @CurrentSeasonID = SeasonID FROM league.Season WHERE IsCurrent = 1;
 
-    -- Validar que no tenga partidos en la temporada actual
     IF EXISTS (
       SELECT 1 
       FROM league.NFLGame 
@@ -1513,11 +1745,9 @@ BEGIN
              UpdatedAt = SYSUTCDATETIME()
        WHERE NFLTeamID = @NFLTeamID;
 
-      -- Log de cambio
       INSERT INTO ref.NFLTeamChangeLog(NFLTeamID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent)
       VALUES(@NFLTeamID, @ActorUserID, N'IsActive', N'1', N'0', @SourceIp, @UserAgent);
 
-      -- Auditoría
       INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
       VALUES(@ActorUserID, N'NFL_TEAM', CAST(@NFLTeamID AS NVARCHAR(50)), N'DEACTIVATE',
              CONCAT(N'Equipo desactivado: ', @TeamName), @SourceIp, @UserAgent);
@@ -1537,8 +1767,8 @@ GRANT EXECUTE ON OBJECT::app.sp_DeactivateNFLTeam TO app_executor;
 GO
 
 -- ============================================================================
--- sp_ReactivateNFLTeam
--- Reactiva un equipo NFL desactivado
+-- sp_ReactivateNFLTeam - VERSIÓN ACTUALIZADA
+-- Solo ADMIN puede reactivar equipos NFL
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_ReactivateNFLTeam
   @ActorUserID   INT,
@@ -1549,6 +1779,16 @@ AS
 BEGIN
   SET NOCOUNT ON;
   BEGIN TRY
+    -- Validar que el actor es ADMIN
+    DECLARE @ActorRole NVARCHAR(20);
+    SELECT @ActorRole = SystemRoleCode FROM auth.UserAccount WHERE UserID = @ActorUserID;
+
+    IF @ActorRole IS NULL
+      THROW 50124, 'Usuario actor no existe.', 1;
+
+    IF @ActorRole <> N'ADMIN'
+      THROW 50123, 'Solo un ADMIN puede reactivar equipos NFL.', 1;
+
     DECLARE @TeamName NVARCHAR(100);
     SELECT @TeamName = TeamName FROM ref.NFLTeam WHERE NFLTeamID = @NFLTeamID;
 
@@ -2090,6 +2330,50 @@ END
 GO
 
 GRANT EXECUTE ON OBJECT::app.sp_RemovePlayerFromRoster TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_GetUserRolesInLeague
+-- Retorna todos los roles efectivos de un usuario en una liga
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_GetUserRolesInLeague
+  @UserID    INT,
+  @LeagueID  INT
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  -- Roles del usuario en esta liga
+  SELECT 
+    RoleName,
+    IsExplicit,
+    IsDerived,
+    IsPrimaryCommissioner,
+    JoinedAt
+  FROM dbo.vw_UserLeagueRoles
+  WHERE UserID = @UserID 
+    AND LeagueID = @LeagueID
+  ORDER BY 
+    CASE RoleName
+      WHEN N'COMMISSIONER' THEN 1
+      WHEN N'CO_COMMISSIONER' THEN 2
+      WHEN N'MANAGER' THEN 3
+      WHEN N'SPECTATOR' THEN 4
+      ELSE 5
+    END;
+
+  -- Resumen
+  SELECT 
+    PrimaryRole,
+    AllRoles,
+    IsPrimaryCommissioner
+  FROM dbo.vw_UserLeagueRoleSummary
+  WHERE UserID = @UserID 
+    AND LeagueID = @LeagueID;
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_GetUserRolesInLeague TO app_executor;
 GO
 
 GRANT EXECUTE ON SCHEMA::app TO app_executor;

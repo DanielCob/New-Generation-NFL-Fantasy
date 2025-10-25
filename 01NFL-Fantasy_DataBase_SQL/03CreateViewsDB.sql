@@ -256,8 +256,8 @@ GRANT SELECT ON dbo.vw_PlayersByNFLTeam TO app_executor;
 GO
 
 -- ============================================================================
--- vw_FantasyTeamDetails
--- Vista detallada de equipos fantasy con todas las imágenes y metadatos
+-- vw_FantasyTeamDetails - VERSIÓN ACTUALIZADA
+-- Incluye SystemRoleCode del manager del equipo
 -- ============================================================================
 CREATE OR ALTER VIEW dbo.vw_FantasyTeamDetails
 AS
@@ -270,6 +270,8 @@ SELECT
   u.Name AS ManagerName,
   u.Email AS ManagerEmail,
   u.Alias AS ManagerAlias,
+  u.SystemRoleCode AS ManagerSystemRole,
+  u.ProfileImageUrl AS ManagerProfileImage,
   t.TeamName,
   t.TeamImageUrl,
   t.TeamImageWidth,
@@ -533,19 +535,28 @@ GO
 GRANT SELECT ON dbo.vw_LeagueDirectory TO app_executor;
 GO
 
+-- ============================================================================
+-- vw_LeagueMembers - VERSIÓN ACTUALIZADA
+-- Incluye SystemRoleCode de cada miembro para permisos granulares
+-- ============================================================================
 CREATE OR ALTER VIEW dbo.vw_LeagueMembers
 AS
 SELECT
   lm.LeagueID,
   lm.UserID,
-  lm.RoleCode,
+  lm.RoleCode AS LeagueRoleCode,
   lm.IsPrimaryCommissioner,
   lm.JoinedAt,
   lm.LeftAt,
-  u.Name  AS UserName,
-  u.Email AS UserEmail
+  u.Name AS UserName,
+  u.Email AS UserEmail,
+  u.Alias AS UserAlias,
+  u.SystemRoleCode,
+  sr.Display AS SystemRoleDisplay,
+  u.ProfileImageUrl
 FROM league.LeagueMember lm
-JOIN auth.UserAccount   u ON u.UserID = lm.UserID;
+JOIN auth.UserAccount u ON u.UserID = lm.UserID
+JOIN auth.SystemRole sr ON sr.RoleCode = u.SystemRoleCode;
 GO
 
 GRANT SELECT ON dbo.vw_LeagueMembers TO app_executor;
@@ -553,7 +564,7 @@ GO
 
 -- ============================================================================
 -- vw_LeagueTeams - VERSIÓN ACTUALIZADA
--- Incluye imágenes, thumbnails y estado de equipos
+-- Incluye SystemRoleCode del dueño del equipo
 -- ============================================================================
 CREATE OR ALTER VIEW dbo.vw_LeagueTeams
 AS
@@ -565,18 +576,17 @@ SELECT
   u.Name AS OwnerName,
   u.Email AS OwnerEmail,
   u.Alias AS OwnerAlias,
-  -- NUEVOS: Imágenes y thumbnails
+  u.SystemRoleCode AS OwnerSystemRole,
+  u.ProfileImageUrl AS OwnerProfileImage,
   t.TeamImageUrl,
   t.TeamImageWidth,
   t.TeamImageHeight,
   t.ThumbnailUrl,
   t.ThumbnailWidth,
   t.ThumbnailHeight,
-  -- NUEVO: Estado
   t.IsActive,
   t.CreatedAt,
   t.UpdatedAt,
-  -- Estadísticas del roster
   (SELECT COUNT(*) FROM league.TeamRoster tr WHERE tr.TeamID = t.TeamID AND tr.IsActive = 1) AS RosterCount
 FROM league.Team t
 JOIN auth.UserAccount u ON u.UserID = t.OwnerUserID;
@@ -585,6 +595,10 @@ GO
 GRANT SELECT ON dbo.vw_LeagueTeams TO app_executor;
 GO
 
+-- ============================================================================
+-- vw_UserProfileHeader - VERSIÓN ACTUALIZADA
+-- Incluye SystemRoleCode para control de acceso en el header
+-- ============================================================================
 CREATE OR ALTER VIEW dbo.vw_UserProfileHeader
 AS
 SELECT
@@ -592,17 +606,24 @@ SELECT
   u.Email,
   u.Name,
   u.Alias,
+  u.SystemRoleCode,
+  sr.Display AS SystemRoleDisplay,
   u.LanguageCode,
   u.ProfileImageUrl,
   u.AccountStatus,
   u.CreatedAt,
   u.UpdatedAt
-FROM auth.UserAccount u;
+FROM auth.UserAccount u
+JOIN auth.SystemRole sr ON sr.RoleCode = u.SystemRoleCode;
 GO
 
 GRANT SELECT ON dbo.vw_UserProfileHeader TO app_executor;
 GO
 
+-- ============================================================================
+-- vw_UserProfileBasic - VERSIÓN ACTUALIZADA
+-- Ahora devuelve SystemRoleCode real en lugar de hardcodear 'MANAGER'
+-- ============================================================================
 CREATE OR ALTER VIEW dbo.vw_UserProfileBasic
 AS
 SELECT
@@ -610,6 +631,8 @@ SELECT
   u.Email,
   u.Name,
   u.Alias,
+  u.SystemRoleCode,
+  sr.Display AS SystemRoleDisplay,
   u.LanguageCode,
   u.ProfileImageUrl,
   u.ProfileImageWidth,
@@ -617,9 +640,9 @@ SELECT
   u.ProfileImageBytes,
   u.AccountStatus,
   u.CreatedAt,
-  u.UpdatedAt,
-  CAST(N'MANAGER' AS NVARCHAR(20)) AS [Role] -- rol global inicial requerido por la historia
-FROM auth.UserAccount u;
+  u.UpdatedAt
+FROM auth.UserAccount u
+JOIN auth.SystemRole sr ON sr.RoleCode = u.SystemRoleCode;
 GO
 
 GRANT SELECT ON dbo.vw_UserProfileBasic TO app_executor;
@@ -677,7 +700,7 @@ GO
 
 -- ============================================================================
 -- vw_LeagueSummary - VERSIÓN ACTUALIZADA
--- Incluye información mejorada de equipos fantasy
+-- Incluye SystemRoleCode del creador de la liga
 -- ============================================================================
 CREATE OR ALTER VIEW dbo.vw_LeagueSummary
 AS
@@ -709,6 +732,7 @@ SELECT
   l.CreatedByUserID,
   u.Name AS CreatedByName,
   u.Email AS CreatedByEmail,
+  u.SystemRoleCode AS CreatedBySystemRole,
   l.CreatedAt,
   l.UpdatedAt
 FROM league.League l
@@ -721,3 +745,168 @@ GO
 GRANT SELECT ON dbo.vw_LeagueSummary TO app_executor;
 GO
 
+-- ============================================================================
+-- vw_SystemRoles
+-- Vista de roles del sistema disponibles (para dropdowns/selección)
+-- ============================================================================
+CREATE OR ALTER VIEW dbo.vw_SystemRoles
+AS
+SELECT
+  RoleCode,
+  Display,
+  Description
+FROM auth.SystemRole;
+GO
+
+GRANT SELECT ON dbo.vw_SystemRoles TO app_executor;
+GO
+
+-- ============================================================================
+-- vw_UsersWithRoles
+-- Vista completa de usuarios con sus roles del sistema
+-- Útil para pantallas de administración
+-- ============================================================================
+CREATE OR ALTER VIEW dbo.vw_UsersWithRoles
+AS
+SELECT
+  u.UserID,
+  u.Email,
+  u.Name,
+  u.Alias,
+  u.SystemRoleCode,
+  sr.Display AS SystemRoleDisplay,
+  sr.Description AS SystemRoleDescription,
+  u.LanguageCode,
+  u.ProfileImageUrl,
+  u.AccountStatus,
+  CASE u.AccountStatus
+    WHEN 1 THEN N'Activo'
+    WHEN 2 THEN N'Bloqueado'
+    ELSE N'Inactivo'
+  END AS AccountStatusDisplay,
+  u.FailedLoginCount,
+  u.LockedUntil,
+  u.CreatedAt,
+  u.UpdatedAt,
+  -- Estadísticas del usuario
+  (SELECT COUNT(*) FROM league.Team t WHERE t.OwnerUserID = u.UserID) AS TeamsCount,
+  (SELECT COUNT(DISTINCT lm.LeagueID) FROM league.LeagueMember lm WHERE lm.UserID = u.UserID AND lm.RoleCode = N'COMMISSIONER') AS CommissionedLeaguesCount
+FROM auth.UserAccount u
+JOIN auth.SystemRole sr ON sr.RoleCode = u.SystemRoleCode;
+GO
+
+GRANT SELECT ON dbo.vw_UsersWithRoles TO app_executor;
+GO
+
+-- ============================================================================
+-- vw_UserLeagueRoles
+-- Determina TODOS los roles efectivos de un usuario en una liga
+-- Un usuario puede tener múltiples roles simultáneamente
+-- ============================================================================
+CREATE OR ALTER VIEW dbo.vw_UserLeagueRoles
+AS
+-- Roles administrativos explícitos (COMMISSIONER, CO_COMMISSIONER, SPECTATOR)
+SELECT 
+  lm.LeagueID,
+  lm.UserID,
+  lm.RoleCode AS RoleName,
+  lm.IsPrimaryCommissioner,
+  1 AS IsExplicit,  -- Viene de LeagueMember
+  0 AS IsDerived,   -- No es derivado
+  lm.JoinedAt,
+  u.Name AS UserName,
+  u.Email AS UserEmail
+FROM league.LeagueMember lm
+JOIN auth.UserAccount u ON u.UserID = lm.UserID
+WHERE lm.LeftAt IS NULL  -- Solo miembros activos
+
+UNION ALL
+
+-- Rol de MANAGER derivado (tiene equipo)
+SELECT 
+  t.LeagueID,
+  t.OwnerUserID AS UserID,
+  N'MANAGER' AS RoleName,
+  0 AS IsPrimaryCommissioner,
+  0 AS IsExplicit,  -- No viene de LeagueMember
+  1 AS IsDerived,   -- Es derivado de tener equipo
+  t.CreatedAt AS JoinedAt,
+  u.Name AS UserName,
+  u.Email AS UserEmail
+FROM league.Team t
+JOIN auth.UserAccount u ON u.UserID = t.OwnerUserID
+WHERE t.IsActive = 1;
+GO
+
+GRANT SELECT ON dbo.vw_UserLeagueRoles TO app_executor;
+GO
+
+-- ============================================================================
+-- vw_UserLeagueRoleSummary
+-- Retorna UN rol principal por usuario/liga para mostrar en UI
+-- Prioridad: COMMISSIONER > CO_COMMISSIONER > MANAGER > SPECTATOR
+-- ============================================================================
+CREATE OR ALTER VIEW dbo.vw_UserLeagueRoleSummary
+AS
+WITH UserRoles AS (
+  SELECT 
+    LeagueID,
+    UserID,
+    RoleName,
+    IsPrimaryCommissioner,
+    UserName,
+    UserEmail,
+    -- Asignar prioridad para el rol "principal"
+    CASE RoleName
+      WHEN N'COMMISSIONER' THEN 1
+      WHEN N'CO_COMMISSIONER' THEN 2
+      WHEN N'MANAGER' THEN 3
+      WHEN N'SPECTATOR' THEN 4
+      ELSE 5
+    END AS RolePriority
+  FROM dbo.vw_UserLeagueRoles
+),
+-- Agregar todos los roles por usuario/liga en un CTE separado
+AggregatedRoles AS (
+  SELECT 
+    LeagueID,
+    UserID,
+    STRING_AGG(RoleName, N', ') WITHIN GROUP (ORDER BY 
+      CASE RoleName
+        WHEN N'COMMISSIONER' THEN 1
+        WHEN N'CO_COMMISSIONER' THEN 2
+        WHEN N'MANAGER' THEN 3
+        WHEN N'SPECTATOR' THEN 4
+        ELSE 5
+      END
+    ) AS AllRoles
+  FROM UserRoles
+  GROUP BY LeagueID, UserID
+),
+RankedRoles AS (
+  SELECT 
+    ur.LeagueID,
+    ur.UserID,
+    ur.RoleName,
+    ur.IsPrimaryCommissioner,
+    ur.UserName,
+    ur.UserEmail,
+    ar.AllRoles,
+    ROW_NUMBER() OVER (PARTITION BY ur.LeagueID, ur.UserID ORDER BY ur.RolePriority) AS rn
+  FROM UserRoles ur
+  JOIN AggregatedRoles ar ON ar.LeagueID = ur.LeagueID AND ar.UserID = ur.UserID
+)
+SELECT 
+  LeagueID,
+  UserID,
+  RoleName AS PrimaryRole,
+  AllRoles,
+  IsPrimaryCommissioner,
+  UserName,
+  UserEmail
+FROM RankedRoles
+WHERE rn = 1;
+GO
+
+GRANT SELECT ON dbo.vw_UserLeagueRoleSummary TO app_executor;
+GO
