@@ -12,6 +12,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { UserProfile, EditUserProfileRequest } from '../../../core/models/user-model';
 import { UserService } from '../../../core/services/user-service';
+import { ImageStorageService, UploadResponse } from '../../../core/services/image-storage.service';
 
 @Component({
   selector: 'app-profile-header',
@@ -30,78 +31,74 @@ import { UserService } from '../../../core/services/user-service';
     MatProgressSpinnerModule
   ],
   templateUrl: './profile-header.html',
-  styleUrl: './profile-header.css'
+  styleUrls: ['./profile-header.css']
 })
 export class ProfileHeader implements OnInit {
   private fb = inject(FormBuilder);
   private userService = inject(UserService);
+  private imageService = inject(ImageStorageService);
   private snack = inject(MatSnackBar);
-  readonly avatarFallback =
-  'data:image/svg+xml;charset=UTF-8,' +
-  encodeURIComponent(
-    `<svg xmlns='http://www.w3.org/2000/svg' width='128' height='128' viewBox='0 0 128 128'>
-      <rect width='128' height='128' fill='#e5e7eb'/>
-      <circle cx='64' cy='48' r='22' fill='#cbd5e1'/>
-      <rect x='24' y='80' width='80' height='28' rx='14' fill='#cbd5e1'/>
-    </svg>`
-  );
 
-  // Estado general
+  readonly avatarFallback =
+    'data:image/svg+xml;charset=UTF-8,' +
+    encodeURIComponent(
+      `<svg xmlns='http://www.w3.org/2000/svg' width='128' height='128' viewBox='0 0 128 128'>
+        <rect width='128' height='128' fill='#e5e7eb'/>
+        <circle cx='64' cy='48' r='22' fill='#cbd5e1'/>
+        <rect x='24' y='80' width='80' height='28' rx='14' fill='#cbd5e1'/>
+      </svg>`
+    );
+
   loading = signal(true);
   saving  = signal(false);
   editing = signal(false);
 
-  // Estado imagen
-  computingImageMeta = signal(false); // cálculo W/H/Bytes
-  showAvatar = signal(true);          // oculta avatar si la carga falla
+  selectedFile: File | null = null;
+  previewUrl = signal<string | null>(null);
+  imageMeta = signal<{ width: number; height: number; bytes: number } | null>(null);
+  computingImageMeta = signal(false);
+  showAvatar = signal(true);
 
   profile = signal<UserProfile | null>(null);
-  triedFullProfile = false;           // evita pedir /profile más de una vez
+  triedFullProfile = false;
 
-  // Idiomas de ejemplo
   languages = [
     { code: 'en', label: 'English' },
     { code: 'es', label: 'Español' },
   ];
 
-  // Form con campos de metadatos (solo lectura) para edición
   form: FormGroup = this.fb.group({
     name: ['', [Validators.required, Validators.minLength(2)]],
     alias: ['', [Validators.required, Validators.minLength(2)]],
-    languageCode: ['en', [Validators.required]],
-
-    profileImageUrl: [''],
-    profileImageWidth: [''],
-    profileImageHeight: [''],
-    profileImageBytes: [''],
+    languageCode: ['en', [Validators.required]]
   });
 
   ngOnInit(): void {
     this.loadHeader();
   }
 
-  /** Carga datos desde /User/header y, si no viene la imagen, intenta /User/profile */
   private loadHeader(): void {
     this.loading.set(true);
     this.userService.getHeader().subscribe({
       next: (p) => {
+        console.log('Header loaded: ', p);
         this.profile.set(p);
         this.patchFormFromProfile(p);
         this.loading.set(false);
 
-        // Si no hay URL en header, intenta una sola vez el perfil completo
         const noImg = !p.ProfileImageUrl || !String(p.ProfileImageUrl).trim();
         if (noImg && !this.triedFullProfile) {
           this.triedFullProfile = true;
           this.userService.getProfile().subscribe({
             next: (fp) => {
+              console.log('Full profile loaded: ', fp);
               if (fp?.ProfileImageUrl) {
-                // Enriquecer el perfil actual con la URL
                 const curr = this.profile();
                 this.profile.set({ ...(curr || fp), ProfileImageUrl: fp.ProfileImageUrl });
+                this.previewUrl.set(fp.ProfileImageUrl);
               }
             },
-            error: () => { /* silencioso */ }
+            error: () => {}
           });
         }
       },
@@ -113,20 +110,13 @@ export class ProfileHeader implements OnInit {
     });
   }
 
-  /** Sincroniza formularios desde el perfil actual */
   private patchFormFromProfile(p: UserProfile): void {
     this.form.patchValue({
       name: p.Name,
       alias: p.Alias,
-      languageCode: p.LanguageCode,
-      // Prefill de URL si existe (útil para editar)
-      profileImageUrl: (p.ProfileImageUrl || '').toString(),
-      profileImageWidth: '',
-      profileImageHeight: '',
-      profileImageBytes: '',
+      languageCode: p.LanguageCode
     });
-    // Si cambiamos de perfil/URL, volvemos a mostrar el avatar
-    this.showAvatar.set(true);
+    this.previewUrl.set(p.ProfileImageUrl ?? null);
   }
 
   enableEdit(): void { this.editing.set(true); }
@@ -135,12 +125,13 @@ export class ProfileHeader implements OnInit {
     const p = this.profile();
     if (p) this.patchFormFromProfile(p);
     this.editing.set(false);
+    this.selectedFile = null;
+    this.previewUrl.set(p?.ProfileImageUrl ?? null);
+    this.imageMeta.set(null);
   }
 
   avatarUrl(): string {
-    const p = this.profile();
-    const url = (p?.ProfileImageUrl ?? '').trim();
-    return url || this.avatarFallback;
+    return this.previewUrl() ?? this.profile()?.ProfileImageUrl ?? this.avatarFallback;
   }
 
   onAvatarError(ev: Event) {
@@ -150,153 +141,96 @@ export class ProfileHeader implements OnInit {
     }
   }
 
-  /** Cálculo de metadatos al cambiar URL en edición */
-  async onProfileImageUrlChanged(): Promise<void> {
-    const url = String(this.form.get('profileImageUrl')?.value ?? '').trim();
+  onFileSelected(ev: Event) {
+    const input = ev.target as HTMLInputElement;
+    if (!input.files?.length) return;
+    const file = input.files[0];
+    this.selectedFile = file;
 
-    if (!url) {
-      this.form.patchValue({
-        profileImageWidth: '',
-        profileImageHeight: '',
-        profileImageBytes: ''
-      });
-      return;
-    }
-
-    this.computingImageMeta.set(true);
-    try {
-      const { width, height, bytes } = await this.getImageMetaFromUrl(url);
-      this.form.patchValue({
-        profileImageWidth: width ?? '',
-        profileImageHeight: height ?? '',
-        profileImageBytes: bytes ?? ''
-      });
-    } catch {
-      this.form.patchValue({
-        profileImageWidth: '',
-        profileImageHeight: '',
-        profileImageBytes: ''
-      });
-    } finally {
-      this.computingImageMeta.set(false);
-    }
+    const reader = new FileReader();
+    reader.onload = e => this.previewUrl.set(reader.result as string);
+    reader.readAsDataURL(file);
   }
 
-  /** Construye el payload para PUT /User/profile (con validación de metadatos si hay URL) */
-  private buildRequestOrThrow(): EditUserProfileRequest {
-    const v = this.form.value;
-
-    const name = String(v.name ?? '').trim();
-    const alias = String(v.alias ?? '').trim();
-    const language = String(v.languageCode ?? '').trim();
-    const url = String(v.profileImageUrl ?? '').trim();
-
-    const req: EditUserProfileRequest = { Name: name, Alias: alias, LanguageCode: language };
-
-    if (url) {
-      const w = this.toNumberOrUndefined(v.profileImageWidth);
-      const h = this.toNumberOrUndefined(v.profileImageHeight);
-      const b = this.toNumberOrUndefined(v.profileImageBytes);
-      if (!w || !h || !b || w <= 0 || h <= 0 || b <= 0) {
-        throw new Error('La imagen requiere Width/Height/Bytes válidos.');
-      }
-      req.ProfileImageUrl = url;
-      req.ProfileImageWidth = w;
-      req.ProfileImageHeight = h;
-      req.ProfileImageBytes = b;
-    }
-
-    return req;
+  private async getImageMeta(file: File): Promise<{ width: number; height: number; bytes: number }> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const w = img.naturalWidth;
+        const h = img.naturalHeight;
+        if (w < 300 || w > 1024 || h < 300 || h > 1024) {
+          reject(new Error('La imagen debe tener entre 300 y 1024 px de ancho y alto.'));
+        } else {
+          resolve({ width: w, height: h, bytes: file.size });
+        }
+      };
+      img.onerror = () => reject(new Error('No se pudo cargar la imagen.'));
+      img.src = URL.createObjectURL(file);
+    });
   }
 
   async save(): Promise<void> {
     if (this.form.invalid || this.saving()) return;
-    if (this.computingImageMeta()) {
-      this.snack.open('Espera a que se calculen los metadatos de la imagen…', 'Cerrar', { duration: 3000 });
-      return;
-    }
-
-    let body: EditUserProfileRequest;
-    try { body = this.buildRequestOrThrow(); }
-    catch (e: any) {
-      this.snack.open(e?.message || 'Datos de imagen inválidos.', 'Cerrar', { duration: 4000 });
-      return;
-    }
-
     this.saving.set(true);
-    this.userService.updateProfile(body).subscribe({
-      next: (res) => {
-        this.saving.set(false);
-        const ok = (res as any)?.success ?? (res as any)?.Success;
-        const msg = (res as any)?.message ?? (res as any)?.Message ?? 'Perfil actualizado.';
 
-        if (ok) {
-          this.snack.open(msg, 'Cerrar', { duration: 3000 });
+    try {
+      let imageUrl: string | null = null;
 
-          // Refresca valores locales visibles
+      if (this.selectedFile) {
+        this.imageMeta.set(await this.getImageMeta(this.selectedFile));
+
+        const res: UploadResponse | undefined = await this.imageService.uploadImage(this.selectedFile).toPromise();
+        console.log('Image upload response: ', res);
+
+        if (!res?.imageUrl) {
+          console.warn('Image upload returned undefined or missing URL.');
+          throw new Error('No se pudo obtener la URL de la imagen.');
+        }
+
+        imageUrl = res.imageUrl;
+        this.previewUrl.set(imageUrl);
+      }
+
+      const body: EditUserProfileRequest = {
+        Name: this.form.value.name,
+        Alias: this.form.value.alias,
+        LanguageCode: this.form.value.languageCode,
+      };
+
+      if (imageUrl && this.imageMeta()) {
+        body.ProfileImageUrl = imageUrl;
+        body.ProfileImageWidth = this.imageMeta()!.width;
+        body.ProfileImageHeight = this.imageMeta()!.height;
+        body.ProfileImageBytes = this.imageMeta()!.bytes;
+      }
+
+      console.log('PUT /User/profile body: ', body);
+
+      this.userService.updateProfile(body).subscribe({
+        next: (resp) => {
+          console.log('Profile updated response: ', resp);
+          this.saving.set(false);
           const p = this.profile();
           if (p) {
             this.profile.set({
               ...p,
-              Name: body.Name,
-              Alias: body.Alias,
-              LanguageCode: body.LanguageCode,
-              // Si se envió una nueva URL, reflejarla
-              ProfileImageUrl: body.ProfileImageUrl ?? p.ProfileImageUrl
+              ...body
             });
           }
           this.editing.set(false);
-        } else {
-          this.snack.open(msg || 'No se pudo actualizar el perfil.', 'Cerrar', { duration: 4000 });
+          this.snack.open('Perfil actualizado.', 'Cerrar', { duration: 3000 });
+        },
+        error: (err) => {
+          this.saving.set(false);
+          console.error('Error updating profile: ', err);
+          this.snack.open(err?.error?.message || 'Error al actualizar el perfil.', 'Cerrar', { duration: 5000 });
         }
-      },
-      error: (err) => {
-        console.error('updateProfile error:', err);
-        const msg =
-          err?.error?.message ||
-          err?.error?.Message ||
-          'Error al actualizar el perfil';
-        this.snack.open(msg, 'Cerrar', { duration: 5000 });
-        this.saving.set(false);
-      }
-    });
-  }
+      });
 
-  // ===== Helpers (mismos que en register) =====
-
-  private toNumberOrUndefined(x: any): number | undefined {
-    const n = Number(x);
-    return Number.isFinite(n) ? n : undefined;
-  }
-
-  private async getImageMetaFromUrl(url: string): Promise<{ width: number | null, height: number | null, bytes: number | null }> {
-    const getDims = () => new Promise<{ width: number | null; height: number | null }>((resolve) => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => resolve({ width: img.naturalWidth || null, height: img.naturalHeight || null });
-      img.onerror = () => resolve({ width: null, height: null });
-      img.src = url;
-    });
-
-    const getBytesViaHEAD = async () => {
-      try {
-        const r = await fetch(url, { method: 'HEAD', mode: 'cors' });
-        const len = r.headers.get('content-length');
-        return len ? Number(len) : null;
-      } catch { return null; }
-    };
-
-    const dims = await getDims();
-    let bytes = await getBytesViaHEAD();
-
-    if (bytes == null) {
-      try {
-        const r = await fetch(url, { method: 'GET', mode: 'cors' });
-        const b = await r.blob();
-        bytes = b.size;
-      } catch { bytes = null; }
+    } catch (e: any) {
+      this.saving.set(false);
+      console.error('Save error: ', e);
+      this.snack.open(e.message ?? 'Error con la imagen.', 'Cerrar', { duration: 5000 });
     }
-
-    return { width: dims.width, height: dims.height, bytes };
   }
 }
