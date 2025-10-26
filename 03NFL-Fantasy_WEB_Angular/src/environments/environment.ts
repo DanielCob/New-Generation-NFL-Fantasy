@@ -1,6 +1,6 @@
 export const environment = {
   production: false,
-  apiUrl: 'https://localhost:7221/api',
+  apiUrl: 'https://localhost:58493/api',
   enableAdmin: false,
 
   // 🆕 NUEVAS CONFIGURACIONES

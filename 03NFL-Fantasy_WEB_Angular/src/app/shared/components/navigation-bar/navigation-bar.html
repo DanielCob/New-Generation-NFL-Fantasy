@@ -56,6 +56,26 @@
         <span>Set current Team</span>
       </button>
     </mat-menu>
+    <!-- Menú de Leagues -->
+  <button mat-button [matMenuTriggerFor]="leaguesMenu" class="nav-link">
+    <mat-icon>groups</mat-icon>
+    <span>Leagues</span>
+  </button>
+
+  <mat-menu #leaguesMenu="matMenu">
+    <button mat-menu-item (click)="navigateToCreateLeague()">
+      <mat-icon>add_circle</mat-icon>
+      <span>Create League</span>
+    </button>
+
+
+    <mat-divider></mat-divider>
+    <button mat-menu-item >
+      <mat-icon>pin</mat-icon>
+      <span>Check created leagues</span>
+    </button>
+  </mat-menu>
+
   </div>
 
   <span class="spacer"></span>

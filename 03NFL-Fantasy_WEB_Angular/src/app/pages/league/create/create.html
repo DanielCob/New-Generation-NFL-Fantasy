@@ -1,1 +1,104 @@
-<p>create works!</p>
+<mat-card class="wrap">
+  <h1 class="title">
+    <mat-icon>add_circle</mat-icon>
+    Create League
+  </h1>
+
+  <form [formGroup]="form" (ngSubmit)="submit()" class="grid">
+    <!-- Columna izquierda -->
+    <div class="col">
+      <mat-form-field appearance="outline" class="w100">
+        <mat-label>Name *</mat-label>
+        <input matInput formControlName="Name" maxlength="80">
+        <mat-hint align="end">{{ form.value.Name?.length || 0 }}/80</mat-hint>
+        <mat-error *ngIf="form.controls.Name.hasError('required')">Required</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="w100">
+        <mat-label>Description</mat-label>
+        <textarea matInput rows="3" formControlName="Description" maxlength="500"></textarea>
+        <mat-hint align="end">{{ form.value.Description?.length || 0 }}/500</mat-hint>
+      </mat-form-field>
+
+      <div class="row">
+        <mat-form-field appearance="outline">
+          <mat-label>Team slots *</mat-label>
+          <input matInput type="number" min="2" max="20" formControlName="TeamSlots">
+          <mat-error *ngIf="form.controls.TeamSlots.invalid">2–20</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Playoff teams *</mat-label>
+          <input matInput type="number" min="2" [max]="teamSlots" formControlName="PlayoffTeams">
+          <mat-error *ngIf="form.controls.PlayoffTeams.invalid">≥2 y ≤ team slots</mat-error>
+        </mat-form-field>
+      </div>
+
+      <mat-slide-toggle formControlName="AllowDecimals">
+        Allow decimal scoring
+      </mat-slide-toggle>
+    </div>
+
+    <!-- Columna derecha -->
+    <div class="col">
+      <mat-form-field appearance="outline" class="w100">
+        <mat-label>Position format *</mat-label>
+        <mat-select formControlName="PositionFormatID">
+          <mat-option *ngFor="let p of positionFormats" [value]="p.id">{{ p.label }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="w100">
+        <mat-label>Scoring schema *</mat-label>
+        <mat-select formControlName="ScoringSchemaID">
+          <mat-option *ngFor="let s of scoringSchemas" [value]="s.id">{{ s.label }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <!-- 👇 Nuevo: elegir equipo propio en lugar de escribir nombre -->
+      <mat-form-field appearance="outline" class="w100">
+        <mat-label>Choose your team *</mat-label>
+        <mat-select formControlName="SelectedTeamId" [disabled]="loadingProfile">
+          <mat-option *ngIf="loadingProfile" [value]="null" disabled>Loading teams…</mat-option>
+          <ng-container *ngIf="!loadingProfile">
+            <mat-option *ngFor="let t of teams" [value]="t.teamId">
+              {{ t.teamName }} <span *ngIf="t.leagueName">— {{ t.leagueName }}</span>
+            </mat-option>
+            <mat-option *ngIf="teams.length===0" [value]="null" disabled>
+              No teams found (create one first)
+            </mat-option>
+          </ng-container>
+        </mat-select>
+        <mat-error *ngIf="form.controls.SelectedTeamId.hasError('required')">
+          Required
+        </mat-error>
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="w100">
+        <mat-label>League password *</mat-label>
+        <input matInput [type]="hidePwd ? 'password' : 'text'" formControlName="LeaguePassword" maxlength="32">
+        <button mat-icon-button matSuffix type="button" (click)="hidePwd = !hidePwd" aria-label="toggle">
+          <mat-icon>{{ hidePwd ? 'visibility' : 'visibility_off' }}</mat-icon>
+        </button>
+        <mat-error *ngIf="form.controls.LeaguePassword.hasError('required')">Required</mat-error>
+        <mat-error *ngIf="form.controls.LeaguePassword.hasError('minlength')">Min 4 chars</mat-error>
+      </mat-form-field>
+
+
+      <!-- Se eliminó el campo "Initial team name" -->
+    </div>
+
+    <!-- Acciones -->
+    <div class="actions">
+
+      <span class="spacer"></span>
+
+      <button mat-raised-button color="primary" type="submit" [disabled]="loading || form.invalid || loadingProfile || teams.length===0">
+        <mat-icon>save</mat-icon> Create
+      </button>
+    </div>
+
+    <div class="center" *ngIf="loading">
+      <mat-progress-spinner diameter="36" mode="indeterminate"></mat-progress-spinner>
+    </div>
+  </form>
+</mat-card>

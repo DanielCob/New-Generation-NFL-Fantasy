@@ -7,7 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar'; // 👈
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { Subscription } from 'rxjs';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { SelectTeamDialog } from '../select-team-dialog/select-team-dialog';
@@ -89,4 +89,23 @@ export class NavigationBar implements OnDestroy {
   navigateToSettings(): void { this.router.navigate(['/settings']); }
   navigateToFullProfile(): void { this.router.navigate(['/profile/full-profile']); }
   navigateToSessions(): void { this.router.navigate(['/profile/sessions']); }
+
+  // navigation-bar.ts (solo agrega lo de League)
+private getCurrentLeagueId(): number | null {
+  const raw = localStorage.getItem('xnf.currentLeagueId');
+  const id = raw ? Number(raw) : NaN;
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
+
+navigateToCreateLeague(): void {
+  this.router.navigate(['/league/create']);
+}
+
+goLeague(path: 'summary'|'edit'|'members'|'teams'): void {
+  const id = this.getCurrentLeagueId();
+  if (!id) { this.snack.open('Seleccioná un League ID primero', 'OK', {duration:3000}); return; }
+  this.router.navigate(['/league', id, path === 'edit' ? 'edit' : path]);
+}
+
+
 }
