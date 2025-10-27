@@ -1,3 +1,4 @@
+Added image Storing Implentation.
 # Frontend Workflow (Angular) — README
 
 > **Goal**
