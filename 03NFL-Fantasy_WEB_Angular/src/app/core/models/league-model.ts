@@ -35,10 +35,25 @@ export interface EditLeagueConfigRequest {
   maxFreeAgentAddsPerTeam: number;
 }
 
-// ✅ NUEVO — PUT /api/League/{id}/status  (de tu última imagen)
+
 export interface UpdateLeagueStatusRequest {
   NewStatus: number;
   Reason: string;
+}
+
+export interface JoinLeagueRequest {
+  LeagueID: number;
+  LeaguePassword: string;
+  TeamName: string;
+}
+
+export interface JoinLeagueData {
+  TeamID: number;
+  LeagueID: number;
+  TeamName: string;
+  LeagueName: string;
+  AvailableSlots: number;
+  Message: string; // viene duplicado con ApiResponse.message, lo dejamos por compatibilidad
 }
 
 /* ========= League: Path params ========= */
@@ -162,6 +177,7 @@ export type CreateLeagueResponse = ApiResponse<CreateLeagueData>;
 
 export type EditLeagueConfigResponse    = ApiResponse<string>;
 export type UpdateLeagueStatusResponse = ApiResponse<null>;
+export type JoinLeagueResponse          = ApiResponse<JoinLeagueData>;
 
 
 /* ========= League: GET (sin envoltura, por definir cuando tengamos schema) ========= */

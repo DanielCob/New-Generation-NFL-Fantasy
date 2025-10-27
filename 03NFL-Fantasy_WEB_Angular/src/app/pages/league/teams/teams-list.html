@@ -1,0 +1,27 @@
+<div class="teams">
+  <div class="loading" *ngIf="loading()">
+    <mat-progress-spinner mode="indeterminate" diameter="32"></mat-progress-spinner>
+    <span>Cargando equipos…</span>
+  </div>
+
+  <div class="error" *ngIf="!loading() && error()">
+    <mat-icon>error</mat-icon> {{ error() }}
+  </div>
+
+  <mat-list *ngIf="!loading() && !error() && rows().length">
+    <mat-list-item *ngFor="let t of rows()">
+      <mat-icon matListItemIcon>shield</mat-icon>
+      <div matListItemTitle>{{ t.TeamName }}</div>
+      <div matListItemLine>Owner: {{ t.OwnerName }}</div>
+      <div matListItemMeta>{{ t.CreatedAt | date:'shortDate' }}</div>
+    </mat-list-item>
+  </mat-list>
+
+  <div class="muted" *ngIf="!loading() && !error() && !rows().length">
+    <mat-icon>info</mat-icon> No hay equipos.
+  </div>
+
+  <div class="actions" *ngIf="!loading() && !error() && rows().length">
+
+  </div>
+</div>

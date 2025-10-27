@@ -1,1 +1,68 @@
-<p>summary works!</p>
+<div class="summary-root">
+
+  <!-- Loading -->
+  <div class="loading" *ngIf="loading()">
+    <mat-progress-spinner mode="indeterminate" diameter="48"></mat-progress-spinner>
+    <span>Cargando resumen…</span>
+  </div>
+
+  <!-- Error -->
+  <mat-card *ngIf="!loading() && error()">
+    <mat-card-content>
+      <div class="error">
+        <mat-icon>error</mat-icon>
+        {{ error() }}
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Content -->
+  <ng-container *ngIf="!loading() && !error() && data() as s">
+    <mat-card class="header">
+      <mat-card-title class="title">
+        <mat-icon>emoji_events</mat-icon>
+        <span>{{ s.Name }}</span>
+        <mat-chip [color]="statusColor(s.Status)" selected>{{ statusLabel(s.Status) }}</mat-chip>
+      </mat-card-title>
+      <mat-card-subtitle class="subtitle">
+        {{ s.SeasonLabel }} • {{ s.Year }} • ID {{ s.LeagueID }}
+      </mat-card-subtitle>
+      <mat-card-content class="desc" *ngIf="s.Description">
+        {{ s.Description }}
+      </mat-card-content>
+    </mat-card>
+
+    <div class="grid">
+      <!-- Config -->
+      <mat-card class="card">
+        <mat-card-title>Configuración</mat-card-title>
+        <mat-card-content class="kv">
+          <div><b>Team slots:</b> {{ s.TeamSlots }}</div>
+          <div><b>Equipos:</b> {{ s.TeamsCount }}</div>
+          <div><b>Cupos libres:</b> {{ s.AvailableSlots }}</div>
+          <div><b>Playoffs:</b> {{ s.PlayoffTeams }}</div>
+          <div><b>Decimales:</b> {{ s.AllowDecimals ? 'Sí' : 'No' }}</div>
+          <div><b>Trade deadline:</b> {{ s.TradeDeadlineEnabled ? 'Habilitado' : 'No' }}</div>
+          <div><b>Posiciones:</b> {{ s.PositionFormatName }} ({{ s.PositionFormatID }})</div>
+          <div><b>Scoring:</b> {{ s.ScoringSchemaName }} v{{ s.ScoringVersion }}</div>
+        </mat-card-content>
+        <mat-divider></mat-divider>
+        <mat-card-content class="kv">
+          <div><b>Inicio:</b> {{ s.StartDate | date:'mediumDate' }}</div>
+          <div><b>Fin:</b> {{ s.EndDate   | date:'mediumDate' }}</div>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Auditoría -->
+      <mat-card class="card">
+        <mat-card-title>Auditoría</mat-card-title>
+        <mat-card-content class="kv">
+          <div><b>Creador:</b> {{ s.CreatedByName }} (#{{ s.CreatedByUserID }})</div>
+          <div><b>Creado:</b> {{ s.CreatedAt | date:'short' }}</div>
+          <div><b>Actualizado:</b> {{ s.UpdatedAt | date:'short' }}</div>
+        </mat-card-content>
+      </mat-card>
+
+    </div>
+  </ng-container>
+</div>
