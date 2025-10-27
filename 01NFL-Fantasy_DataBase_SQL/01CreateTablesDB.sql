@@ -381,7 +381,7 @@ IF OBJECT_ID('league.Season','U') IS NULL
 BEGIN
   CREATE TABLE league.Season(
     SeasonID INT IDENTITY(1,1) CONSTRAINT PK_Season PRIMARY KEY,
-    Label NVARCHAR(20) NOT NULL CONSTRAINT UQ_Season_Label UNIQUE,
+    Label NVARCHAR(100) NOT NULL CONSTRAINT UQ_Season_Label UNIQUE,
     Year INT NOT NULL,
     StartDate DATE NOT NULL,
     EndDate DATE NOT NULL,
@@ -394,6 +394,25 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='UQ_Season_IsCurrent' AND ob
   CREATE UNIQUE INDEX UQ_Season_IsCurrent ON league.Season(IsCurrent) WHERE IsCurrent = 1;
 GO
 
+-- 2) Tabla de semanas por temporada
+IF OBJECT_ID('league.SeasonWeek','U') IS NULL
+BEGIN
+  CREATE TABLE league.SeasonWeek(
+    SeasonID  INT      NOT NULL,
+    WeekNumber TINYINT NOT NULL,
+    StartDate DATE     NOT NULL,
+    EndDate   DATE     NOT NULL,
+    CONSTRAINT PK_SeasonWeek PRIMARY KEY(SeasonID, WeekNumber),
+    CONSTRAINT CK_SeasonWeek_Dates CHECK (EndDate >= StartDate)
+  );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_SeasonWeek_Season')
+  ALTER TABLE league.SeasonWeek
+    ADD CONSTRAINT FK_SeasonWeek_Season
+      FOREIGN KEY(SeasonID) REFERENCES league.Season(SeasonID) ON DELETE CASCADE;
+GO
 
 -- Configuracion general de ligas
 IF OBJECT_ID('league.League','U') IS NULL

@@ -546,6 +546,7 @@ BEGIN
   FROM league.Team t
   JOIN league.League l ON l.LeagueID = t.LeagueID
   WHERE t.OwnerUserID = @UserID
+    AND t.IsActive = 1
   ORDER BY t.CreatedAt DESC;
 END
 GO
@@ -2856,20 +2857,24 @@ CREATE OR ALTER PROCEDURE app.sp_LeaveLeague
 AS
 BEGIN
   SET NOCOUNT ON;
+
   BEGIN TRY
-    -- Validar que el usuario no es el comisionado principal
+    -- 0) Validar que el usuario NO es el comisionado principal
     IF EXISTS (
-      SELECT 1 FROM league.LeagueMember
-      WHERE LeagueID = @LeagueID 
-        AND UserID = @UserID
-        AND RoleCode = N'COMMISSIONER' 
+      SELECT 1
+      FROM league.LeagueMember
+      WHERE LeagueID = @LeagueID
+        AND UserID   = @UserID
+        AND RoleCode = N'COMMISSIONER'
         AND IsPrimaryCommissioner = 1
     )
       THROW 50350, 'El comisionado principal no puede salir de la liga. Debe transferir el comisionado primero o eliminar la liga.', 1;
 
-    -- Validar que la liga está en Pre-Draft
+    -- 1) Validar estado de la liga = Pre-Draft (Status = 0)
     DECLARE @Status TINYINT;
-    SELECT @Status = Status FROM league.League WHERE LeagueID = @LeagueID;
+    SELECT @Status = l.Status
+    FROM league.League l
+    WHERE l.LeagueID = @LeagueID;
 
     IF @Status IS NULL
       THROW 50351, 'Liga no existe.', 1;
@@ -2877,47 +2882,46 @@ BEGIN
     IF @Status <> 0
       THROW 50352, 'Solo puedes salir de ligas en estado Pre-Draft.', 1;
 
-    -- Validar que el usuario tiene un equipo en la liga
-    DECLARE @TeamID INT, @TeamName NVARCHAR(100);
-    SELECT @TeamID = TeamID, @TeamName = TeamName
-    FROM league.Team
-    WHERE LeagueID = @LeagueID 
-      AND OwnerUserID = @UserID 
-      AND IsActive = 1;
+    -- 2) Validar que el usuario tiene un equipo ACTIVO en la liga
+    DECLARE @TeamID INT, @TeamName NVARCHAR(100), @RosterCount INT = 0;
+    SELECT
+      @TeamID   = t.TeamID,
+      @TeamName = t.TeamName
+    FROM league.Team t
+    WHERE t.LeagueID    = @LeagueID
+      AND t.OwnerUserID = @UserID
+      AND t.IsActive    = 1;            -- seguimos exigiendo equipo activo
 
     IF @TeamID IS NULL
       THROW 50353, 'No tienes un equipo activo en esta liga.', 1;
 
+    -- Contar roster (solo para auditoría/mensaje)
+    SELECT @RosterCount = COUNT(*) FROM league.TeamRoster WHERE TeamID = @TeamID;
+
     BEGIN TRAN;
 
-      -- Marcar el equipo como inactivo
-      UPDATE league.Team
-         SET IsActive = 0,
-             UpdatedAt = SYSUTCDATETIME()
-       WHERE TeamID = @TeamID;
-
-      -- Desactivar todos los jugadores del roster
-      UPDATE league.TeamRoster
-         SET IsActive = 0,
-             DroppedDate = SYSUTCDATETIME()
-       WHERE TeamID = @TeamID AND IsActive = 1;
-
-      -- Marcar como "Left" cualquier rol administrativo que tenga
+      -- 3) Marcar salida del usuario de la liga (no borramos membresía histórica)
       UPDATE league.LeagueMember
          SET LeftAt = SYSUTCDATETIME()
-       WHERE LeagueID = @LeagueID 
-         AND UserID = @UserID
+       WHERE LeagueID = @LeagueID
+         AND UserID   = @UserID
          AND LeftAt IS NULL;
 
-      -- Auditoría
-      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
-      VALUES(@UserID, N'LEAGUE', CAST(@LeagueID AS NVARCHAR(50)), N'LEAVE_LEAGUE',
-             CONCAT(N'Salió de la liga con el equipo "', @TeamName, N'"'), 
-             @SourceIp, @UserAgent);
+      -- 4) ELIMINAR el equipo (esto cascaderá a TeamRoster y TeamChangeLog)
+      DELETE FROM league.Team
+       WHERE TeamID = @TeamID;
+
+      -- 5) Auditoría
+      INSERT INTO audit.UserActionLog
+        (ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+      VALUES
+        (@UserID, N'LEAGUE', CAST(@LeagueID AS NVARCHAR(50)), N'LEAVE_LEAGUE_DELETE_TEAM',
+         CONCAT(N'Salió de la liga y eliminó el equipo "', @TeamName, N'". Roster previo: ', @RosterCount, N' jugadores.'),
+         @SourceIp, @UserAgent);
 
     COMMIT;
 
-    SELECT N'Has salido exitosamente de la liga.' AS Message;
+    SELECT N'Has salido exitosamente de la liga. Tu equipo fue eliminado permanentemente.' AS Message;
   END TRY
   BEGIN CATCH
     IF @@TRANCOUNT > 0 ROLLBACK;
@@ -3103,6 +3107,356 @@ END
 GO
 
 GRANT EXECUTE ON OBJECT::app.sp_ValidateLeaguePassword TO app_executor;
+GO
+
+/* ============================================================
+   SP #1: CREAR TEMPORADA (genera weeks y puede marcar como actual)
+   Reglas clave:
+    - Nombre 1..100 (o hasta el ancho real de league.Season.Label)
+    - WeekCount 1..22
+    - StartDate >= hoy (UTC), EndDate >= StartDate
+    - Sin traslape con otras temporadas
+    - @MarkAsCurrent=1 desmarca cualquier otra IsCurrent=1
+    - Genera semanas consecutivas: 7 días c/u y la última cierra en EndDate
+   ============================================================ */
+CREATE OR ALTER PROCEDURE app.sp_CreateSeason
+  @Name           NVARCHAR(100),
+  @WeekCount      TINYINT,
+  @StartDate      DATE,
+  @EndDate        DATE,
+  @MarkAsCurrent  BIT = 0,
+  @ActorUserID    INT = NULL,
+  @SourceIp       NVARCHAR(45)  = NULL,
+  @UserAgent      NVARCHAR(300) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+  SET XACT_ABORT ON;
+
+  DECLARE @MaxLabelChars INT = (SELECT COL_LENGTH('league.Season','Label')/2);
+  IF @MaxLabelChars IS NULL SET @MaxLabelChars = 20;
+
+  IF @Name IS NULL OR LEN(@Name) < 1 OR LEN(@Name) > IIF(@MaxLabelChars > 100, 100, @MaxLabelChars)
+    THROW 50401, 'Nombre de temporada inválido (longitud fuera de rango).', 1;
+
+  IF @WeekCount NOT BETWEEN 1 AND 22
+    THROW 50402, 'La cantidad de semanas debe estar entre 1 y 22.', 1;
+
+  IF @EndDate IS NULL OR @StartDate IS NULL OR @EndDate < @StartDate
+    THROW 50403, 'Rango de fechas inválido: la fecha final debe ser >= a la fecha inicial.', 1;
+
+  DECLARE @Today DATE = CAST(SYSUTCDATETIME() AS DATE);
+  IF @StartDate < @Today
+    THROW 50406, 'No se permiten temporadas con fecha de inicio en el pasado.', 1;
+
+  -- nombre único
+  IF EXISTS(SELECT 1 FROM league.Season WHERE Label = @Name)
+    THROW 50405, 'Ya existe una temporada con ese nombre.', 1;
+
+  -- sin traslape con otras temporadas
+  IF EXISTS(
+    SELECT 1
+    FROM league.Season s
+    WHERE NOT (@EndDate   < s.StartDate OR
+               @StartDate > s.EndDate)
+  )
+    THROW 50404, 'Las fechas se traslapan con otra temporada existente.', 1;
+
+  -- rango mínimo para weeks
+  IF DATEDIFF(DAY, @StartDate, @EndDate) < 7*(@WeekCount-1)
+    THROW 50407, 'Rango insuficiente para la cantidad de semanas solicitada.', 1;
+
+  DECLARE @SeasonID INT;
+
+  BEGIN TRAN;
+
+    -- Asegurar unicidad de IsCurrent
+    IF @MarkAsCurrent = 1
+      UPDATE league.Season SET IsCurrent = 0 WHERE IsCurrent = 1;
+
+    INSERT INTO league.Season(Label, [Year], StartDate, EndDate, IsCurrent, CreatedAt)
+    VALUES(@Name, YEAR(@StartDate), @StartDate, @EndDate, @MarkAsCurrent, SYSUTCDATETIME());
+
+    SET @SeasonID = SCOPE_IDENTITY();
+
+    -- Generación de semanas
+    DECLARE @w TINYINT = 1;
+    DECLARE @wStart DATE = @StartDate;
+    DECLARE @wEnd   DATE;
+
+    WHILE @w <= @WeekCount
+    BEGIN
+      IF @w < @WeekCount
+        SET @wEnd = DATEADD(DAY, 6, @wStart);
+      ELSE
+        SET @wEnd = @EndDate; -- última semana cierra en EndDate
+
+      INSERT INTO league.SeasonWeek(SeasonID, WeekNumber, StartDate, EndDate)
+      VALUES(@SeasonID, @w, @wStart, @wEnd);
+
+      SET @w = @w + 1;
+      SET @wStart = DATEADD(DAY, 7, @wStart);
+    END
+
+    -- auditoría
+    INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+    VALUES(@ActorUserID, N'SEASON', CAST(@SeasonID AS NVARCHAR(50)), N'SEASON_CREATE',
+           CONCAT(N'Creó temporada "', @Name, N'" (', CONVERT(NVARCHAR(10), @StartDate, 120), N' → ', CONVERT(NVARCHAR(10), @EndDate, 120),
+                  N', semanas=', @WeekCount, N', actual=', @MarkAsCurrent, N')'),
+           @SourceIp, @UserAgent);
+
+  COMMIT;
+
+  SELECT s.* FROM league.Season s WHERE s.SeasonID = @SeasonID;
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_CreateSeason TO app_executor;
+GO
+
+/* ============================================================
+   SP #2: DESACTIVAR LA TEMPORADA ACTUAL (IsCurrent -> 0)
+   Reglas:
+    - Solo permite desactivar si la temporada está marcada como actual
+    - EndDate <= hoy (ya finalizó)
+    - Requiere confirmación explícita
+    - Resultado: no habrá temporada actual tras ejecutar
+   ============================================================ */
+CREATE OR ALTER PROCEDURE app.sp_DeactivateSeason
+  @SeasonID    INT,
+  @Confirm     BIT,  -- debe ser 1
+  @ActorUserID INT = NULL,
+  @SourceIp       NVARCHAR(45)  = NULL,
+  @UserAgent      NVARCHAR(300) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  DECLARE @Exists INT, @IsCurrent BIT, @EndDate DATE, @Label NVARCHAR(100);
+  SELECT
+    @Exists    = 1,
+    @IsCurrent = IsCurrent,
+    @EndDate   = EndDate,
+    @Label     = Label
+  FROM league.Season
+  WHERE SeasonID = @SeasonID;
+
+  IF @Exists IS NULL
+    THROW 50420, 'Temporada no existe.', 1;
+
+  IF @IsCurrent <> 1
+    THROW 50421, 'La temporada indicada no es la temporada actual (ya está desactivada).', 1;
+
+  DECLARE @Today DATE = CAST(SYSUTCDATETIME() AS DATE);
+  IF @EndDate > @Today
+    THROW 50422, 'No se puede desactivar una temporada con fecha de fin en el futuro.', 1;
+
+  IF @Confirm <> 1
+    THROW 50423, 'Se requiere confirmación explícita para desactivar la temporada actual.', 1;
+
+  UPDATE league.Season
+     SET IsCurrent = 0
+   WHERE SeasonID  = @SeasonID;
+
+  INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+  VALUES(@ActorUserID, N'SEASON', CAST(@SeasonID AS NVARCHAR(50)), N'SEASON_DEACTIVATE',
+         CONCAT(N'Desactivó la temporada actual "', @Label, N'".'), @SourceIp, @UserAgent);
+
+  SELECT N'Temporada actual desactivada (ya no hay temporada activa).' AS Message;
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_DeactivateSeason TO app_executor;
+GO
+
+
+/* ============================================================
+   SP #3: ELIMINAR TEMPORADA
+   Reglas:
+    - Solo si NO es actual (IsCurrent=0)
+    - Solo si no tiene ligas asociadas (bloquea si existe cualquier league.League)
+    - Requiere confirmación explícita
+    - SeasonWeek cae por ON DELETE CASCADE
+   ============================================================ */
+CREATE OR ALTER PROCEDURE app.sp_DeleteSeason
+  @SeasonID    INT,
+  @Confirm     BIT,  -- debe ser 1
+  @ActorUserID INT = NULL,
+  @SourceIp       NVARCHAR(45)  = NULL,
+  @UserAgent      NVARCHAR(300) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+  SET XACT_ABORT ON;
+
+  DECLARE @Exists INT, @IsCurrent BIT, @Label NVARCHAR(100);
+  SELECT @Exists=1, @IsCurrent=IsCurrent, @Label=Label
+  FROM league.Season WHERE SeasonID=@SeasonID;
+
+  IF @Exists IS NULL
+    THROW 50430, 'Temporada no existe.', 1;
+
+  IF @IsCurrent = 1
+    THROW 50431, 'No puedes eliminar la temporada actual.', 1;
+
+  IF EXISTS(SELECT 1 FROM league.League WHERE SeasonID = @SeasonID)
+    THROW 50432, 'No se puede eliminar: existen ligas asociadas a esta temporada.', 1;
+
+  IF @Confirm <> 1
+    THROW 50433, 'Se requiere confirmación explícita para eliminar la temporada.', 1;
+
+  BEGIN TRAN;
+
+    DELETE FROM league.Season WHERE SeasonID = @SeasonID;
+
+    INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+    VALUES(@ActorUserID, N'SEASON', CAST(@SeasonID AS NVARCHAR(50)), N'SEASON_DELETE',
+           CONCAT(N'Eliminó la temporada "', @Label, N'" y sus semanas asociadas.'), @SourceIp, @UserAgent);
+
+  COMMIT;
+
+  SELECT N'Temporada eliminada permanentemente.' AS Message;
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_DeleteSeason TO app_executor;
+GO
+
+/* ============================================================
+   SP #4: ACTUALIZAR TEMPORADA (cabecera, weeks y estado actual)
+   Reglas:
+    - Edita: Nombre, WeekCount, StartDate, EndDate
+    - Misma validación que crear (nombre, fechas, traslape, rango para weeks)
+    - @SetAsCurrent:
+        * NULL -> no cambia
+        * 0    -> desmarca la temporada (IsCurrent=0)
+        * 1    -> marca como actual (requiere @ConfirmMakeCurrent=1) y desmarca otras
+    - Regenera SeasonWeek (DELETE + INSERT)
+    - Transaccional, sin cambios parciales
+   ============================================================ */
+CREATE OR ALTER PROCEDURE app.sp_UpdateSeason
+  @SeasonID          INT,
+  @Name              NVARCHAR(100),
+  @WeekCount         TINYINT,
+  @StartDate         DATE,
+  @EndDate           DATE,
+  @SetAsCurrent      BIT = NULL,
+  @ConfirmMakeCurrent BIT = 0,
+  @ActorUserID       INT = NULL,
+  @SourceIp          NVARCHAR(45)  = NULL,
+  @UserAgent         NVARCHAR(300) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+  SET XACT_ABORT ON;
+
+  DECLARE @MaxLabelChars INT = (SELECT COL_LENGTH('league.Season','Label')/2);
+  IF @MaxLabelChars IS NULL SET @MaxLabelChars = 20;
+
+  IF @Name IS NULL OR LEN(@Name) < 1 OR LEN(@Name) > IIF(@MaxLabelChars > 100, 100, @MaxLabelChars)
+    THROW 50441, 'Nombre de temporada inválido (longitud fuera de rango).', 1;
+
+  IF @WeekCount NOT BETWEEN 1 AND 22
+    THROW 50442, 'La cantidad de semanas debe estar entre 1 y 22.', 1;
+
+  IF @EndDate IS NULL OR @StartDate IS NULL OR @EndDate < @StartDate
+    THROW 50443, 'Rango de fechas inválido: la fecha final debe ser >= a la fecha inicial.', 1;
+
+  DECLARE @Today DATE = CAST(SYSUTCDATETIME() AS DATE);
+  IF @StartDate < @Today
+    THROW 50446, 'No se permiten temporadas con fecha de inicio en el pasado.', 1;
+
+  -- existe?
+  DECLARE @Exists INT, @OldIsCurrent BIT, @OldName NVARCHAR(100);
+  SELECT @Exists=1, @OldIsCurrent=IsCurrent, @OldName=Label
+  FROM league.Season WHERE SeasonID=@SeasonID;
+
+  IF @Exists IS NULL
+    THROW 50440, 'Temporada no existe.', 1;
+
+  -- nombre único (excluyendo la misma)
+  IF EXISTS(SELECT 1 FROM league.Season WHERE Label=@Name AND SeasonID<>@SeasonID)
+    THROW 50444, 'Ya existe otra temporada con ese nombre.', 1;
+
+  -- sin traslape (excluyendo la misma)
+  IF EXISTS(
+    SELECT 1
+    FROM league.Season s
+    WHERE s.SeasonID <> @SeasonID
+      AND NOT (@EndDate   < s.StartDate OR
+               @StartDate > s.EndDate)
+  )
+    THROW 50445, 'Las nuevas fechas se traslapan con otra temporada.', 1;
+
+  -- rango mínimo para weeks
+  IF DATEDIFF(DAY, @StartDate, @EndDate) < 7*(@WeekCount-1)
+    THROW 50447, 'Rango insuficiente para la cantidad de semanas solicitada.', 1;
+
+  -- confirmación si vamos a marcar como actual
+  IF @SetAsCurrent = 1 AND @ConfirmMakeCurrent <> 1
+    THROW 50448, 'Marcar como temporada actual requiere confirmación explícita.', 1;
+
+  BEGIN TRAN;
+
+    -- manejar IsCurrent
+    IF @SetAsCurrent IS NOT NULL
+    BEGIN
+      IF @SetAsCurrent = 1
+      BEGIN
+        UPDATE league.Season SET IsCurrent = 0 WHERE IsCurrent = 1 AND SeasonID <> @SeasonID;
+        UPDATE league.Season SET IsCurrent = 1 WHERE SeasonID = @SeasonID;
+      END
+      ELSE
+      BEGIN
+        UPDATE league.Season SET IsCurrent = 0 WHERE SeasonID = @SeasonID;
+      END
+    END
+
+    -- actualizar cabecera
+    UPDATE league.Season
+       SET Label     = @Name,
+           [Year]    = YEAR(@StartDate),
+           StartDate = @StartDate,
+           EndDate   = @EndDate
+     WHERE SeasonID = @SeasonID;
+
+    -- regenerar semanas
+    DELETE FROM league.SeasonWeek WHERE SeasonID = @SeasonID;
+
+    DECLARE @w TINYINT = 1;
+    DECLARE @wStart DATE = @StartDate;
+    DECLARE @wEnd   DATE;
+
+    WHILE @w <= @WeekCount
+    BEGIN
+      IF @w < @WeekCount
+        SET @wEnd = DATEADD(DAY, 6, @wStart);
+      ELSE
+        SET @wEnd = @EndDate;
+
+      INSERT INTO league.SeasonWeek(SeasonID, WeekNumber, StartDate, EndDate)
+      VALUES(@SeasonID, @w, @wStart, @wEnd);
+
+      SET @w = @w + 1;
+      SET @wStart = DATEADD(DAY, 7, @wStart);
+    END
+
+    -- auditoría
+    INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+    VALUES(@ActorUserID, N'SEASON', CAST(@SeasonID AS NVARCHAR(50)), N'SEASON_UPDATE',
+           CONCAT(N'Actualizó temporada "', @OldName, N'" a "', @Name, N'". Rango: ',
+                  CONVERT(NVARCHAR(10), @StartDate, 120), N' → ', CONVERT(NVARCHAR(10), @EndDate, 120),
+                  N', semanas=', @WeekCount,
+                  N', setAsCurrent=', COALESCE(CAST(@SetAsCurrent AS NVARCHAR(5)), N'NULL')),
+           @SourceIp, @UserAgent);
+
+  COMMIT;
+
+  SELECT s.* FROM league.Season s WHERE s.SeasonID = @SeasonID;
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_UpdateSeason TO app_executor;
 GO
 
 GRANT EXECUTE ON SCHEMA::app TO app_executor;
