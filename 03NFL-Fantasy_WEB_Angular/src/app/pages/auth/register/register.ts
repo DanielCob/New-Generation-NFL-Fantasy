@@ -1,4 +1,3 @@
-// src/app/pages/register/register.ts
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators, AbstractControl } from '@angular/forms';
@@ -11,9 +10,12 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+
 import { RegisterRequest, SimpleOkResponse } from '../../../core/models/auth-model';
 import { AuthService } from '../../../core/services/auth-service';
-import { ImageStorageService } from '../../../core/services/image-storage.service';
+import { UserService } from '../../../core/services/user-service';
+import { ImageStorageService, UploadResponse } from '../../../core/services/image-storage.service';
+import { EditUserProfileRequest } from '../../../core/models/user-model';
 
 @Component({
   selector: 'app-register',
@@ -37,6 +39,7 @@ import { ImageStorageService } from '../../../core/services/image-storage.servic
 export class Register {
   private fb = inject(FormBuilder);
   private auth = inject(AuthService);
+  private userService = inject(UserService);
   private router = inject(Router);
   private snackBar = inject(MatSnackBar);
   private imageStorage = inject(ImageStorageService);
@@ -45,6 +48,7 @@ export class Register {
   isLoading = signal(false);
   profileImageUploading = signal(false);
   profileImageError = signal<string | null>(null);
+  previewImageUrl = signal<string | null>(null);
 
   languages = [
     { code: 'en', label: 'English' },
@@ -57,8 +61,7 @@ export class Register {
     alias: [''],
     password: ['', [Validators.required, Validators.minLength(6)]],
     passwordConfirm: ['', [Validators.required]],
-    languageCode: [''],
-    profileImageUrl: [''],
+    languageCode: ['en'],
     profileImageWidth: [''],
     profileImageHeight: [''],
     profileImageBytes: [''],
@@ -66,7 +69,6 @@ export class Register {
 
   private profileImageFile: File | null = null;
 
-  // ---- Valida que las contraseñas coincidan ----
   private passwordMatchValidator(group: AbstractControl) {
     const p = group.get('password')?.value;
     const c = group.get('passwordConfirm')?.value;
@@ -77,65 +79,51 @@ export class Register {
     this.hidePassword.update(v => !v);
   }
 
-  // --- Se activa al cambiar el campo de URL manualmente ---
-  async onProfileImageUrlChanged(): Promise<void> {
-    const url = this.registerForm.get('profileImageUrl')?.value?.trim();
-    if (!url) return;
-
-    const { width, height, bytes } = await this.getImageMetaFromUrl(url);
-
-    this.registerForm.patchValue({
-      profileImageWidth: width ?? '',
-      profileImageHeight: height ?? '',
-      profileImageBytes: bytes ?? ''
-    });
-  }
-
-  // --- Se activa al seleccionar un archivo ---
-  async onProfileImageSelected(event: Event) {
+  // --- Selección de archivo: valida tipo, tamaño y dimensiones (300-1024) ---
+  async onProfileImageSelected(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement;
     if (!input.files || input.files.length === 0) return;
 
     const file = input.files[0];
 
     if (!['image/jpeg', 'image/png'].includes(file.type.toLowerCase())) {
-      this.profileImageError.set('Solo se permiten JPEG y PNG.');
+      this.profileImageError.set('Solo se permiten imágenes JPEG o PNG.');
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      this.profileImageError.set('La imagen no puede superar 5MB.');
+      this.profileImageError.set('La imagen no puede superar 5 MB.');
+      return;
+    }
+
+    // Obtener dimensiones
+    const dims = await this.getImageMetaFromFile(file);
+    if (!dims.width || !dims.height ||
+        dims.width < 300 || dims.height < 300 ||
+        dims.width > 1024 || dims.height > 1024) {
+      this.profileImageError.set('Las dimensiones deben estar entre 300 × 300 px y 1024 × 1024 px.');
       return;
     }
 
     this.profileImageError.set(null);
     this.profileImageFile = file;
-    this.profileImageUploading.set(true);
 
-    this.imageStorage.uploadImage(file).subscribe({
-      next: (res) => {
-        this.registerForm.patchValue({
-          profileImageUrl: res.imageUrl
-        });
-        this.profileImageUploading.set(false);
-      },
-      error: (err) => {
-        console.error(err);
-        this.profileImageError.set('Error al subir imagen.');
-        this.profileImageUploading.set(false);
-      }
+    this.registerForm.patchValue({
+      profileImageWidth: dims.width,
+      profileImageHeight: dims.height,
+      profileImageBytes: file.size
     });
+
+    const dataUrl = await this.readFileAsDataUrl(file);
+    this.previewImageUrl.set(dataUrl);
   }
 
-  // --- Envío del formulario ---
+  // --- Envío: register -> login silencioso -> upload -> updateProfile -> logout -> redirect ---
   onSubmit(): void {
     if (this.isLoading()) return;
-
     if (this.registerForm.invalid) {
       this.registerForm.markAllAsTouched();
-      this.snackBar.open('Revisa los campos requeridos.', 'Cerrar', {
-        duration: 3000, panelClass: ['error-snackbar']
-      });
+      this.snackBar.open('Revisa los campos requeridos.', 'Cerrar', { duration: 3000, panelClass: ['error-snackbar'] });
       return;
     }
 
@@ -148,80 +136,140 @@ export class Register {
       PasswordConfirm: v.passwordConfirm,
       ...(v.alias?.trim() ? { Alias: v.alias.trim() } : {}),
       ...(v.languageCode ? { LanguageCode: v.languageCode } : {}),
-      ...(v.profileImageUrl?.trim()
-        ? {
-            ProfileImageUrl: v.profileImageUrl.trim(),
-            ...(this.toNumberOrUndefined(v.profileImageWidth) !== undefined
-              ? { ProfileImageWidth: this.toNumberOrUndefined(v.profileImageWidth)! } : {}),
-            ...(this.toNumberOrUndefined(v.profileImageHeight) !== undefined
-              ? { ProfileImageHeight: this.toNumberOrUndefined(v.profileImageHeight)! } : {}),
-            ...(this.toNumberOrUndefined(v.profileImageBytes) !== undefined
-              ? { ProfileImageBytes: this.toNumberOrUndefined(v.profileImageBytes)! } : {}),
-          }
-        : {})
     };
 
     this.isLoading.set(true);
+
+    // 1) Registrar
     this.auth.register(req).subscribe({
       next: (res: SimpleOkResponse) => {
         if (res.success) {
-          this.snackBar.open(res.message || 'Registro exitoso. Ahora puedes iniciar sesión.', 'Cerrar', {
-            duration: 3000, panelClass: ['success-snackbar']
+          // 2) Login silencioso
+          const loginPayload = { Email: v.email, Password: v.password };
+          this.auth.login(loginPayload as any).subscribe({
+            next: () => {
+              // ahora estamos logueados en cliente (session persisted by AuthService)
+              // 3) Si hay file -> subir y asignar
+              if (this.profileImageFile) {
+                this.profileImageUploading.set(true);
+                this.imageStorage.uploadImage(this.profileImageFile).subscribe({
+                  next: (upload: UploadResponse) => {
+                    // 4) Asignar mediante UserService.updateProfile (igual al profile-header)
+                    const updateBody: EditUserProfileRequest = {
+                      Name: v.name,
+                      Alias: v.alias,
+                      LanguageCode: v.languageCode,
+                      ProfileImageUrl: upload.imageUrl,
+                      ProfileImageWidth: Number(v.profileImageWidth),
+                      ProfileImageHeight: Number(v.profileImageHeight),
+                      ProfileImageBytes: Number(v.profileImageBytes)
+                    } as EditUserProfileRequest;
+
+                    this.userService.updateProfile(updateBody).subscribe({
+                      next: () => {
+                        // 5) logout silencioso y redirect
+                        this.finalizeAfterProfileAssign();
+                      },
+                      error: (err: any) => {
+                        console.error('Error updateProfile (register flow):', err);
+                        this.profileImageUploading.set(false);
+                        this.snackBar.open('Usuario registrado pero no se pudo asignar la imagen.', 'Cerrar', { duration: 5000, panelClass: ['error-snackbar'] });
+                        // intentar limpiar sesión local
+                        this.auth.logout().subscribe({
+                          next: () => { this.isLoading.set(false); this.router.navigateByUrl('/'); },
+                          error: () => { this.isLoading.set(false); this.router.navigateByUrl('/'); }
+                        });
+                      }
+                    });
+                  },
+                  error: (err: any) => {
+                    console.error('Error uploading image after silent login:', err);
+                    this.profileImageUploading.set(false);
+                    this.snackBar.open('Registro correcto pero error al subir la imagen.', 'Cerrar', { duration: 5000, panelClass: ['error-snackbar'] });
+                    // cleanup session
+                    this.auth.logout().subscribe({
+                      next: () => { this.isLoading.set(false); this.router.navigateByUrl('/'); },
+                      error: () => { this.isLoading.set(false); this.router.navigateByUrl('/'); }
+                    });
+                  }
+                });
+              } else {
+                // no hay imagen: solo desloguear y redirigir
+                this.auth.logout().subscribe({
+                  next: () => {
+                    this.isLoading.set(false);
+                    this.snackBar.open('Registro completado.', 'Cerrar', { duration: 2000, panelClass: ['success-snackbar'] });
+                    this.router.navigateByUrl('/');
+                  },
+                  error: () => {
+                    this.isLoading.set(false);
+                    this.router.navigateByUrl('/');
+                  }
+                });
+              }
+            },
+            error: (err: any) => {
+              console.error('Silent login failed:', err);
+              this.isLoading.set(false);
+              this.snackBar.open('Registro completado. Inicia sesión para agregar tu imagen.', 'Cerrar', { duration: 5000, panelClass: ['info-snackbar'] });
+              this.router.navigateByUrl('/login');
+            }
           });
-          this.router.navigateByUrl('/login');
         } else {
-          this.snackBar.open(res.message || 'No se pudo completar el registro.', 'Cerrar', {
-            duration: 4500, panelClass: ['error-snackbar']
-          });
+          this.snackBar.open(res.message || 'No se pudo completar el registro.', 'Cerrar', { duration: 4500, panelClass: ['error-snackbar'] });
+          this.isLoading.set(false);
         }
-        this.isLoading.set(false);
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('Register error:', err);
         const msg = this.extractApiError(err);
-        this.snackBar.open(msg || 'No se pudo completar el registro.', 'Cerrar', {
-          duration: 6000, panelClass: ['error-snackbar']
-        });
+        this.snackBar.open(msg || 'No se pudo completar el registro.', 'Cerrar', { duration: 6000, panelClass: ['error-snackbar'] });
         this.isLoading.set(false);
       }
     });
   }
 
-  // --- Helpers ---
-  private toNumberOrUndefined(x: any): number | undefined {
-    const n = Number(x);
-    return Number.isFinite(n) ? n : undefined;
+  private finalizeAfterProfileAssign(): void {
+    this.profileImageUploading.set(false);
+    this.auth.logout().subscribe({
+      next: () => {
+        this.isLoading.set(false);
+        this.snackBar.open('Registro completado y imagen asignada.', 'Cerrar', { duration: 2500, panelClass: ['success-snackbar'] });
+        this.router.navigateByUrl('/');
+      },
+      error: (err: any) => {
+        console.error('Error logout after assigning profile image:', err);
+        this.isLoading.set(false);
+        this.router.navigateByUrl('/');
+      }
+    });
   }
 
-  private async getImageMetaFromUrl(url: string): Promise<{ width: number | null, height: number | null, bytes: number | null }> {
-    const getDims = () => new Promise<{ width: number | null; height: number | null }>((resolve) => {
+  private async getImageMetaFromFile(file: File): Promise<{ width: number | null; height: number | null }> {
+    return new Promise((resolve) => {
       const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => resolve({ width: img.naturalWidth || null, height: img.naturalHeight || null });
-      img.onerror = () => resolve({ width: null, height: null });
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const w = img.naturalWidth || null;
+        const h = img.naturalHeight || null;
+        URL.revokeObjectURL(url);
+        resolve({ width: w, height: h });
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve({ width: null, height: null });
+      };
       img.src = url;
     });
+  }
 
-    const getBytesViaHEAD = async () => {
-      try {
-        const r = await fetch(url, { method: 'HEAD', mode: 'cors' });
-        const len = r.headers.get('content-length');
-        return len ? Number(len) : null;
-      } catch { return null; }
-    };
-
-    const dims = await getDims();
-    let bytes = await getBytesViaHEAD();
-
-    if (bytes == null) {
-      try {
-        const r = await fetch(url, { method: 'GET', mode: 'cors' });
-        const b = await r.blob();
-        bytes = b.size;
-      } catch { bytes = null; }
-    }
-
-    return { width: dims.width, height: dims.height, bytes };
+  private readFileAsDataUrl(file: File): Promise<string | null> {
+    return new Promise((resolve) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result as string);
+      fr.onerror = () => resolve(null);
+      fr.readAsDataURL(file);
+    });
   }
 
   private extractApiError(err: any): string {
