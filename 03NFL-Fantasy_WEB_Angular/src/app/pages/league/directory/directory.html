@@ -1,0 +1,75 @@
+<div class="header">
+  <h3><mat-icon>public</mat-icon> League Directory</h3>
+
+  <mat-form-field *ngIf="showFilter" appearance="outline" class="filter">
+    <mat-label>Filter</mat-label>
+    <input matInput placeholder="Search by name, id, season…" (input)="filter.set($any($event.target).value)">
+    <button mat-icon-button matSuffix aria-label="Clear" *ngIf="filter()" (click)="filter.set('')">
+      <mat-icon>close</mat-icon>
+    </button>
+  </mat-form-field>
+
+  <button mat-stroked-button (click)="load()">
+    <mat-icon>refresh</mat-icon> Refresh
+  </button>
+</div>
+
+<div class="state" *ngIf="loading()">
+  <mat-progress-spinner mode="indeterminate" diameter="32"></mat-progress-spinner>
+  <span>Loading…</span>
+</div>
+
+<div class="state error" *ngIf="!loading() && error()">
+  <mat-icon>error</mat-icon> {{ error() }}
+</div>
+
+<table mat-table [dataSource]="filteredRows()" class="mat-elevation-z1" *ngIf="!loading() && !error()">
+
+  <ng-container matColumnDef="LeagueID">
+    <th mat-header-cell *matHeaderCellDef>ID</th>
+    <td mat-cell *matCellDef="let r">{{ r.LeagueID }}</td>
+  </ng-container>
+
+  <ng-container matColumnDef="Name">
+    <th mat-header-cell *matHeaderCellDef>Name</th>
+    <td mat-cell *matCellDef="let r">{{ r.Name }}</td>
+  </ng-container>
+
+  <ng-container matColumnDef="SeasonLabel">
+    <th mat-header-cell *matHeaderCellDef>Season</th>
+    <td mat-cell *matCellDef="let r">{{ r.SeasonLabel }}</td>
+  </ng-container>
+
+  <ng-container matColumnDef="Teams">
+    <th mat-header-cell *matHeaderCellDef>Teams</th>
+    <td mat-cell *matCellDef="let r">{{ r.TeamsCount }}/{{ r.TeamSlots }}</td>
+  </ng-container>
+
+  <ng-container matColumnDef="Available">
+    <th mat-header-cell *matHeaderCellDef>Available</th>
+    <td mat-cell *matCellDef="let r">{{ r.AvailableSlots }}</td>
+  </ng-container>
+
+  <ng-container matColumnDef="CreatedAt">
+    <th mat-header-cell *matHeaderCellDef>Created</th>
+    <td mat-cell *matCellDef="let r">{{ r.CreatedAt | date:'yyyy-MM-dd HH:mm' }}</td>
+  </ng-container>
+
+  <ng-container matColumnDef="actions">
+    <th mat-header-cell *matHeaderCellDef></th>
+    <td mat-cell *matCellDef="let r">
+      <button mat-stroked-button color="primary"
+              *ngIf="showJoinButton"
+              (click)="join(r)" [disabled]="r.AvailableSlots <= 0">
+        <mat-icon>group_add</mat-icon> Join
+      </button>
+    </td>
+  </ng-container>
+
+  <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+  <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+</table>
+
+<div class="muted" *ngIf="!loading() && !error() && !filteredRows().length">
+  <mat-icon>inbox</mat-icon> No leagues found.
+</div>

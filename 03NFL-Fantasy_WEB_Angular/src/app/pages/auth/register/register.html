@@ -1,0 +1,123 @@
+<div class="register-container">
+  <mat-card class="register-card">
+
+    <mat-card-header>
+      <mat-card-title class="register-title">
+        <mat-icon class="logo-icon">person_add</mat-icon>
+        <span>Create Account</span>
+      </mat-card-title>
+      <mat-card-subtitle>Only the required fields are mandatory</mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <form [formGroup]="registerForm" (ngSubmit)="onSubmit()">
+
+        <!-- Name (required) -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Name</mat-label>
+          <input matInput formControlName="name" />
+          <mat-icon matPrefix>person</mat-icon>
+          <mat-error *ngIf="registerForm.get('name')?.invalid && registerForm.get('name')?.touched">
+            Name is required (min 2 chars)
+          </mat-error>
+        </mat-form-field>
+
+        <!-- Email (required) -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Email</mat-label>
+          <input matInput type="email" formControlName="email" />
+          <mat-icon matPrefix>email</mat-icon>
+          <mat-error *ngIf="registerForm.get('email')?.invalid && registerForm.get('email')?.touched">
+            Enter a valid email
+          </mat-error>
+        </mat-form-field>
+
+        <!-- Password (required) -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Password</mat-label>
+          <input
+            matInput
+            [type]="hidePassword() ? 'password' : 'text'"
+            formControlName="password"
+          />
+          <mat-icon matPrefix>lock</mat-icon>
+          <button
+            mat-icon-button
+            matSuffix
+            type="button"
+            (click)="togglePasswordVisibility()"
+            aria-label="Toggle password visibility"
+          >
+            <mat-icon>{{ hidePassword() ? 'visibility_off' : 'visibility' }}</mat-icon>
+          </button>
+          <mat-error *ngIf="registerForm.get('password')?.invalid && registerForm.get('password')?.touched">
+            Password is required
+          </mat-error>
+        </mat-form-field>
+
+        <!-- Confirm Password (required) -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Confirm Password</mat-label>
+          <input
+            matInput
+            [type]="hidePassword() ? 'password' : 'text'"
+            formControlName="passwordConfirm"
+          />
+          <mat-icon matPrefix>lock</mat-icon>
+          <mat-error *ngIf="registerForm.errors?.['passwordMismatch'] && registerForm.get('passwordConfirm')?.touched">
+            Passwords do not match
+          </mat-error>
+        </mat-form-field>
+
+        <!-- Alias (optional) -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Alias (optional)</mat-label>
+          <input matInput formControlName="alias" />
+          <mat-icon matPrefix>badge</mat-icon>
+        </mat-form-field>
+
+        <!-- Language (optional) -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Language (optional)</mat-label>
+          <mat-select formControlName="languageCode">
+            <mat-option *ngFor="let lang of languages" [value]="lang.code">{{ lang.label }}</mat-option>
+          </mat-select>
+          <mat-icon matPrefix>translate</mat-icon>
+        </mat-form-field>
+
+        <!-- Profile image (optional) -->
+        <div class="optional-section">
+          <h4>Profile image (optional)</h4>
+          <div class="row">
+            <input type="file" (change)="onProfileImageSelected($event)" accept="image/png, image/jpeg" />
+          </div>
+          <mat-hint>Only JPEG/PNG, max 5MB.</mat-hint>
+          <div *ngIf="profileImageUploading()">
+            <mat-spinner diameter="20"></mat-spinner> Uploading...
+          </div>
+          <div *ngIf="profileImageError()">
+            <mat-error>{{ profileImageError() }}</mat-error>
+          </div>
+          <img *ngIf="registerForm.get('profileImageUrl')?.value" 
+               [src]="registerForm.get('profileImageUrl')?.value" 
+               alt="Preview" class="profile-preview" />
+        </div>
+
+        <!-- Actions -->
+        <div class="actions">
+          <button
+            mat-raised-button
+            color="primary"
+            type="submit"
+            [disabled]="registerForm.invalid || isLoading()"
+          >
+            <mat-spinner *ngIf="isLoading()" diameter="18"></mat-spinner>
+            <span *ngIf="!isLoading()">Create account</span>
+          </button>
+
+          <a routerLink="/login" mat-button color="accent">Already have an account? Sign in</a>
+        </div>
+      </form>
+    </mat-card-content>
+  </mat-card>
+</div>

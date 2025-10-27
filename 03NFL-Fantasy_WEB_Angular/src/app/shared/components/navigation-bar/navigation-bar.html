@@ -1,0 +1,148 @@
+<!--
+  navigation-bar.html
+  -----------------------------------------------------------------------------
+  FIX: Logout solo dentro del menú de usuario (no botones sueltos).
+-->
+
+<mat-toolbar class="navbar">
+  <!-- Brand -->
+  <div class="nav-brand">
+    <mat-icon class="brand-icon">sports_football</mat-icon>
+    <span class="brand-text">X-NFL Fantasy</span>
+  </div>
+
+  <!-- Links fijos (centrales) -->
+  <div class="nav-items">
+    <a routerLink="/" mat-button class="nav-link">
+      <mat-icon>home</mat-icon>
+      <span>Home</span>
+    </a>
+
+    <!-- Teams -->
+    <button mat-button [matMenuTriggerFor]="teamsMenu" class="nav-link">
+      <mat-icon>groups</mat-icon>
+      <span>Teams</span>
+    </button>
+    <mat-menu #teamsMenu="matMenu">
+      <button mat-menu-item (click)="navigateToNFLTeamsList()">
+        <mat-icon>sports_football</mat-icon>
+        <span>NFL Teams</span>
+      </button>
+
+      <mat-divider></mat-divider>
+
+      <button mat-menu-item (click)="navigateToMyTeam()">
+        <mat-icon>shield</mat-icon>
+        <span>My Team</span>
+      </button>
+      <button mat-menu-item (click)="navigateToEditBranding()">
+        <mat-icon>branding_watermark</mat-icon>
+        <span>Edit Branding</span>
+      </button>
+      <button mat-menu-item (click)="navigateToManageRoster()">
+        <mat-icon>group_add</mat-icon>
+        <span>Manage Roster</span>
+      </button>
+
+      <mat-divider></mat-divider>
+      <button mat-menu-item (click)="openSetTeamIdDialog()">
+        <mat-icon>pin</mat-icon>
+        <span>Set current Team</span>
+      </button>
+    </mat-menu>
+
+    <!-- Leagues -->
+    <button mat-button [matMenuTriggerFor]="leaguesMenu" class="nav-link">
+      <mat-icon>groups</mat-icon>
+      <span>Leagues</span>
+    </button>
+    <mat-menu #leaguesMenu="matMenu" (menuOpened)="loadMyLeagues()">
+      <button mat-menu-item (click)="navigateToCreateLeague()">
+        <mat-icon>add_circle</mat-icon>
+        <span>Create League</span>
+      </button>
+
+            <!-- NUEVO: ir al directorio para unirse -->
+      <button mat-menu-item (click)="navigateToLeagueDirectory()">
+        <mat-icon>group_add</mat-icon>
+        <span>Join a League</span>
+      </button>
+
+      <mat-divider></mat-divider>
+
+      <!-- Estados -->
+      <button mat-menu-item disabled *ngIf="leaguesLoading()">Loading…</button>
+      <button mat-menu-item disabled *ngIf="!leaguesLoading() && leaguesError()">
+        {{ leaguesError() }}
+      </button>
+      <button mat-menu-item disabled *ngIf="!leaguesLoading() && !leaguesError() && leagues().length===0">
+        No leagues yet
+      </button>
+
+      <!-- Listado -->
+      <ng-container *ngIf="!leaguesLoading() && !leaguesError() && leagues().length>0">
+        <button mat-menu-item *ngFor="let l of leagues()" (click)="selectLeague(l)">
+          <mat-icon>emoji_events</mat-icon>
+          <span>{{ l.LeagueName }}</span>
+        </button>
+      </ng-container>
+    </mat-menu>
+  </div>
+
+  <span class="spacer"></span>
+
+  <!-- Acciones según sesión -->
+  @if (!isLoggedIn()) {
+    <div class="nav-actions">
+      <a routerLink="/login" mat-button>
+        <mat-icon>login</mat-icon>
+        <span>Sign in</span>
+      </a>
+      <a routerLink="/register" mat-stroked-button>
+        <mat-icon>person_add</mat-icon>
+        <span>Create account</span>
+      </a>
+    </div>
+  } @else {
+    <div class="nav-actions">
+      <!-- User menu trigger -->
+      <button mat-button [matMenuTriggerFor]="userMenu" class="user-menu-trigger">
+        <mat-icon>account_circle</mat-icon>
+        <span>{{ userName() }}</span>
+      </button>
+
+      <!-- User dropdown -->
+      <mat-menu #userMenu="matMenu" xPosition="before">
+        <div class="user-info">
+          <mat-icon class="user-avatar">person</mat-icon>
+          <div class="user-details">
+            <div class="user-name">{{ session()?.Name }}</div>
+            <div class="user-email">{{ session()?.Email }}</div>
+          </div>
+        </div>
+
+        <mat-divider></mat-divider>
+
+        <button mat-menu-item (click)="navigateToProfile()">
+          <mat-icon>person</mat-icon>
+          <span>Profile</span>
+        </button>
+        <button mat-menu-item (click)="navigateToFullProfile()">
+          <mat-icon>info</mat-icon>
+          <span>Detailed profile</span>
+        </button>
+        <button mat-menu-item (click)="navigateToSessions()">
+          <mat-icon>devices</mat-icon>
+          <span>Sessions</span>
+        </button>
+
+        <mat-divider></mat-divider>
+
+        <button mat-menu-item (click)="logout()">
+          <mat-icon>logout</mat-icon>
+          <span>Logout</span>
+        </button>
+      </mat-menu>
+    </div>
+  }
+</mat-toolbar>

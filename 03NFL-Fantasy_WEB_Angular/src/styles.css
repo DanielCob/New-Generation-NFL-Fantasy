@@ -1,0 +1,50 @@
+/* src/styles.css - Update global styles */
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: 'Roboto', 'Helvetica Neue', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.error-snackbar {
+  background: #f44336 !important;
+  color: white !important;
+}
+
+.success-snackbar {
+  background: #4caf50 !important;
+  color: white !important;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out;
+}
+/* Ajuste automático al contenido, con límites responsivos */
+.dlg-auto.mat-mdc-dialog-panel {
+  width: fit-content;             /* se adapta al contenido */
+  max-width: min(980px, 92vw);    /* límite amable en desktop */
+  max-height: 92vh;               /* evita overflow vertical */
+}
+
+/* En móviles: usar casi todo el ancho */
+@media (max-width: 600px) {
+  .dlg-auto.mat-mdc-dialog-panel {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+  }
+}

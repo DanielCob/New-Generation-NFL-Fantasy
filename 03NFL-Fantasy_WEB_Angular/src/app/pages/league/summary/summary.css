@@ -1,0 +1,14 @@
+.summary-root { display: grid; gap: 16px; }
+.loading { display: flex; align-items: center; gap: 12px; padding: 12px; }
+.error { display: flex; align-items: center; gap: 8px; color: #e53935; }
+.header .title { display: flex; align-items: center; gap: 8px; }
+.header .subtitle { margin-top: 4px; }
+.desc { margin-top: 8px; white-space: pre-line; }
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+.card .kv { display: grid; gap: 4px; }
+.teams mat-list-item { border-bottom: 1px solid rgba(255,255,255,0.06); }
+.muted { opacity: 0.7; display: flex; align-items: center; gap: 8px; }

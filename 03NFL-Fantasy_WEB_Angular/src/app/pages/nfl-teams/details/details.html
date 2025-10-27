@@ -1,0 +1,95 @@
+<ng-container *ngIf="!loading(); else loadingTpl">
+
+  <!-- No encontrado -->
+  <ng-container *ngIf="notFound(); else detailsTpl">
+    <mat-card class="card">
+      <mat-card-header>
+        <div mat-card-avatar class="avatar">
+          <mat-icon>search_off</mat-icon>
+        </div>
+        <mat-card-title>Team not found</mat-card-title>
+        <mat-card-subtitle>We couldn’t find an NFL team with id {{ teamId() }}.</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-actions>
+        <a mat-stroked-button routerLink="/nfl-teams">
+          <mat-icon>arrow_back</mat-icon>&nbsp; Back to list
+        </a>
+      </mat-card-actions>
+    </mat-card>
+  </ng-container>
+
+  <!-- Detalles -->
+  <ng-template #detailsTpl>
+    <mat-card class="card">
+      <mat-card-header>
+        <div mat-card-avatar class="avatar">
+          <mat-icon>sports_football</mat-icon>
+        </div>
+        <mat-card-title>{{ team()?.TeamName }}</mat-card-title>
+        <mat-card-subtitle>
+          {{ team()?.City }}
+          •
+          <span class="chip" [class.active]="team()?.IsActive" [class.inactive]="!team()?.IsActive">
+            {{ statusLabel() }}
+          </span>
+        </mat-card-subtitle>
+        <span class="spacer"></span>
+        <a mat-stroked-button [routerLink]="['/nfl-teams', teamId(), 'edit']">
+          <mat-icon>edit</mat-icon>&nbsp; Edit
+        </a>
+        <a mat-flat-button color="primary" routerLink="/nfl-teams">
+          <mat-icon>list</mat-icon>&nbsp; All teams
+        </a>
+      </mat-card-header>
+
+      <mat-card-content>
+        <section class="meta">
+          <div class="meta-item">
+            <mat-icon>calendar_today</mat-icon>
+            <span>Created:</span>
+            <strong>{{ team()?.CreatedAt | date:'medium' }}</strong>
+          </div>
+          <div class="meta-item">
+            <mat-icon>update</mat-icon>
+            <span>Updated:</span>
+            <strong>{{ team()?.UpdatedAt | date:'medium' }}</strong>
+          </div>
+          <button mat-icon-button aria-label="Reload" (click)="reload()">
+            <mat-icon>refresh</mat-icon>
+          </button>
+        </section>
+
+        <!-- Active players -->
+        <section class="section">
+          <h3 class="section-title">
+            <mat-icon>groups</mat-icon>&nbsp; Active players
+          </h3>
+
+          <app-table-simple
+            [data]="team()?.ActivePlayers || []"
+            [columns]="playerColumns"
+            [emptyMessage]="'No active players reported.'">
+          </app-table-simple>
+        </section>
+
+        <!-- Change history (si hay datos, lo mostramos raw) -->
+        <section class="section" *ngIf="(team()?.ChangeHistory || []).length > 0">
+          <h3 class="section-title">
+            <mat-icon>history</mat-icon>&nbsp; Change history
+          </h3>
+          <pre class="pre">{{ team()?.ChangeHistory | json }}</pre>
+        </section>
+
+        <!-- Error genérico si no fue 404 -->
+        <div *ngIf="errorMessage()" class="api-error">
+          <mat-icon>error</mat-icon>
+          <span>{{ errorMessage() }}</span>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </ng-template>
+</ng-container>
+
+<ng-template #loadingTpl>
+  <div class="center"><mat-spinner></mat-spinner></div>
+</ng-template>

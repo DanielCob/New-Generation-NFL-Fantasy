@@ -1,0 +1,7 @@
+<h2 mat-dialog-title>Teams</h2>
+<mat-dialog-content class="content">
+  <app-teams-list [leagueId]="data.leagueId"></app-teams-list>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button mat-stroked-button (click)="ref.close()">Cerrar</button>
+</mat-dialog-actions>

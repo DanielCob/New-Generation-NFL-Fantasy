@@ -1,0 +1,21 @@
+<div class="members">
+  <!-- ...igual... -->
+
+  <mat-list *ngIf="!loading() && !error() && rows().length">
+    <mat-list-item *ngFor="let m of rows()">
+      <mat-icon matListItemIcon>person</mat-icon>
+      <div matListItemTitle>{{ m.UserName }}</div>
+      <div matListItemLine>{{ m.UserEmail }}</div>
+
+      <div matListItemMeta>
+        <!-- Rol como pill -->
+        <span class="tag">{{ m.RoleCode }}</span>
+
+        <!-- “Comisionado” si es el primario -->
+        <span *ngIf="m.IsPrimaryCommissioner" class="tag tag-primary">Comisionado</span>
+      </div>
+    </mat-list-item>
+  </mat-list>
+
+  <!-- ...igual... -->
+</div>

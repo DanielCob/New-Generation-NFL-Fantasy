@@ -1,0 +1,4 @@
+.members { display: grid; gap: 12px; }
+.loading { display:flex; align-items:center; gap:8px; }
+.error { color:#e53935; display:flex; align-items:center; gap:8px; }
+.muted { opacity: .7; display:flex; align-items:center; gap:8px; }
