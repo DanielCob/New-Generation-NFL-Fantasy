@@ -56,6 +56,13 @@ export const routes: Routes = [
       { path: 'profile/full-profile',
         loadComponent: () => import('./pages/profile/full-profile/full-profile').then(m => m.FullProfile)
       },
+      // src/app/app.routes.ts  (dentro del children del MainLayout)
+      {
+        path: 'league/:id/actions',
+        loadComponent: () => import('./pages/league/league-actions/league-actions')
+          .then(m => m.LeagueActionsComponent)
+      },
+
 
       // League
       { path: 'league/create',
@@ -65,13 +72,13 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/league/summary/summary').then(m => m.Summary)
       },
       { path: 'league/:id/edit',
-        loadComponent: () => import('./pages/league/edit-config/edit-config').then(m => m.EditConfig)
+        loadComponent: () => import('./pages/league/edit-config/edit-config').then(m => m.EditConfigForm)
       },
       { path: 'league/:id/members',
-        loadComponent: () => import('./pages/league/members/members').then(m => m.Members)
+        loadComponent: () => import('./pages/league/members/members-list').then(m => m.MembersList)
       },
       { path: 'league/:id/teams',
-        loadComponent: () => import('./pages/league/teams/teams').then(m => m.Teams)
+        loadComponent: () => import('./pages/league/teams/teams-list').then(m => m.TeamsList)
       },
 
             // 🆕 TEAMS (Feature 3.1)

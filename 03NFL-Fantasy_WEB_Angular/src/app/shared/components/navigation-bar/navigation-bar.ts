@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal, OnDestroy } from '@angular/core';
+import { Component, computed, inject, signal, OnDestroy, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -12,6 +12,10 @@ import { Subscription } from 'rxjs';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { SelectTeamDialog } from '../select-team-dialog/select-team-dialog';
 import { AuthService, AuthSession } from '../../../core/services/auth-service';
+import { UserService } from '../../../core/services/user-service';
+
+type LeagueRow = { LeagueID: number; LeagueName: string; Status: number };
+
 
 @Component({
   selector: 'app-navigation-bar',
@@ -27,17 +31,38 @@ import { AuthService, AuthSession } from '../../../core/services/auth-service';
   templateUrl: './navigation-bar.html',
   styleUrl: './navigation-bar.css'
 })
+
 export class NavigationBar implements OnDestroy {
   private auth = inject(AuthService);
   private router = inject(Router);
   private snack = inject(MatSnackBar);
   private dialog = inject(MatDialog);
+  private users = inject(UserService);
 
   session = signal<AuthSession | null>(this.auth.session);
   private sub: Subscription;
 
+    // estado del dropdown "My Leagues"
+  leagues = signal<LeagueRow[]>([]);
+  leaguesLoading = signal(false);
+  leaguesError = signal<string | null>(null);
+
   constructor() {
-    this.sub = this.auth.session$.subscribe(s => this.session.set(s));
+      this.sub = this.auth.session$.subscribe(s => this.session.set(s));
+
+  effect(() => {
+    const s = this.session();
+    if (s?.SessionID) {
+      // evitá recargar si ya hay datos
+      if (!this.leaguesLoading() && this.leagues().length === 0 && !this.leaguesError()) {
+        this.loadMyLeagues();
+      }
+    } else {
+      this.leagues.set([]);
+      this.leaguesError.set(null);
+      this.leaguesLoading.set(false);
+    }
+  });
   }
   ngOnDestroy(): void { this.sub?.unsubscribe(); }
 
@@ -106,6 +131,36 @@ goLeague(path: 'summary'|'edit'|'members'|'teams'): void {
   if (!id) { this.snack.open('Seleccioná un League ID primero', 'OK', {duration:3000}); return; }
   this.router.navigate(['/league', id, path === 'edit' ? 'edit' : path]);
 }
-
-
+navigateToLeagues(): void {
+  this.router.navigate(['/leagues']);
 }
+loadMyLeagues(): void {
+    this.leaguesLoading.set(true);
+    this.leaguesError.set(null);
+    this.users.getProfile().subscribe({
+      next: (p) => {
+        // HOY: solo las que vienen como comisionado. FUTURO: todas las del user.
+        const rows = (p?.CommissionedLeagues ?? []).map(x => ({
+          LeagueID: x.LeagueID,
+          LeagueName: x.LeagueName,
+          Status: x.Status
+        }));
+        this.leagues.set(rows);
+        this.leaguesLoading.set(false);
+      },
+      error: () => {
+        this.leagues.set([]);
+        this.leaguesLoading.set(false);
+        this.leaguesError.set('No se pudieron cargar tus ligas');
+      }
+    });
+  }
+
+  selectLeague(l: LeagueRow): void {
+    localStorage.setItem('xnf.currentLeagueId', String(l.LeagueID));
+    localStorage.setItem('xnf.currentLeagueName', l.LeagueName);
+    this.router.navigate(['/league', l.LeagueID, 'actions']);
+  }
+}
+
+

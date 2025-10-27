@@ -1,0 +1,7 @@
+<h2 mat-dialog-title>Edit Config</h2>
+<mat-dialog-content class="content">
+  <app-edit-config [leagueId]="data.leagueId" [preload]="true"></app-edit-config>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button mat-stroked-button (click)="ref.close()">Cerrar</button>
+</mat-dialog-actions>

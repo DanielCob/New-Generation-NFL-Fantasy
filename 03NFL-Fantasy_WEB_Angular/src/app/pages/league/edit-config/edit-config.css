@@ -1,0 +1,10 @@
+.root { display:grid; gap:12px; max-width: 100%; }
+.row { display:flex; align-items:center; gap:10px; }
+.error { color:#e53935; }
+.grid {
+  display:grid; gap:12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  align-items: start;
+}
+.full { grid-column: 1/-1; }
+.actions { display:flex; justify-content:flex-end; }
