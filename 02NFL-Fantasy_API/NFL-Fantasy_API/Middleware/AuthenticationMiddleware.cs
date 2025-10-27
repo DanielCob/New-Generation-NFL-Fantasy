@@ -30,7 +30,7 @@ namespace NFL_Fantasy_API.Middleware
             "/api/auth/login",
             "/api/auth/request-reset",
             "/api/auth/reset-with-token",
-            "/api/reference/current-season",
+            "/api/seasons/current",
             "/api/reference/position-formats",
             "/api/scoring/schemas"
         };
@@ -59,6 +59,15 @@ namespace NFL_Fantasy_API.Middleware
             // (Opcional) vistas administrativas
             if (Regex.IsMatch(path, @"^/api/views/.*", RegexOptions.IgnoreCase))
                 return true;
+
+            // Administración de temporadas: TODO menos GET /api/seasons/current
+            if (System.Text.RegularExpressions.Regex.IsMatch(path, @"^/api/seasons($|/)", RegexOptions.IgnoreCase))
+            {
+                if (System.Text.RegularExpressions.Regex.IsMatch(path, @"^/api/seasons/current$", RegexOptions.IgnoreCase))
+                    return false; // público
+
+                return true; // resto requiere ADMIN
+            }
 
             return false;
         }

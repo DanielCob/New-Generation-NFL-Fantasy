@@ -18,41 +18,6 @@ namespace NFL_Fantasy_API.Services.Implementations
             _db = new DatabaseHelper(configuration);
         }
 
-        #region Current Season
-
-        /// <summary>
-        /// Obtiene la temporada actual (IsCurrent=1)
-        /// VIEW: vw_CurrentSeason
-        /// Feature 1.2 - Crear liga (necesita temporada actual)
-        /// </summary>
-        public async Task<CurrentSeasonVM?> GetCurrentSeasonAsync()
-        {
-            try
-            {
-                var results = await _db.ExecuteViewAsync<CurrentSeasonVM>(
-                    "vw_CurrentSeason",
-                    reader => new CurrentSeasonVM
-                    {
-                        SeasonID = DatabaseHelper.GetSafeInt32(reader, "SeasonID"),
-                        Label = DatabaseHelper.GetSafeString(reader, "Label"),
-                        Year = DatabaseHelper.GetSafeInt32(reader, "Year"),
-                        StartDate = DatabaseHelper.GetSafeDateTime(reader, "StartDate"),
-                        EndDate = DatabaseHelper.GetSafeDateTime(reader, "EndDate"),
-                        IsCurrent = DatabaseHelper.GetSafeBool(reader, "IsCurrent"),
-                        CreatedAt = DatabaseHelper.GetSafeDateTime(reader, "CreatedAt")
-                    }
-                );
-
-                return results.FirstOrDefault();
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        #endregion
-
         #region Position Formats
 
         /// <summary>
