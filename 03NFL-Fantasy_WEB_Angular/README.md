@@ -1,59 +1,82 @@
 # NFLFantasyWEBAngular
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.2.2.
+This is the Angular web application for the NFL Fantasy project. It uses the official [Angular CLI](https://angular.dev/tools/cli).
+
+## Prerequisites
+
+- Node.js LTS installed (recommend the latest LTS release)
+- Package manager: npm (bundled with Node.js)
+- Angular CLI available via npx (no global install required)
+
+## Install dependencies
+
+Run this once after cloning the repo:
+
+```powershell
+npm install
+```
 
 ## Development server
 
-To start a local development server, run:
+Start the local dev server (hot-reload enabled):
 
-```bash
-ng serve
+```powershell
+# Option 1: use the project script if defined
+npm start
+
+# Option 2: run via npx
+npx ng serve
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+Then open `http://localhost:4200/` in your browser. The app reloads automatically when you change source files.
 
 ## Code scaffolding
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+Generate components, directives, pipes, etc.:
 
-```bash
-ng generate component component-name
+```powershell
+npx ng generate component component-name
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+For all schematic options, run:
 
-```bash
-ng generate --help
+```powershell
+npx ng generate --help
 ```
 
 ## Building
 
-To build the project run:
+Create a production build:
 
-```bash
-ng build
+```powershell
+npx ng build --configuration production
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+Build outputs are written to the `dist/` folder. With recent Angular versions, the path is typically:
+
+```
+dist/<project-name>/browser
+```
 
 ## Running unit tests
 
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
+Run unit tests (the exact runner depends on the project setup, e.g., Karma, Jest, or Vitest):
 
-```bash
-ng test
+```powershell
+npx ng test
 ```
+
+If tests aren’t configured yet, add a test runner first or remove this step from your workflow.
 
 ## Running end-to-end tests
 
-For end-to-end (e2e) testing, run:
+E2E testing requires adding a tool like Cypress or Playwright. After configuring an e2e builder, you can run:
 
-```bash
-ng e2e
+```powershell
+npx ng e2e
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+## Additional resources
 
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+- Angular CLI docs: https://angular.dev/tools/cli
+- Angular docs: https://angular.dev/
