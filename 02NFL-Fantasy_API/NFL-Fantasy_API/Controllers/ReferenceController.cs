@@ -23,32 +23,6 @@ namespace NFL_Fantasy_API.Controllers
         }
 
         /// <summary>
-        /// Obtiene la temporada actual (IsCurrent=1)
-        /// GET /api/reference/current-season
-        /// Público - No requiere autenticación
-        /// </summary>
-        [HttpGet("current-season")]
-        public async Task<ActionResult> GetCurrentSeason()
-        {
-            try
-            {
-                var season = await _referenceService.GetCurrentSeasonAsync();
-
-                if (season == null)
-                {
-                    return NotFound(ApiResponseDTO.ErrorResponse("No hay temporada actual configurada."));
-                }
-
-                return Ok(ApiResponseDTO.SuccessResponse("Temporada actual obtenida.", season));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting current season");
-                return StatusCode(500, ApiResponseDTO.ErrorResponse("Error al obtener temporada."));
-            }
-        }
-
-        /// <summary>
         /// Lista todos los formatos de posiciones disponibles
         /// GET /api/reference/position-formats
         /// Público - No requiere autenticación

@@ -298,6 +298,7 @@ namespace NFL_Fantasy_API.Services.Implementations
                         DraftedCount = DatabaseHelper.GetSafeInt32(reader, "DraftedCount"),
                         TradedCount = DatabaseHelper.GetSafeInt32(reader, "TradedCount"),
                         FreeAgentCount = DatabaseHelper.GetSafeInt32(reader, "FreeAgentCount"),
+                        ManagerProfileImage = DatabaseHelper.GetSafeNullableString(reader, "ManagerProfileImage"),
                         WaiverCount = DatabaseHelper.GetSafeInt32(reader, "WaiverCount")
                     },
                     whereClause: $"TeamID = {teamId}"

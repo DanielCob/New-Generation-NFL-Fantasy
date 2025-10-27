@@ -13,6 +13,8 @@ namespace NFL_Fantasy_API.Data
     {
         private readonly string _connectionString;
 
+        public string ConnectionString => _connectionString;
+
         public DatabaseHelper(IConfiguration configuration)
         {
             _connectionString = configuration.GetConnectionString("DefaultConnection")
@@ -577,7 +579,34 @@ namespace NFL_Fantasy_API.Data
             var result = await command.ExecuteScalarAsync();
             return Convert.ToInt32(result) == 1;
         }
-        
+
+        /// <summary>
+        /// Ejecuta un SP que retorna múltiples result sets con TIPOS DIFERENTES
+        /// Útil cuando cada result set tiene una estructura distinta
+        /// </summary>
+        public async Task ExecuteStoredProcedureWithCustomReaderAsync(
+            string procedureName,
+            SqlParameter[]? parameters,
+            Func<SqlDataReader, Task> readerAction)
+        {
+            using var connection = new SqlConnection(_connectionString);
+            using var command = new SqlCommand(procedureName, connection)
+            {
+                CommandType = CommandType.StoredProcedure,
+                CommandTimeout = 60
+            };
+
+            if (parameters != null)
+            {
+                command.Parameters.AddRange(parameters);
+            }
+
+            await connection.OpenAsync();
+            using var reader = await command.ExecuteReaderAsync();
+
+            await readerAction(reader);
+        }
+
         #endregion
     }
 }

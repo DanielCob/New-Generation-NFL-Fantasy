@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using NFL_Fantasy_API.Extensions;
 using NFL_Fantasy_API.Models.DTOs;
 using NFL_Fantasy_API.Services.Interfaces;
@@ -30,6 +31,7 @@ namespace NFL_Fantasy_API.Controllers
         /// Feature 10.1 - Crear equipo NFL
         /// </summary>
         [HttpPost]
+        [Authorize(Policy = "AdminOnly")]
         public async Task<ActionResult<ApiResponseDTO>> CreateNFLTeam([FromBody] CreateNFLTeamDTO dto)
         {
             if (!HttpContext.IsAuthenticated())
@@ -132,6 +134,7 @@ namespace NFL_Fantasy_API.Controllers
         /// Feature 10.1 - Modificar equipo NFL
         /// </summary>
         [HttpPut("{id}")]
+        [Authorize(Policy = "AdminOnly")]
         public async Task<ActionResult<ApiResponseDTO>> UpdateNFLTeam(int id, [FromBody] UpdateNFLTeamDTO dto)
         {
             if (!HttpContext.IsAuthenticated())
@@ -174,8 +177,10 @@ namespace NFL_Fantasy_API.Controllers
         /// POST /api/nflteam/{id}/deactivate
         /// Feature 10.1 - Desactivar equipo NFL
         /// Valida que no tenga partidos programados en temporada actual
+        /// Solo ADMIN puede desactivar equipos NFL
         /// </summary>
         [HttpPost("{id}/deactivate")]
+        [Authorize(Policy = "AdminOnly")]
         public async Task<ActionResult<ApiResponseDTO>> DeactivateNFLTeam(int id)
         {
             if (!HttpContext.IsAuthenticated())
@@ -211,8 +216,10 @@ namespace NFL_Fantasy_API.Controllers
         /// Reactiva un equipo NFL desactivado
         /// POST /api/nflteam/{id}/reactivate
         /// Feature 10.1 - Reactivar equipo NFL
+        /// Solo ADMIN puede reactivar equipos NFL
         /// </summary>
         [HttpPost("{id}/reactivate")]
+        [Authorize(Policy = "AdminOnly")]
         public async Task<ActionResult<ApiResponseDTO>> ReactivateNFLTeam(int id)
         {
             if (!HttpContext.IsAuthenticated())

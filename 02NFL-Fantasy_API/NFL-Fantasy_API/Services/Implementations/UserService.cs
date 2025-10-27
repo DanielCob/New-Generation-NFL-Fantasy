@@ -108,31 +108,6 @@ namespace NFL_Fantasy_API.Services.Implementations
                     new SqlParameter("@UserID", userId)
                 };
 
-                // Mappers para cada result set
-                Func<SqlDataReader, UserProfileResponseDTO>[] mappers = new Func<SqlDataReader, UserProfileResponseDTO>[]
-                {
-                    // Result Set 1: Datos del usuario
-                    reader => new UserProfileResponseDTO
-                    {
-                        UserID = DatabaseHelper.GetSafeInt32(reader, "UserID"),
-                        Email = DatabaseHelper.GetSafeString(reader, "Email"),
-                        Name = DatabaseHelper.GetSafeString(reader, "Name"),
-                        Alias = DatabaseHelper.GetSafeNullableString(reader, "Alias"),
-                        LanguageCode = DatabaseHelper.GetSafeString(reader, "LanguageCode"),
-                        ProfileImageUrl = DatabaseHelper.GetSafeNullableString(reader, "ProfileImageUrl"),
-                        AccountStatus = DatabaseHelper.GetSafeByte(reader, "AccountStatus"),
-                        CreatedAt = DatabaseHelper.GetSafeDateTime(reader, "CreatedAt"),
-                        UpdatedAt = DatabaseHelper.GetSafeDateTime(reader, "UpdatedAt"),
-                        Role = DatabaseHelper.GetSafeString(reader, "Role")
-                    },
-                    // Result Set 2: Ligas como comisionado (realmente retorna UserCommissionedLeagueDTO)
-                    // Pero necesitamos mapear a UserProfileResponseDTO para que el método funcione
-                    // Lo haremos de forma diferente...
-                    reader => new UserProfileResponseDTO(), // placeholder
-                    // Result Set 3: Equipos
-                    reader => new UserProfileResponseDTO() // placeholder
-                };
-
                 // Necesitamos un approach diferente porque ExecuteStoredProcedureMultipleResultSetsAsync
                 // espera todos los mappers del mismo tipo
                 // Vamos a usar conexión manual para este caso complejo
@@ -164,7 +139,7 @@ namespace NFL_Fantasy_API.Services.Implementations
                         profile.AccountStatus = DatabaseHelper.GetSafeByte(reader, "AccountStatus");
                         profile.CreatedAt = DatabaseHelper.GetSafeDateTime(reader, "CreatedAt");
                         profile.UpdatedAt = DatabaseHelper.GetSafeDateTime(reader, "UpdatedAt");
-                        profile.Role = DatabaseHelper.GetSafeString(reader, "Role");
+                        profile.SystemRoleCode = DatabaseHelper.GetSafeString(reader, "SystemRoleCode");
                     }
 
                     // Result Set 2: Ligas como comisionado
@@ -235,6 +210,8 @@ namespace NFL_Fantasy_API.Services.Implementations
                         LanguageCode = DatabaseHelper.GetSafeString(reader, "LanguageCode"),
                         ProfileImageUrl = DatabaseHelper.GetSafeNullableString(reader, "ProfileImageUrl"),
                         AccountStatus = DatabaseHelper.GetSafeByte(reader, "AccountStatus"),
+                        SystemRoleCode = DatabaseHelper.GetSafeString(reader, "SystemRoleCode"),
+                        SystemRoleDisplay = DatabaseHelper.GetSafeString(reader, "SystemRoleDisplay"),
                         CreatedAt = DatabaseHelper.GetSafeDateTime(reader, "CreatedAt"),
                         UpdatedAt = DatabaseHelper.GetSafeDateTime(reader, "UpdatedAt")
                     },
@@ -304,7 +281,8 @@ namespace NFL_Fantasy_API.Services.Implementations
                         AccountStatus = DatabaseHelper.GetSafeByte(reader, "AccountStatus"),
                         CreatedAt = DatabaseHelper.GetSafeDateTime(reader, "CreatedAt"),
                         UpdatedAt = DatabaseHelper.GetSafeDateTime(reader, "UpdatedAt"),
-                        Role = DatabaseHelper.GetSafeString(reader, "Role")
+                        SystemRoleDisplay = DatabaseHelper.GetSafeString(reader, "SystemRoleDisplay"),
+                        SystemRoleCode = DatabaseHelper.GetSafeString(reader, "SystemRoleCode")
                     },
                     whereClause: $"UserID = {userId}"
                 );

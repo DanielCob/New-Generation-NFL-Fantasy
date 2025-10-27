@@ -2,13 +2,34 @@ USE XNFLFantasyDB;
 SET NOCOUNT ON;
 
 /* ============================================================
+   SECCIÓN 0: AUTH - Roles del Sistema (NUEVO)
+   ============================================================ */
+PRINT N'Poblando roles del sistema...';
+
+MERGE auth.SystemRole AS T
+USING (VALUES
+  (N'ADMIN',          N'Administrador',     N'Control total del sistema, gestión de usuarios y equipos NFL'),
+  (N'USER',           N'Usuario',           N'Usuario regular, puede ser manager o comisionado de ligas'),
+  (N'BRAND_MANAGER',  N'Gestor de Marca',   N'Usuario con permisos especiales para gestión de marca')
+) AS S(RoleCode, Display, Description)
+ON (T.RoleCode = S.RoleCode)
+WHEN MATCHED AND (T.Display <> S.Display OR ISNULL(T.Description, N'') <> ISNULL(S.Description, N'')) THEN
+  UPDATE SET T.Display = S.Display, T.Description = S.Description
+WHEN NOT MATCHED BY TARGET THEN
+  INSERT(RoleCode, Display, Description) VALUES(S.RoleCode, S.Display, S.Description);
+
+DECLARE @RoleCount INT = @@ROWCOUNT;
+PRINT N'✓ ' + CAST(@RoleCount AS NVARCHAR(10)) + N' roles del sistema insertados/actualizados';
+
+/* ============================================================
    SECCIÓN 1: REF - Roles de liga (SIN CAMBIOS)
    ============================================================ */
+PRINT N'Poblando roles de liga...';
+
 MERGE ref.LeagueRole AS T
 USING (VALUES
   (N'COMMISSIONER',     N'Comisionado'),
   (N'CO_COMMISSIONER',  N'Co-Comisionado'),
-  (N'MANAGER',          N'Manager'),
   (N'SPECTATOR',        N'Espectador')
 ) AS S(RoleCode, Display)
 ON (T.RoleCode = S.RoleCode)
@@ -20,6 +41,8 @@ WHEN NOT MATCHED BY TARGET THEN
 /* ============================================================
    SECCIÓN 2: REF - PositionFormat + PositionSlot (SIN CAMBIOS)
    ============================================================ */
+PRINT N'Poblando formatos de posición...';
+
 -- 2.1 Formatos
 MERGE ref.PositionFormat AS T
 USING (VALUES
@@ -79,8 +102,10 @@ WHEN NOT MATCHED BY TARGET THEN
   INSERT(PositionFormatID, PositionCode, SlotCount)
   VALUES(S.PositionFormatID, S.PositionCode, S.SlotCount);
 
+PRINT N'✓ Formatos de posición y slots poblados';
+
 /* ============================================================
-   SECCIÓN 3: REF - Equipos NFL (NUEVO)
+   SECCIÓN 3: REF - Equipos NFL
    ============================================================ */
 PRINT N'Poblando equipos NFL...';
 
@@ -146,6 +171,8 @@ PRINT N'✓ ' + CAST(@NFLTeamCount AS NVARCHAR(10)) + N' equipos NFL insertados/
 /* ============================================================
    SECCIÓN 4: SCORING - Schemas + Rules (SIN CAMBIOS)
    ============================================================ */
+PRINT N'Poblando esquemas de puntuación...';
+
 -- 4.1 Schemas
 MERGE scoring.ScoringSchema AS T
 USING (VALUES
@@ -281,9 +308,13 @@ WHEN NOT MATCHED BY TARGET THEN
   INSERT(ScoringSchemaID, MetricCode, PointsPerUnit, Unit, UnitValue, FlatPoints)
   VALUES(S.ScoringSchemaID, S.MetricCode, S.PointsPerUnit, S.Unit, S.UnitValue, S.FlatPoints);
 
+PRINT N'✓ Esquemas de puntuación y reglas poblados';
+
 /* ============================================================
    SECCIÓN 5: SEASONS - Crear temporada actual (SIN CAMBIOS)
    ============================================================ */
+PRINT N'Poblando temporadas...';
+
 DECLARE @y INT = YEAR(SYSUTCDATETIME());
 DECLARE @label NVARCHAR(20) = N'NFL ' + CAST(@y AS NVARCHAR(10));
 DECLARE @prevlabel NVARCHAR(20) = N'NFL ' + CAST(@y-1 AS NVARCHAR(10));
@@ -313,13 +344,13 @@ DECLARE @SeasonID_Current INT = (SELECT SeasonID FROM league.Season WHERE IsCurr
 PRINT N'✓ Temporada actual: ' + @label + N' (ID: ' + CAST(@SeasonID_Current AS NVARCHAR(10)) + N')';
 
 /* ============================================================
-   SECCIÓN 6: USERS - Crear cuentas dummy (SIN CAMBIOS)
+   SECCIÓN 6: USERS - Crear cuentas dummy
    ============================================================ */
 PRINT N'Poblando usuarios demo...';
 
-DECLARE @tmp TABLE(UserID INT, Message NVARCHAR(200));
+DECLARE @tmp TABLE(UserID INT, SystemRoleCode NVARCHAR(20), Message NVARCHAR(200));
 
--- Admin/Comisionado
+-- Admin/Comisionado (será promovido a ADMIN después)
 IF NOT EXISTS (SELECT 1 FROM auth.UserAccount WHERE Email=N'admin@xnfldemo.com')
 BEGIN
   INSERT INTO @tmp EXEC app.sp_RegisterUser
@@ -371,17 +402,71 @@ BEGIN
   PRINT N'✓ Usuario carol@xnfldemo.com creado';
 END
 
+-- Brand Manager de ejemplo
+IF NOT EXISTS (SELECT 1 FROM auth.UserAccount WHERE Email=N'brand@xnfldemo.com')
+BEGIN
+  DELETE FROM @tmp;
+  INSERT INTO @tmp EXEC app.sp_RegisterUser
+     @Name=N'Brand Manager Demo', @Email=N'brand@xnfldemo.com', @Alias=N'brandmgr',
+     @Password=N'Secure123', @PasswordConfirm=N'Secure123', @LanguageCode=N'en',
+     @ProfileImageUrl=NULL, @ProfileImageWidth=NULL, @ProfileImageHeight=NULL, @ProfileImageBytes=NULL;
+  PRINT N'✓ Usuario brand@xnfldemo.com creado';
+END
+
 DECLARE
   @U_Admin INT   = (SELECT UserID FROM auth.UserAccount WHERE Email=N'admin@xnfldemo.com'),
   @U_Co    INT   = (SELECT UserID FROM auth.UserAccount WHERE Email=N'coco@xnfldemo.com'),
   @U_Alice INT   = (SELECT UserID FROM auth.UserAccount WHERE Email=N'alice@xnfldemo.com'),
   @U_Bob   INT   = (SELECT UserID FROM auth.UserAccount WHERE Email=N'bob@xnfldemo.com'),
-  @U_Carol INT   = (SELECT UserID FROM auth.UserAccount WHERE Email=N'carol@xnfldemo.com');
+  @U_Carol INT   = (SELECT UserID FROM auth.UserAccount WHERE Email=N'carol@xnfldemo.com'),
+  @U_Brand INT   = (SELECT UserID FROM auth.UserAccount WHERE Email=N'brand@xnfldemo.com');
 
-PRINT N'✓ 5 usuarios demo disponibles';
+PRINT N'✓ 6 usuarios demo disponibles';
 
 /* ============================================================
-   SECCIÓN 7: PLAYERS - Jugadores NFL (NUEVO)
+   SECCIÓN 6.5: USUARIOS - Promover roles del sistema (NUEVO)
+   ============================================================ */
+PRINT N'Configurando roles del sistema...';
+
+-- Promover admin@xnfldemo.com a ADMIN
+-- Nota: Como no tenemos un ADMIN todavía, hacemos esto directamente en la DB
+IF EXISTS (SELECT 1 FROM auth.UserAccount WHERE UserID = @U_Admin AND SystemRoleCode <> N'ADMIN')
+BEGIN
+  UPDATE auth.UserAccount
+  SET SystemRoleCode = N'ADMIN',
+      UpdatedAt = SYSUTCDATETIME()
+  WHERE UserID = @U_Admin;
+
+  -- Registrar el cambio en el log
+  INSERT INTO auth.SystemRoleChangeLog(UserID, ChangedByUserID, OldRoleCode, NewRoleCode, Reason)
+  VALUES(@U_Admin, @U_Admin, N'USER', N'ADMIN', N'Población inicial - usuario administrador del sistema');
+
+  -- Auditoría
+  INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details)
+  VALUES(@U_Admin, N'USER_PROFILE', CAST(@U_Admin AS NVARCHAR(50)), N'SYSTEM_ROLE_INIT',
+         N'Usuario promovido a ADMIN durante población inicial');
+
+  PRINT N'✓ Usuario admin@xnfldemo.com promovido a ADMIN';
+END
+
+-- Promover brand@xnfldemo.com a BRAND_MANAGER usando el ADMIN recién creado
+IF EXISTS (SELECT 1 FROM auth.UserAccount WHERE UserID = @U_Brand AND SystemRoleCode <> N'BRAND_MANAGER')
+BEGIN
+  -- Ahora podemos usar el SP porque ya tenemos un ADMIN
+  DECLARE @tmpRole TABLE(UserID INT, OldRole NVARCHAR(20), NewRole NVARCHAR(20), Message NVARCHAR(200));
+  
+  INSERT INTO @tmpRole
+  EXEC app.sp_ChangeUserSystemRole
+    @ActorUserID = @U_Admin,
+    @TargetUserID = @U_Brand,
+    @NewRoleCode = N'BRAND_MANAGER',
+    @Reason = N'Población inicial - usuario de ejemplo para Brand Manager';
+
+  PRINT N'✓ Usuario brand@xnfldemo.com promovido a BRAND_MANAGER';
+END
+
+/* ============================================================
+   SECCIÓN 7: PLAYERS - Jugadores NFL
    ============================================================ */
 PRINT N'Poblando jugadores NFL...';
 
@@ -478,7 +563,7 @@ DECLARE @PlayerCount INT = @@ROWCOUNT;
 PRINT N'✓ ' + CAST(@PlayerCount AS NVARCHAR(10)) + N' jugadores NFL insertados/actualizados';
 
 /* ============================================================
-   SECCIÓN 8: LEAGUES - Crear ligas demo (MODIFICADO)
+   SECCIÓN 8: LEAGUES - Crear ligas demo
    ============================================================ */
 PRINT N'Poblando ligas demo...';
 
@@ -489,7 +574,7 @@ DECLARE
   @SS_DefaultID INT = (SELECT ScoringSchemaID FROM scoring.ScoringSchema WHERE Name=N'Default' AND Version=1),
   @SS_MaxID     INT = (SELECT ScoringSchemaID FROM scoring.ScoringSchema WHERE Name=N'MaxPuntos' AND Version=1);
 
--- 8.1 Liga principal (se activa) - MODIFICADO: nombre de equipo es NFL real
+-- 8.1 Liga principal (se activa)
 IF NOT EXISTS (
   SELECT 1
   FROM league.League l
@@ -530,14 +615,12 @@ BEGIN
   PRINT N'✓ Co-comisionado agregado a Prime League';
 END
 
--- Equipos de managers - MODIFICADO: nombres son equipos NFL reales
+-- Equipos de managers (SIN insertar en LeagueMember - el rol MANAGER se deriva del equipo)
 IF NOT EXISTS (SELECT 1 FROM league.Team WHERE LeagueID=@L_Prime AND OwnerUserID=@U_Alice)
 BEGIN
   INSERT INTO league.Team(LeagueID, OwnerUserID, TeamName)
   VALUES(@L_Prime, @U_Alice, N'Buffalo Bills');
-  IF NOT EXISTS (SELECT 1 FROM league.LeagueMember WHERE LeagueID=@L_Prime AND UserID=@U_Alice)
-    INSERT INTO league.LeagueMember(LeagueID, UserID, RoleCode, IsPrimaryCommissioner)
-    VALUES(@L_Prime, @U_Alice, N'MANAGER', 0);
+  -- ✅ NO insertar en LeagueMember - MANAGER se deriva automáticamente
   PRINT N'✓ Equipo Buffalo Bills agregado (Alice)';
 END
 
@@ -545,9 +628,7 @@ IF NOT EXISTS (SELECT 1 FROM league.Team WHERE LeagueID=@L_Prime AND OwnerUserID
 BEGIN
   INSERT INTO league.Team(LeagueID, OwnerUserID, TeamName)
   VALUES(@L_Prime, @U_Bob, N'Dallas Cowboys');
-  IF NOT EXISTS (SELECT 1 FROM league.LeagueMember WHERE LeagueID=@L_Prime AND UserID=@U_Bob)
-    INSERT INTO league.LeagueMember(LeagueID, UserID, RoleCode, IsPrimaryCommissioner)
-    VALUES(@L_Prime, @U_Bob, N'MANAGER', 0);
+  -- ✅ NO insertar en LeagueMember - MANAGER se deriva automáticamente
   PRINT N'✓ Equipo Dallas Cowboys agregado (Bob)';
 END
 
@@ -555,9 +636,7 @@ IF NOT EXISTS (SELECT 1 FROM league.Team WHERE LeagueID=@L_Prime AND OwnerUserID
 BEGIN
   INSERT INTO league.Team(LeagueID, OwnerUserID, TeamName)
   VALUES(@L_Prime, @U_Carol, N'Philadelphia Eagles');
-  IF NOT EXISTS (SELECT 1 FROM league.LeagueMember WHERE LeagueID=@L_Prime AND UserID=@U_Carol)
-    INSERT INTO league.LeagueMember(LeagueID, UserID, RoleCode, IsPrimaryCommissioner)
-    VALUES(@L_Prime, @U_Carol, N'MANAGER', 0);
+  -- ✅ NO insertar en LeagueMember - MANAGER se deriva automáticamente
   PRINT N'✓ Equipo Philadelphia Eagles agregado (Carol)';
 END
 
@@ -570,7 +649,7 @@ EXEC app.sp_SetLeagueStatus
 
 PRINT N'✓ Liga Prime activada';
 
--- 8.2 Liga secundaria - MODIFICADO: nombre de equipo es NFL real
+-- 8.2 Liga secundaria
 IF NOT EXISTS (
   SELECT 1
   FROM league.League l
@@ -603,19 +682,17 @@ DECLARE @L_Rookies INT = (
   WHERE l.SeasonID = @SeasonID_Current AND l.Name = N'Rookies League'
 );
 
--- Sumar un manager a Rookies League - MODIFICADO: nombre NFL real
+-- Sumar un manager a Rookies League (SIN insertar en LeagueMember)
 IF NOT EXISTS (SELECT 1 FROM league.Team WHERE LeagueID=@L_Rookies AND OwnerUserID=@U_Alice)
 BEGIN
   INSERT INTO league.Team(LeagueID, OwnerUserID, TeamName)
   VALUES(@L_Rookies, @U_Alice, N'Miami Dolphins');
-  IF NOT EXISTS (SELECT 1 FROM league.LeagueMember WHERE LeagueID=@L_Rookies AND UserID=@U_Alice)
-    INSERT INTO league.LeagueMember(LeagueID, UserID, RoleCode, IsPrimaryCommissioner)
-    VALUES(@L_Rookies, @U_Alice, N'MANAGER', 0);
+  -- ✅ NO insertar en LeagueMember - MANAGER se deriva automáticamente
   PRINT N'✓ Equipo Miami Dolphins agregado a Rookies League (Alice)';
 END
 
 /* ============================================================
-   SECCIÓN 9: NFL GAMES - Partidos programados (NUEVO)
+   SECCIÓN 9: NFL GAMES - Partidos programados
    ============================================================ */
 PRINT N'Poblando partidos NFL demo...';
 
@@ -668,7 +745,7 @@ DECLARE @GameCount INT = @@ROWCOUNT;
 PRINT N'✓ ' + CAST(@GameCount AS NVARCHAR(10)) + N' partidos NFL insertados/actualizados';
 
 /* ============================================================
-   SECCIÓN 10: ROSTER - Asignar jugadores a equipos (NUEVO)
+   SECCIÓN 10: ROSTER - Asignar jugadores a equipos
    ============================================================ */
 PRINT N'Poblando rosters de equipos fantasy...';
 
@@ -741,7 +818,7 @@ DECLARE @RosterCount INT = @@ROWCOUNT;
 PRINT N'✓ ' + CAST(@RosterCount AS NVARCHAR(10)) + N' jugadores asignados a rosters';
 
 /* ============================================================
-   RESUMEN FINAL (CORREGIDO - sin subconsultas en PRINT)
+   RESUMEN FINAL
    ============================================================ */
 PRINT N'';
 PRINT N'═══════════════════════════════════════════════════════════';
@@ -752,11 +829,12 @@ PRINT N'📊 Resumen de datos poblados:';
 PRINT N'';
 
 -- Variables para el resumen
-DECLARE @cnt_roles INT, @cnt_formats INT, @cnt_slots INT, @cnt_nflteams INT,
+DECLARE @cnt_systemroles INT, @cnt_roles INT, @cnt_formats INT, @cnt_slots INT, @cnt_nflteams INT,
         @cnt_schemas INT, @cnt_rules INT, @cnt_seasons INT, @cnt_users INT,
         @cnt_players INT, @cnt_leagues INT, @cnt_teams INT, @cnt_games INT,
-        @cnt_roster INT;
+        @cnt_roster INT, @cnt_admins INT, @cnt_brandmgrs INT, @cnt_regularusers INT;
 
+SELECT @cnt_systemroles = COUNT(*) FROM auth.SystemRole;
 SELECT @cnt_roles = COUNT(*) FROM ref.LeagueRole;
 SELECT @cnt_formats = COUNT(*) FROM ref.PositionFormat;
 SELECT @cnt_slots = COUNT(*) FROM ref.PositionSlot;
@@ -770,7 +848,11 @@ SELECT @cnt_leagues = COUNT(*) FROM league.League;
 SELECT @cnt_teams = COUNT(*) FROM league.Team;
 SELECT @cnt_games = COUNT(*) FROM league.NFLGame;
 SELECT @cnt_roster = COUNT(*) FROM league.TeamRoster WHERE IsActive = 1;
+SELECT @cnt_admins = COUNT(*) FROM auth.UserAccount WHERE SystemRoleCode = N'ADMIN';
+SELECT @cnt_brandmgrs = COUNT(*) FROM auth.UserAccount WHERE SystemRoleCode = N'BRAND_MANAGER';
+SELECT @cnt_regularusers = COUNT(*) FROM auth.UserAccount WHERE SystemRoleCode = N'USER';
 
+PRINT N'  ✓ ' + CAST(@cnt_systemroles AS NVARCHAR(10)) + N' roles del sistema';
 PRINT N'  ✓ ' + CAST(@cnt_roles AS NVARCHAR(10)) + N' roles de liga';
 PRINT N'  ✓ ' + CAST(@cnt_formats AS NVARCHAR(10)) + N' formatos de posición';
 PRINT N'  ✓ ' + CAST(@cnt_slots AS NVARCHAR(10)) + N' slots de posición';
@@ -778,7 +860,10 @@ PRINT N'  ✓ ' + CAST(@cnt_nflteams AS NVARCHAR(10)) + N' equipos NFL';
 PRINT N'  ✓ ' + CAST(@cnt_schemas AS NVARCHAR(10)) + N' esquemas de puntuación';
 PRINT N'  ✓ ' + CAST(@cnt_rules AS NVARCHAR(10)) + N' reglas de puntuación';
 PRINT N'  ✓ ' + CAST(@cnt_seasons AS NVARCHAR(10)) + N' temporadas';
-PRINT N'  ✓ ' + CAST(@cnt_users AS NVARCHAR(10)) + N' usuarios';
+PRINT N'  ✓ ' + CAST(@cnt_users AS NVARCHAR(10)) + N' usuarios (' + 
+         CAST(@cnt_admins AS NVARCHAR(10)) + N' ADMIN, ' + 
+         CAST(@cnt_brandmgrs AS NVARCHAR(10)) + N' BRAND_MANAGER, ' + 
+         CAST(@cnt_regularusers AS NVARCHAR(10)) + N' USER)';
 PRINT N'  ✓ ' + CAST(@cnt_players AS NVARCHAR(10)) + N' jugadores NFL';
 PRINT N'  ✓ ' + CAST(@cnt_leagues AS NVARCHAR(10)) + N' ligas';
 PRINT N'  ✓ ' + CAST(@cnt_teams AS NVARCHAR(10)) + N' equipos fantasy';
@@ -786,14 +871,20 @@ PRINT N'  ✓ ' + CAST(@cnt_games AS NVARCHAR(10)) + N' partidos NFL programados
 PRINT N'  ✓ ' + CAST(@cnt_roster AS NVARCHAR(10)) + N' jugadores en rosters activos';
 PRINT N'';
 PRINT N'🎮 Usuarios demo (password: Secure123):';
-PRINT N'  • admin@xnfldemo.com (Comisionado Principal)';
-PRINT N'  • coco@xnfldemo.com (Co-Comisionado)';
-PRINT N'  • alice@xnfldemo.com (Manager)';
-PRINT N'  • bob@xnfldemo.com (Manager)';
-PRINT N'  • carol@xnfldemo.com (Manager)';
+PRINT N'  • admin@xnfldemo.com (ROL: ADMIN - Comisionado Principal)';
+PRINT N'  • coco@xnfldemo.com (ROL: USER - Co-Comisionado)';
+PRINT N'  • alice@xnfldemo.com (ROL: USER - Manager)';
+PRINT N'  • bob@xnfldemo.com (ROL: USER - Manager)';
+PRINT N'  • carol@xnfldemo.com (ROL: USER - Manager)';
+PRINT N'  • brand@xnfldemo.com (ROL: BRAND_MANAGER - Gestor de Marca)';
 PRINT N'';
 PRINT N'🏈 Ligas disponibles:';
 PRINT N'  • XNFL Prime League (Estado: Activa, 4 equipos)';
 PRINT N'  • Rookies League (Estado: Pre-Draft, 2 equipos)';
+PRINT N'';
+PRINT N'🔐 Roles del Sistema:';
+PRINT N'  • ADMIN: Control total, gestión de usuarios y equipos NFL';
+PRINT N'  • USER: Usuario regular, puede ser manager/comisionado';
+PRINT N'  • BRAND_MANAGER: Permisos especiales para gestión de marca';
 PRINT N'';
 PRINT N'═══════════════════════════════════════════════════════════';

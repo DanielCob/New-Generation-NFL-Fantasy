@@ -1,4 +1,8 @@
 ﻿using System.Text.RegularExpressions;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using NFL_Fantasy_API.Services.Interfaces;
 
 namespace NFL_Fantasy_API.Middleware
@@ -13,6 +17,12 @@ namespace NFL_Fantasy_API.Middleware
         private readonly RequestDelegate _next;
         private readonly ILogger<AuthenticationMiddleware> _logger;
 
+        public AuthenticationMiddleware(RequestDelegate next, ILogger<AuthenticationMiddleware> logger)
+        {
+            _next = next;
+            _logger = logger;
+        }
+
         // Rutas públicas que NO requieren autenticación
         private static readonly HashSet<string> PublicRoutes = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -20,7 +30,7 @@ namespace NFL_Fantasy_API.Middleware
             "/api/auth/login",
             "/api/auth/request-reset",
             "/api/auth/reset-with-token",
-            "/api/reference/current-season",
+            "/api/seasons/current",
             "/api/reference/position-formats",
             "/api/scoring/schemas"
         };
@@ -34,37 +44,50 @@ namespace NFL_Fantasy_API.Middleware
             new Regex(@"^/$", RegexOptions.IgnoreCase) // root
         };
 
-        // Rutas que requieren rol ADMIN (futuro si implementas roles)
-        // Por ahora, /api/views/* está abierto a cualquier usuario autenticado
-        // Puedes agregar validación de roles en futuras features
-        private static readonly List<Regex> AdminOnlyPatterns = new()
+        // Determina si la ruta requiere ADMIN (según path + método HTTP)
+        private static bool RequiresAdminRole(string path, string method)
         {
-            // Ejemplo: new Regex(@"^/api/admin/.*", RegexOptions.IgnoreCase)
-            // Por ahora vacío; todos los autenticados pueden acceder a todo
-        };
+            // Mutaciones de NFLTeam (POST/PUT/* que no sean GET)
+            if (Regex.IsMatch(path, @"^/api/nflteam($|/)", RegexOptions.IgnoreCase) &&
+                !string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase))
+                return true;
 
-        public AuthenticationMiddleware(RequestDelegate next, ILogger<AuthenticationMiddleware> logger)
-        {
-            _next = next;
-            _logger = logger;
+            // Gestión de roles del sistema (cualquier verbo)
+            if (Regex.IsMatch(path, @"^/api/system-roles($|/)", RegexOptions.IgnoreCase))
+                return true;
+
+            // (Opcional) vistas administrativas
+            if (Regex.IsMatch(path, @"^/api/views/.*", RegexOptions.IgnoreCase))
+                return true;
+
+            // Administración de temporadas: TODO menos GET /api/seasons/current
+            if (System.Text.RegularExpressions.Regex.IsMatch(path, @"^/api/seasons($|/)", RegexOptions.IgnoreCase))
+            {
+                if (System.Text.RegularExpressions.Regex.IsMatch(path, @"^/api/seasons/current$", RegexOptions.IgnoreCase))
+                    return false; // público
+
+                return true; // resto requiere ADMIN
+            }
+
+            return false;
         }
 
-        public async Task InvokeAsync(HttpContext context, IAuthService authService)
+        public async Task InvokeAsync(HttpContext context, IAuthService authService, IUserService userService)
         {
             var path = context.Request.Path.Value ?? string.Empty;
             var method = context.Request.Method;
 
-            // 1. Verificar si la ruta es pública
+            // 1) Rutas públicas
             if (ShouldSkipAuthentication(path, method))
             {
                 await _next(context);
                 return;
             }
 
-            // 2. Extraer token Bearer del header Authorization
+            // 2) Header Authorization: Bearer {GUID}
             var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
-
-            if (string.IsNullOrWhiteSpace(authHeader) || !authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrWhiteSpace(authHeader) ||
+                !authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogWarning("Request to protected route {Path} without valid Authorization header", path);
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
@@ -77,8 +100,6 @@ namespace NFL_Fantasy_API.Middleware
             }
 
             var token = authHeader.Substring("Bearer ".Length).Trim();
-
-            // 3. Validar que el token sea un GUID válido
             if (!Guid.TryParse(token, out Guid sessionId))
             {
                 _logger.LogWarning("Invalid token format for route {Path}: {Token}", path, token);
@@ -91,11 +112,10 @@ namespace NFL_Fantasy_API.Middleware
                 return;
             }
 
-            // 4. Validar sesión con el servicio (también refresca sliding expiration)
+            // 3) Validar sesión (y refrescar sliding expiration)
             try
             {
                 var validation = await authService.ValidateSessionAsync(sessionId);
-
                 if (!validation.IsValid || validation.UserID <= 0)
                 {
                     _logger.LogWarning("Invalid or expired session {SessionID} for route {Path}", sessionId, path);
@@ -108,36 +128,46 @@ namespace NFL_Fantasy_API.Middleware
                     return;
                 }
 
-                // 5. Sesión válida: agregar información al contexto para uso en controllers
+                // 4) Cargar rol del usuario para Claims/Policies
+                var basic = await userService.GetUserBasicAsync(validation.UserID);
+                var role = basic?.SystemRoleCode ?? "USER";
+                var email = basic?.Email ?? string.Empty;
+
+                // 5) Guardar info en HttpContext.Items (compatibilidad con tu código)
                 context.Items["UserID"] = validation.UserID;
                 context.Items["SessionID"] = sessionId;
                 context.Items["IsAuthenticated"] = true;
+                context.Items["SystemRoleCode"] = role;
 
-                _logger.LogInformation("User {UserID} authenticated successfully for {Method} {Path}",
-                    validation.UserID, method, path);
-
-                // 6. Verificar permisos ADMIN si la ruta lo requiere (futuro)
-                if (RequiresAdminRole(path))
+                // 6) Construir ClaimsPrincipal para [Authorize] y Policies
+                var claims = new List<Claim>
                 {
-                    // Por ahora no tenemos sistema de roles en UserAccount
-                    // En el futuro, puedes agregar un campo Role en auth.UserAccount
-                    // y verificar aquí si el usuario tiene rol ADMIN
+                    new(ClaimTypes.NameIdentifier, validation.UserID.ToString()),
+                    new(ClaimTypes.Role, role)
+                };
+                if (!string.IsNullOrWhiteSpace(email))
+                    claims.Add(new(ClaimTypes.Email, email));
 
-                    // Ejemplo futuro:
-                    // var userRole = await GetUserRole(validation.UserID);
-                    // if (userRole != "ADMIN")
-                    // {
-                    //     context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                    //     await context.Response.WriteAsJsonAsync(new { success = false, message = "Acceso denegado. Requiere rol de administrador." });
-                    //     return;
-                    // }
+                var identity = new ClaimsIdentity(claims, authenticationType: "Session");
+                context.User = new ClaimsPrincipal(identity);
+
+                _logger.LogInformation("User {UserID} ({Role}) authenticated for {Method} {Path}", validation.UserID, role, method, path);
+
+                // 7) Enforzar ADMIN cuando corresponda
+                if (RequiresAdminRole(path, method) && !string.Equals(role, "ADMIN", StringComparison.OrdinalIgnoreCase))
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    await context.Response.WriteAsJsonAsync(new
+                    {
+                        success = false,
+                        message = "Acceso denegado. Requiere rol ADMIN."
+                    });
+                    return;
                 }
-
-                // 7. Continuar al siguiente middleware/controller
-                await _next(context);
             }
             catch (Exception ex)
             {
+                // Si algo falla en la etapa de autenticación, responder aquí
                 _logger.LogError(ex, "Error during authentication for route {Path}", path);
                 context.Response.StatusCode = StatusCodes.Status500InternalServerError;
                 await context.Response.WriteAsJsonAsync(new
@@ -145,19 +175,22 @@ namespace NFL_Fantasy_API.Middleware
                     success = false,
                     message = "Error interno al validar autenticación."
                 });
+                return;
             }
+
+            // 8) Continuar con el pipeline. Cualquier excepción de los controllers/servicios
+            // ya NO será atrapada por este middleware (no se enmascara).
+            await _next(context);
         }
 
         /// <summary>
-        /// Determina si una ruta debe omitir la autenticación
+        /// Determina si una ruta debe omitir la autenticación.
         /// </summary>
-        private bool ShouldSkipAuthentication(string path, string method)
+        private static bool ShouldSkipAuthentication(string path, string method)
         {
             // Rutas explícitamente públicas
             if (PublicRoutes.Contains(path))
-            {
                 return true;
-            }
 
             // Patrones GET públicos (reference data, swagger, etc.)
             if (method.Equals("GET", StringComparison.OrdinalIgnoreCase))
@@ -165,26 +198,7 @@ namespace NFL_Fantasy_API.Middleware
                 foreach (var pattern in PublicGetPatterns)
                 {
                     if (pattern.IsMatch(path))
-                    {
                         return true;
-                    }
-                }
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// Determina si una ruta requiere rol ADMIN
-        /// Por ahora retorna false; implementar cuando se agreguen roles a UserAccount
-        /// </summary>
-        private bool RequiresAdminRole(string path)
-        {
-            foreach (var pattern in AdminOnlyPatterns)
-            {
-                if (pattern.IsMatch(path))
-                {
-                    return true;
                 }
             }
 
@@ -198,8 +212,6 @@ namespace NFL_Fantasy_API.Middleware
     public static class AuthenticationMiddlewareExtensions
     {
         public static IApplicationBuilder UseAuthenticationMiddleware(this IApplicationBuilder builder)
-        {
-            return builder.UseMiddleware<AuthenticationMiddleware>();
-        }
+            => builder.UseMiddleware<AuthenticationMiddleware>();
     }
 }

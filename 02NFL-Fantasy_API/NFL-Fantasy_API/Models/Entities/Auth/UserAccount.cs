@@ -36,6 +36,11 @@ namespace NFL_Fantasy_API.Models.Entities.Auth
         [MaxLength(10)]
         public string LanguageCode { get; set; } = "en";
 
+        [MaxLength(20)]
+        public string SystemRoleCode { get; set; } = "USER";
+        [ForeignKey("SystemRoleCode")]
+        public virtual SystemRole? SystemRole { get; set; }
+
         // Imagen de perfil
         [MaxLength(400)]
         public string? ProfileImageUrl { get; set; }

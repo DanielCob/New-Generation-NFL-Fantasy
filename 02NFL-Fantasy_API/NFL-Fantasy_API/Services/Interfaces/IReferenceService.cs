@@ -10,15 +10,6 @@ namespace NFL_Fantasy_API.Services.Interfaces
     public interface IReferenceService
     {
         /// <summary>
-        /// Obtiene la temporada actual (IsCurrent=1)
-        /// VIEW: vw_CurrentSeason
-        /// SP alternativo: app.sp_GetCurrentSeason
-        /// Feature 1.2 - Crear liga (necesita temporada actual)
-        /// </summary>
-        /// <returns>Temporada actual o null si no hay ninguna marcada</returns>
-        Task<CurrentSeasonVM?> GetCurrentSeasonAsync();
-
-        /// <summary>
         /// Lista todos los formatos de posiciones disponibles
         /// VIEW: vw_PositionFormats
         /// SP alternativo: app.sp_ListPositionFormats

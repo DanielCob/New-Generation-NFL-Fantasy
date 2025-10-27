@@ -31,6 +31,19 @@ IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name=N'app_executor')
     CREATE ROLE app_executor AUTHORIZATION dbo;
 GO
 
+/* ================================================
+   MODULO DE AUTENTICACION (auth)
+   ================================================ */
+-- Tabla de roles del sistema (ADMIN, USER, BRAND_MANAGER)
+IF OBJECT_ID('auth.SystemRole','U') IS NULL
+BEGIN
+  CREATE TABLE auth.SystemRole(
+    RoleCode NVARCHAR(20) NOT NULL CONSTRAINT PK_SystemRole PRIMARY KEY,
+    Display NVARCHAR(40) NOT NULL,
+    Description NVARCHAR(200) NULL
+  );
+END
+GO
 
 /* ================================================
    MODULO DE AUTENTICACION (auth)
@@ -45,6 +58,7 @@ BEGIN
     PasswordSalt VARBINARY(16) NOT NULL,
     Name NVARCHAR(50) NOT NULL,
     Alias NVARCHAR(50) NULL,
+    SystemRoleCode NVARCHAR(20) NOT NULL CONSTRAINT DF_UserAccount_SystemRole DEFAULT('USER'),
     LanguageCode NVARCHAR(10) NOT NULL CONSTRAINT DF_UserAccount_Lang DEFAULT('en'),
     ProfileImageUrl NVARCHAR(400) NULL,
     ProfileImageWidth SMALLINT NULL,
@@ -70,6 +84,14 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_UserAccount_Alias' AND o
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_UserAccount_Status' AND object_id=OBJECT_ID('auth.UserAccount'))
   CREATE NONCLUSTERED INDEX IX_UserAccount_Status ON auth.UserAccount(AccountStatus);
+GO
+-- Vincula usuario con rol del sistema
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_UserAccount_SystemRole')
+  ALTER TABLE auth.UserAccount ADD CONSTRAINT FK_UserAccount_SystemRole FOREIGN KEY(SystemRoleCode) REFERENCES auth.SystemRole(RoleCode) ON DELETE NO ACTION;
+GO
+-- Indice de busqueda sobre rol del sistema
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_UserAccount_SystemRole' AND object_id=OBJECT_ID('auth.UserAccount'))
+  CREATE NONCLUSTERED INDEX IX_UserAccount_SystemRole ON auth.UserAccount(SystemRoleCode);
 GO
 
 
@@ -162,6 +184,33 @@ IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_ProfileChangeLog_By
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_ProfileChangeLog_User_At' AND object_id=OBJECT_ID('auth.ProfileChangeLog'))
   CREATE NONCLUSTERED INDEX IX_ProfileChangeLog_User_At ON auth.ProfileChangeLog(UserID, ChangedAt DESC);
+GO
+
+
+-- Registro historico de cambios de rol del sistema
+IF OBJECT_ID('auth.SystemRoleChangeLog','U') IS NULL
+BEGIN
+  CREATE TABLE auth.SystemRoleChangeLog(
+    ChangeID BIGINT IDENTITY(1,1) CONSTRAINT PK_SystemRoleChangeLog PRIMARY KEY,
+    UserID INT NOT NULL,
+    ChangedByUserID INT NOT NULL,
+    OldRoleCode NVARCHAR(20) NOT NULL,
+    NewRoleCode NVARCHAR(20) NOT NULL,
+    ChangedAt DATETIME2(0) NOT NULL CONSTRAINT DF_SystemRoleChangeLog_At DEFAULT(SYSUTCDATETIME()),
+    Reason NVARCHAR(300) NULL,
+    SourceIp NVARCHAR(45) NULL
+  );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_SystemRoleChangeLog_User')
+  ALTER TABLE auth.SystemRoleChangeLog ADD CONSTRAINT FK_SystemRoleChangeLog_User FOREIGN KEY(UserID) REFERENCES auth.UserAccount(UserID) ON DELETE CASCADE;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_SystemRoleChangeLog_ByUser')
+  ALTER TABLE auth.SystemRoleChangeLog ADD CONSTRAINT FK_SystemRoleChangeLog_ByUser FOREIGN KEY(ChangedByUserID) REFERENCES auth.UserAccount(UserID) ON DELETE NO ACTION;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_SystemRoleChangeLog_User_At' AND object_id=OBJECT_ID('auth.SystemRoleChangeLog'))
+  CREATE NONCLUSTERED INDEX IX_SystemRoleChangeLog_User_At ON auth.SystemRoleChangeLog(UserID, ChangedAt DESC);
 GO
 
 
@@ -332,7 +381,7 @@ IF OBJECT_ID('league.Season','U') IS NULL
 BEGIN
   CREATE TABLE league.Season(
     SeasonID INT IDENTITY(1,1) CONSTRAINT PK_Season PRIMARY KEY,
-    Label NVARCHAR(20) NOT NULL CONSTRAINT UQ_Season_Label UNIQUE,
+    Label NVARCHAR(100) NOT NULL CONSTRAINT UQ_Season_Label UNIQUE,
     Year INT NOT NULL,
     StartDate DATE NOT NULL,
     EndDate DATE NOT NULL,
@@ -345,6 +394,25 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='UQ_Season_IsCurrent' AND ob
   CREATE UNIQUE INDEX UQ_Season_IsCurrent ON league.Season(IsCurrent) WHERE IsCurrent = 1;
 GO
 
+-- 2) Tabla de semanas por temporada
+IF OBJECT_ID('league.SeasonWeek','U') IS NULL
+BEGIN
+  CREATE TABLE league.SeasonWeek(
+    SeasonID  INT      NOT NULL,
+    WeekNumber TINYINT NOT NULL,
+    StartDate DATE     NOT NULL,
+    EndDate   DATE     NOT NULL,
+    CONSTRAINT PK_SeasonWeek PRIMARY KEY(SeasonID, WeekNumber),
+    CONSTRAINT CK_SeasonWeek_Dates CHECK (EndDate >= StartDate)
+  );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_SeasonWeek_Season')
+  ALTER TABLE league.SeasonWeek
+    ADD CONSTRAINT FK_SeasonWeek_Season
+      FOREIGN KEY(SeasonID) REFERENCES league.Season(SeasonID) ON DELETE CASCADE;
+GO
 
 -- Configuracion general de ligas
 IF OBJECT_ID('league.League','U') IS NULL

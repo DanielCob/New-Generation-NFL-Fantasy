@@ -39,5 +39,19 @@ namespace NFL_Fantasy_API.Services.Interfaces
         /// </summary>
         /// <returns>Objeto con estadísticas generales</returns>
         Task<object> GetSystemStatsAsync();
+
+        /// <summary>
+        /// Obtiene lista de roles del sistema disponibles
+        /// VIEW: vw_SystemRoles
+        /// Para dropdowns y selección de roles
+        /// </summary>
+        Task<List<SystemRoleVM>> GetSystemRolesAsync();
+
+        /// <summary>
+        /// Obtiene lista completa de usuarios con sus roles y estadísticas
+        /// VIEW: vw_UsersWithRoles
+        /// Solo para usuarios ADMIN
+        /// </summary>
+        Task<List<UserWithFullRoleVM>> GetUsersWithRolesAsync();
     }
 }

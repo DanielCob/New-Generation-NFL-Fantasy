@@ -136,7 +136,7 @@ namespace NFL_Fantasy_API.Services.Implementations
                         AccountStatus = DatabaseHelper.GetSafeByte(reader, "AccountStatus"),
                         CreatedAt = DatabaseHelper.GetSafeDateTime(reader, "CreatedAt"),
                         UpdatedAt = DatabaseHelper.GetSafeDateTime(reader, "UpdatedAt"),
-                        Role = DatabaseHelper.GetSafeString(reader, "Role")
+                        SystemRoleCode = DatabaseHelper.GetSafeString(reader, "SystemRoleCode")
                     },
                     whereClause: "AccountStatus = 1",
                     orderBy: "CreatedAt DESC"
@@ -239,6 +239,60 @@ namespace NFL_Fantasy_API.Services.Implementations
                     Timestamp = DateTime.UtcNow
                 };
             }
+        }
+
+        #endregion
+
+        #region System Roles
+
+        /// <summary>
+        /// Obtiene lista de roles del sistema disponibles
+        /// VIEW: vw_SystemRoles
+        /// </summary>
+        public async Task<List<SystemRoleVM>> GetSystemRolesAsync()
+        {
+            return await _db.ExecuteViewAsync<SystemRoleVM>(
+                "vw_SystemRoles",
+                reader => new SystemRoleVM
+                {
+                    RoleCode = DatabaseHelper.GetSafeString(reader, "RoleCode"),
+                    Display = DatabaseHelper.GetSafeString(reader, "Display"),
+                    Description = DatabaseHelper.GetSafeNullableString(reader, "Description")
+                },
+                orderBy: "RoleCode"
+            );
+        }
+
+        /// <summary>
+        /// Obtiene lista completa de usuarios con sus roles y estadísticas
+        /// VIEW: vw_UsersWithRoles
+        /// </summary>
+        public async Task<List<UserWithFullRoleVM>> GetUsersWithRolesAsync()
+        {
+            return await _db.ExecuteViewAsync<UserWithFullRoleVM>(
+                "vw_UsersWithRoles",
+                reader => new UserWithFullRoleVM
+                {
+                    UserID = DatabaseHelper.GetSafeInt32(reader, "UserID"),
+                    Email = DatabaseHelper.GetSafeString(reader, "Email"),
+                    Name = DatabaseHelper.GetSafeString(reader, "Name"),
+                    Alias = DatabaseHelper.GetSafeNullableString(reader, "Alias"),
+                    SystemRoleCode = DatabaseHelper.GetSafeString(reader, "SystemRoleCode"),
+                    SystemRoleDisplay = DatabaseHelper.GetSafeString(reader, "SystemRoleDisplay"),
+                    SystemRoleDescription = DatabaseHelper.GetSafeNullableString(reader, "SystemRoleDescription"),
+                    LanguageCode = DatabaseHelper.GetSafeString(reader, "LanguageCode"),
+                    ProfileImageUrl = DatabaseHelper.GetSafeNullableString(reader, "ProfileImageUrl"),
+                    AccountStatus = DatabaseHelper.GetSafeByte(reader, "AccountStatus"),
+                    AccountStatusDisplay = DatabaseHelper.GetSafeString(reader, "AccountStatusDisplay"),
+                    FailedLoginCount = DatabaseHelper.GetSafeInt32(reader, "FailedLoginCount"),
+                    LockedUntil = DatabaseHelper.GetSafeNullableDateTime(reader, "LockedUntil"),
+                    CreatedAt = DatabaseHelper.GetSafeDateTime(reader, "CreatedAt"),
+                    UpdatedAt = DatabaseHelper.GetSafeDateTime(reader, "UpdatedAt"),
+                    TeamsCount = DatabaseHelper.GetSafeInt32(reader, "TeamsCount"),
+                    CommissionedLeaguesCount = DatabaseHelper.GetSafeInt32(reader, "CommissionedLeaguesCount")
+                },
+                orderBy: "Name"
+            );
         }
 
         #endregion

@@ -203,4 +203,192 @@ namespace NFL_Fantasy_API.Models.DTOs
         public int CreatedByUserID { get; set; }
         public DateTime CreatedAt { get; set; }
     }
+
+    /// <summary>
+    /// Representa un rol individual del usuario en una liga
+    /// Retornado por sp_GetUserRolesInLeague (primer result set)
+    /// </summary>
+    public class UserLeagueRoleDTO
+    {
+        public string RoleName { get; set; } = string.Empty;
+        public bool IsExplicit { get; set; }
+        public bool IsDerived { get; set; }
+        public bool IsPrimaryCommissioner { get; set; }
+        public DateTime JoinedAt { get; set; }
+    }
+
+    /// <summary>
+    /// Resumen de roles del usuario en una liga
+    /// Retornado por sp_GetUserRolesInLeague (segundo result set)
+    /// </summary>
+    public class UserLeagueRoleSummaryDTO
+    {
+        public string PrimaryRole { get; set; } = string.Empty;
+        public string AllRoles { get; set; } = string.Empty;
+        public bool IsPrimaryCommissioner { get; set; }
+    }
+
+    /// <summary>
+    /// Response completo para GetUserRolesInLeague
+    /// Combina ambos result sets del SP
+    /// </summary>
+    public class GetUserRolesInLeagueResponseDTO
+    {
+        public List<UserLeagueRoleDTO> Roles { get; set; } = new();
+        public UserLeagueRoleSummaryDTO? Summary { get; set; }
+    }
+
+
+    // ============================================================================
+    // DTOs para Búsqueda de Ligas
+    // ============================================================================
+
+    /// <summary>
+    /// DTO para búsqueda de ligas disponibles
+    /// </summary>
+    public class SearchLeaguesRequestDTO
+    {
+        public string? SearchTerm { get; set; }
+        public int? SeasonID { get; set; }
+        public byte? MinSlots { get; set; }
+        public byte? MaxSlots { get; set; }
+        public int PageNumber { get; set; } = 1;
+        public int PageSize { get; set; } = 20;
+    }
+
+    /// <summary>
+    /// DTO para resultado de búsqueda de ligas
+    /// </summary>
+    public class SearchLeaguesResultDTO
+    {
+        public int LeagueID { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public byte TeamSlots { get; set; }
+        public int TeamsCount { get; set; }
+        public int AvailableSlots { get; set; }
+        public byte PlayoffTeams { get; set; }
+        public bool AllowDecimals { get; set; }
+        public string SeasonLabel { get; set; } = string.Empty;
+        public int SeasonYear { get; set; }
+        public string CreatedByName { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+        public int TotalRecords { get; set; }
+        public int CurrentPage { get; set; }
+        public int PageSize { get; set; }
+        public int TotalPages { get; set; }
+    }
+
+    // ============================================================================
+    // DTOs para Unirse a Liga
+    // ============================================================================
+
+    /// <summary>
+    /// DTO para unirse a una liga
+    /// </summary>
+    public class JoinLeagueRequestDTO
+    {
+        [Required(ErrorMessage = "LeagueID es requerido")]
+        public int LeagueID { get; set; }
+
+        [Required(ErrorMessage = "La contraseña de la liga es requerida")]
+        [StringLength(50, MinimumLength = 1, ErrorMessage = "La contraseña debe tener entre 1 y 50 caracteres")]
+        public string LeaguePassword { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "El nombre del equipo es requerido")]
+        [StringLength(100, MinimumLength = 1, ErrorMessage = "El nombre del equipo debe tener entre 1 y 100 caracteres")]
+        public string TeamName { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// DTO para resultado de unirse a liga
+    /// </summary>
+    public class JoinLeagueResultDTO
+    {
+        public int TeamID { get; set; }
+        public int LeagueID { get; set; }
+        public string TeamName { get; set; } = string.Empty;
+        public string LeagueName { get; set; } = string.Empty;
+        public int AvailableSlots { get; set; }
+        public string Message { get; set; } = string.Empty;
+    }
+
+    // ============================================================================
+    // DTOs para Gestión de Miembros
+    // ============================================================================
+
+    /// <summary>
+    /// DTO para remover equipo de la liga
+    /// </summary>
+    public class RemoveTeamRequestDTO
+    {
+        [Required(ErrorMessage = "TeamID es requerido")]
+        public int TeamID { get; set; }
+
+        [StringLength(300, ErrorMessage = "La razón no puede exceder 300 caracteres")]
+        public string? Reason { get; set; }
+    }
+
+    /// <summary>
+    /// DTO para asignar co-comisionado
+    /// </summary>
+    public class AssignCoCommissionerRequestDTO
+    {
+        [Required(ErrorMessage = "TargetUserID es requerido")]
+        public int TargetUserID { get; set; }
+    }
+
+    /// <summary>
+    /// DTO para remover co-comisionado
+    /// </summary>
+    public class RemoveCoCommissionerRequestDTO
+    {
+        [Required(ErrorMessage = "TargetUserID es requerido")]
+        public int TargetUserID { get; set; }
+    }
+
+    /// <summary>
+    /// DTO para transferir comisionado
+    /// </summary>
+    public class TransferCommissionerRequestDTO
+    {
+        [Required(ErrorMessage = "NewCommissionerID es requerido")]
+        public int NewCommissionerID { get; set; }
+    }
+
+    /// <summary>
+    /// DTO para validar contraseña de liga
+    /// </summary>
+    public class ValidateLeaguePasswordRequestDTO
+    {
+        [Required(ErrorMessage = "LeagueID es requerido")]
+        public int LeagueID { get; set; }
+
+        [Required(ErrorMessage = "La contraseña es requerida")]
+        [StringLength(50, MinimumLength = 1)]
+        public string LeaguePassword { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// DTO para resultado de validación de contraseña
+    /// </summary>
+    public class ValidateLeaguePasswordResultDTO
+    {
+        public bool IsValid { get; set; }
+        public string Message { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// DTO para información de contraseña de liga
+    /// </summary>
+    public class LeaguePasswordInfoDTO
+    {
+        public int LeagueID { get; set; }
+        public string LeagueName { get; set; } = string.Empty;
+        public byte Status { get; set; }
+        public byte TeamSlots { get; set; }
+        public int TeamsCount { get; set; }
+        public int AvailableSlots { get; set; }
+        public string Message { get; set; } = string.Empty;
+    }
 }

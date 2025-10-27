@@ -97,12 +97,18 @@ builder.Services.AddScoped<IViewsService, ViewsService>();
 // Servicio de auditoria y mantenimiento
 builder.Services.AddScoped<IAuditService, AuditService>();
 
+// Servicio de temporadas
+builder.Services.AddScoped<ISeasonService, SeasonService>();
+
 // Servicio de email (SMTP)
 builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("Smtp"));
 builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 
 // Servicio de almacenamiento MinIO
 builder.Services.AddSingleton<IStorageService, MinIOStorageService>();
+
+// Servicio de roles
+builder.Services.AddScoped<ISystemRolesService, SystemRolesService>();
 
 #endregion
 
@@ -183,6 +189,12 @@ builder.Services.AddHttpsRedirection(options =>
 // BUILD APPLICATION
 // ============================================================================
 
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", p => p.RequireRole("ADMIN"));
+    options.AddPolicy("BrandOrAdmin", p => p.RequireRole("ADMIN", "BRAND_MANAGER"));
+});
+
 var app = builder.Build();
 
 // ============================================================================
@@ -236,7 +248,7 @@ app.UseRouting();
 app.UseAuthenticationMiddleware();
 
 // 5. Authorization (si usaras [Authorize] attributes)
-// app.UseAuthorization();
+app.UseAuthorization();
 
 // 6. Map Controllers
 app.MapControllers();
@@ -273,13 +285,28 @@ app.MapGet("/", () => Results.Ok(new
         },
         league = new
         {
+            // Endpoints existentes...
             create = "POST /api/league",
             editConfig = "PUT /api/league/{id}/config",
             setStatus = "PUT /api/league/{id}/status",
             summary = "GET /api/league/{id}/summary",
             directory = "GET /api/league/directory",
             members = "GET /api/league/{id}/members",
-            teams = "GET /api/league/{id}/teams"
+            teams = "GET /api/league/{id}/teams",
+            userRoles = "GET /api/league/{leagueId}/users/{userId}/roles",
+
+            // NUEVOS ENDPOINTS - Búsqueda y Unión
+            search = "GET /api/league/search",
+            validatePassword = "POST /api/league/validate-password",
+            join = "POST /api/league/join",
+
+            // NUEVOS ENDPOINTS - Gestión de Miembros
+            removeTeam = "DELETE /api/league/{leagueId}/teams",
+            leave = "POST /api/league/{leagueId}/leave",
+            assignCoCommissioner = "POST /api/league/{leagueId}/co-commissioner",
+            removeCoCommissioner = "DELETE /api/league/{leagueId}/co-commissioner",
+            transferCommissioner = "POST /api/league/{leagueId}/transfer-commissioner",
+            passwordInfo = "GET /api/league/{leagueId}/password-info"
         },
         nflteam = new
         {
@@ -304,6 +331,16 @@ app.MapGet("/", () => Results.Ok(new
             list = "GET /api/player",
             available = "GET /api/player/available",
             byNFLTeam = "GET /api/player/by-nfl-team/{nflTeamId}"
+        },
+        season = new
+        {
+            current = "GET /api/seasons/current",
+            create = "POST /api/seasons",
+            update = "PUT /api/seasons/{id}",
+            deactivate = "POST /api/seasons/{id}/deactivate",
+            delete = "DELETE /api/seasons/{id}",
+            get = "GET /api/seasons/{id}",
+            weeks = "GET /api/seasons/{id}/weeks"
         },
         reference = new
         {
