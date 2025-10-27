@@ -13,6 +13,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { RegisterRequest, SimpleOkResponse } from '../../../core/models/auth-model';
 import { AuthService } from '../../../core/services/auth-service';
+import { ImageStorageService } from '../../../core/services/image-storage.service';
 
 @Component({
   selector: 'app-register',
@@ -38,9 +39,12 @@ export class Register {
   private auth = inject(AuthService);
   private router = inject(Router);
   private snackBar = inject(MatSnackBar);
+  private imageStorage = inject(ImageStorageService);
 
   hidePassword = signal(true);
   isLoading = signal(false);
+  profileImageUploading = signal(false);
+  profileImageError = signal<string | null>(null);
 
   languages = [
     { code: 'en', label: 'English' },
@@ -60,6 +64,8 @@ export class Register {
     profileImageBytes: [''],
   }, { validators: this.passwordMatchValidator });
 
+  private profileImageFile: File | null = null;
+
   // ---- Valida que las contraseñas coincidan ----
   private passwordMatchValidator(group: AbstractControl) {
     const p = group.get('password')?.value;
@@ -71,7 +77,7 @@ export class Register {
     this.hidePassword.update(v => !v);
   }
 
-  // --- Se activa al cambiar el campo de URL ---
+  // --- Se activa al cambiar el campo de URL manualmente ---
   async onProfileImageUrlChanged(): Promise<void> {
     const url = this.registerForm.get('profileImageUrl')?.value?.trim();
     if (!url) return;
@@ -85,8 +91,44 @@ export class Register {
     });
   }
 
+  // --- Se activa al seleccionar un archivo ---
+  async onProfileImageSelected(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) return;
+
+    const file = input.files[0];
+
+    if (!['image/jpeg', 'image/png'].includes(file.type.toLowerCase())) {
+      this.profileImageError.set('Solo se permiten JPEG y PNG.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      this.profileImageError.set('La imagen no puede superar 5MB.');
+      return;
+    }
+
+    this.profileImageError.set(null);
+    this.profileImageFile = file;
+    this.profileImageUploading.set(true);
+
+    this.imageStorage.uploadImage(file).subscribe({
+      next: (res) => {
+        this.registerForm.patchValue({
+          profileImageUrl: res.imageUrl
+        });
+        this.profileImageUploading.set(false);
+      },
+      error: (err) => {
+        console.error(err);
+        this.profileImageError.set('Error al subir imagen.');
+        this.profileImageUploading.set(false);
+      }
+    });
+  }
+
   // --- Envío del formulario ---
-onSubmit(): void {
+  onSubmit(): void {
     if (this.isLoading()) return;
 
     if (this.registerForm.invalid) {
@@ -99,7 +141,6 @@ onSubmit(): void {
 
     const v = this.registerForm.value;
 
-    // ✅ Construye el payload incluyendo SÓLO los opcionales con valor
     const req: RegisterRequest = {
       Name: v.name,
       Email: v.email,
@@ -152,7 +193,6 @@ onSubmit(): void {
     return Number.isFinite(n) ? n : undefined;
   }
 
-
   private async getImageMetaFromUrl(url: string): Promise<{ width: number | null, height: number | null, bytes: number | null }> {
     const getDims = () => new Promise<{ width: number | null; height: number | null }>((resolve) => {
       const img = new Image();
@@ -184,19 +224,16 @@ onSubmit(): void {
     return { width: dims.width, height: dims.height, bytes };
   }
 
-  // --- Nueva función para mostrar errores claros del backend ---
   private extractApiError(err: any): string {
     if (!err) return 'Error inesperado';
     const http = err;
     if (http.status === 0) return 'No se pudo conectar con el servidor.';
     const e = http.error ?? http;
 
-    // Caso: ApiResponse simple
     if (e && typeof e === 'object' && ('message' in e || 'Message' in e)) {
       return (e.message ?? e.Message) as string;
     }
 
-    // Caso: ProblemDetails (ASP.NET Core)
     if (e && typeof e === 'object' && ('title' in e || 'detail' in e || 'errors' in e)) {
       const parts: string[] = [];
       if (e.title) parts.push(String(e.title));
@@ -208,15 +245,8 @@ onSubmit(): void {
       if (parts.length) return parts.join(' - ');
     }
 
-    // Caso: string plano
     if (typeof e === 'string') return e;
 
     return `Error ${http.status || ''}`.trim();
   }
-  private toNumberOrZero(x: any): number {
-    const n = Number(x);
-    return Number.isFinite(n) ? n : 0;
-  }
-  
-
 }

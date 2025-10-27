@@ -97,6 +97,9 @@ builder.Services.AddScoped<IViewsService, ViewsService>();
 // Servicio de auditoria y mantenimiento
 builder.Services.AddScoped<IAuditService, AuditService>();
 
+// Servicio de temporadas
+builder.Services.AddScoped<ISeasonService, SeasonService>();
+
 // Servicio de email (SMTP)
 builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("Smtp"));
 builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
@@ -328,6 +331,16 @@ app.MapGet("/", () => Results.Ok(new
             list = "GET /api/player",
             available = "GET /api/player/available",
             byNFLTeam = "GET /api/player/by-nfl-team/{nflTeamId}"
+        },
+        season = new
+        {
+            current = "GET /api/seasons/current",
+            create = "POST /api/seasons",
+            update = "PUT /api/seasons/{id}",
+            deactivate = "POST /api/seasons/{id}/deactivate",
+            delete = "DELETE /api/seasons/{id}",
+            get = "GET /api/seasons/{id}",
+            weeks = "GET /api/seasons/{id}/weeks"
         },
         reference = new
         {

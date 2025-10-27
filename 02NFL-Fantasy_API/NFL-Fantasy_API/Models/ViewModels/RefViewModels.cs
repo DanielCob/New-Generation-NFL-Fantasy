@@ -1,21 +1,6 @@
 ﻿namespace NFL_Fantasy_API.Models.ViewModels
 {
     /// <summary>
-    /// Mapea vw_CurrentSeason
-    /// Vista: temporada actual marcada como IsCurrent=1
-    /// </summary>
-    public class CurrentSeasonVM
-    {
-        public int SeasonID { get; set; }
-        public string Label { get; set; } = string.Empty;
-        public int Year { get; set; }
-        public DateTime StartDate { get; set; }
-        public DateTime EndDate { get; set; }
-        public bool IsCurrent { get; set; }
-        public DateTime CreatedAt { get; set; }
-    }
-
-    /// <summary>
     /// Mapea vw_PositionFormats
     /// Vista: formatos de posiciones disponibles (Default, Extremo, Detallado, Ofensivo)
     /// </summary>
