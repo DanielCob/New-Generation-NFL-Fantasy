@@ -35,10 +35,7 @@ export const routes: Routes = [
   },
 
 
-  // (OPCIONAL) Directorio público. Si lo quieres protegido, muévelo a la sección de abajo.
-  { path: 'directory',
-    loadComponent: () => import('./pages/league/directory/directory').then(m => m.Directory)
-  },
+
 
   // ------- ZONA PROTEGIDA BAJO LAYOUT -------
   {
@@ -62,6 +59,12 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/league/league-actions/league-actions')
           .then(m => m.LeagueActionsComponent)
       },
+      {
+      path: 'league/directory',
+      loadComponent: () =>
+        import('../app/pages/league/directory/directory')
+          .then(m => m.LeagueDirectoryComponent)
+    },
 
 
       // League

@@ -87,15 +87,18 @@ export class NavigationBar implements OnDestroy {
     this.router.navigate(['/nfl-teams']);
   }
   navigateToMyTeam(): void {
-    this.router.navigate(['/my-team']); // 👈 sin :id
+    this.router.navigate(['/my-team']); 
   }
   navigateToEditBranding(): void {
     localStorage.getItem('xnf.currentTeamId')  // debe ser "1", "2", ...
-    this.router.navigate(['/teams/edit-branding']); // 👈 sin :id
+    this.router.navigate(['/teams/edit-branding']);
   }
   navigateToManageRoster(): void {
-    this.router.navigate(['/teams/manage-roster']); // 👈 sin :id
+    this.router.navigate(['/teams/manage-roster']);
   }
+  navigateToLeagueDirectory(): void {
+  this.router.navigate(['/league/directory']);
+}
 
 
 

@@ -10,6 +10,7 @@ import {
   CreateLeagueRequest,
   EditLeagueConfigRequest,
   UpdateLeagueStatusRequest,
+  JoinLeagueRequest,
 
   // responses
   CreateLeagueResponse,
@@ -19,6 +20,7 @@ import {
   LeagueDirectoryResponse,
   LeagueMembersResponse,
   LeagueTeamsResponse,
+  JoinLeagueResponse
 } from '../models/league-model';
 
 @Injectable({ providedIn: 'root' })
@@ -57,6 +59,11 @@ export class LeagueService {
   getTeams(id: number): Observable<LeagueTeamsResponse> {
     return this.http.get<LeagueTeamsResponse>(`${this.baseUrl}/${id}/teams`);
   }
+  joinLeague(payload: JoinLeagueRequest) {
+    return this.http.post<JoinLeagueResponse>(`${this.baseUrl}/join`, payload);
+  }
+
+
 
   /**
    * GET /api/League/directory

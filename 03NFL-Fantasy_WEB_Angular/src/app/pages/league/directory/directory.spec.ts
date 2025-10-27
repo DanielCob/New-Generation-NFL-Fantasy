@@ -1,18 +1,18 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { Directory } from './directory';
+import {LeagueDirectoryComponent } from './directory';
 
 describe('Directory', () => {
-  let component: Directory;
-  let fixture: ComponentFixture<Directory>;
+  let component: LeagueDirectoryComponent;
+  let fixture: ComponentFixture<LeagueDirectoryComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [Directory]
+      imports: [LeagueDirectoryComponent]
     })
     .compileComponents();
 
-    fixture = TestBed.createComponent(Directory);
+    fixture = TestBed.createComponent(LeagueDirectoryComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });

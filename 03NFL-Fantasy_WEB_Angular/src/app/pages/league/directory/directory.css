@@ -1,0 +1,7 @@
+.header { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+.header h3 { display: flex; align-items: center; gap: 6px; margin: 0 8px 0 0; }
+.filter { width: 320px; max-width: 100%; }
+.state { display: flex; gap: 10px; align-items: center; padding: 8px 0; }
+.state.error { color: #c62828; }
+table { width: 100%; }
+.muted { color: #777; display: flex; align-items: center; gap: 8px; padding: 8px 0; }
