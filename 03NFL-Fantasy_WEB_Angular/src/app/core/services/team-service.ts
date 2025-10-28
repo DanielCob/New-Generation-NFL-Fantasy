@@ -16,7 +16,7 @@ import { ApiResponse } from '../models/common-model';
 @Injectable({ providedIn: 'root' })
 export class TeamService {
   private http = inject(HttpClient);
-  private baseUrl = `${environment.apiUrl}/team`;
+  private baseUrl = `${environment.apiUrl}/Team`;
 
   /**
    * Actualiza el branding de un equipo fantasy

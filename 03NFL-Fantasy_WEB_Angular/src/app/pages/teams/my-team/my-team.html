@@ -1,6 +1,6 @@
+<!-- my-team.component.html -->
 <ng-container *ngIf="!loading(); else loadingTpl">
 
-  <!-- Vista cuando NO hay equipo -->
   <ng-template [ngIf]="noTeam()">
     <mat-card class="mt-card">
       <mat-card-header>
@@ -27,7 +27,6 @@
     </mat-card>
   </ng-template>
 
-  <!-- Vista normal cuando SÍ hay equipo -->
   <ng-template [ngIf]="!noTeam()">
     <mat-card class="mt-card">
       <mat-card-header>
@@ -68,7 +67,6 @@
           </app-distribution-panel>
         </section>
 
-        <!-- Mensaje de error genérico cuando no es 404 -->
         <div *ngIf="errorMessage()" class="api-error" style="margin-top:12px; display:flex; align-items:center; gap:6px;">
           <mat-icon>error</mat-icon>
           <span>{{ errorMessage() }}</span>

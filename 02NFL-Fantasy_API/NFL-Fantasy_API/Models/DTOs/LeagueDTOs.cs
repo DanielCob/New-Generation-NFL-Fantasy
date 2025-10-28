@@ -4,7 +4,8 @@ namespace NFL_Fantasy_API.Models.DTOs
 {
     /// <summary>
     /// DTO para creación de liga (Feature 1.2 - Crear liga)
-    /// El CreatorUserID se toma automáticamente del contexto de autenticación
+    /// El CreatorUserID se toma automáticamente del contexto de autenticación.
+    /// El nombre del equipo inicial es OPCIONAL: si no se envía, no se crea el equipo del creador.
     /// </summary>
     public class CreateLeagueDTO
     {
@@ -23,9 +24,10 @@ namespace NFL_Fantasy_API.Models.DTOs
         [StringLength(12, MinimumLength = 8, ErrorMessage = "La contraseña debe tener entre 8 y 12 caracteres.")]
         public string LeaguePassword { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "El nombre del equipo inicial es obligatorio.")]
+        // Ahora es OPCIONAL.
+        // Si viene null o vacío, NO se crea el equipo del creador.
         [StringLength(50, MinimumLength = 1, ErrorMessage = "El nombre del equipo debe tener entre 1 y 50 caracteres.")]
-        public string InitialTeamName { get; set; } = string.Empty;
+        public string? InitialTeamName { get; set; } = null;
 
         [Required(ErrorMessage = "La configuración de playoffs es obligatoria.")]
         [Range(4, 6, ErrorMessage = "PlayoffTeams debe ser 4 o 6.")]

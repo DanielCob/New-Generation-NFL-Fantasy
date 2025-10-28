@@ -1,3 +1,5 @@
+// manage-roster.component.ts - ARCHIVO COMPLETO ARREGLADO
+
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
@@ -48,12 +50,53 @@ export class ManageRosterComponent implements OnInit {
     this.loading.set(true);
     this.teamSrv.getMyTeam(this.teamId()).subscribe({
       next: (res: ApiResponse<MyTeamResponse>) => {
-        this.myTeam.set(res.data ?? null);
-        localStorage.setItem('xnf.currentTeamId', String(this.teamId()));
+        console.log('🔍 Respuesta de getMyTeam en manage-roster:', res);
+        
+        const apiData = (res as any)?.Data ?? (res as any)?.data;
+        
+        if (apiData) {
+          const mappedTeam: MyTeamResponse = {
+            teamId: apiData.TeamID ?? apiData.teamId ?? 0,
+            teamName: apiData.TeamName ?? apiData.teamName ?? '',
+            leagueId: apiData.LeagueID ?? apiData.leagueId ?? 0,
+            leagueName: apiData.LeagueName ?? apiData.leagueName ?? '',
+            teamImageUrl: apiData.TeamImageUrl ?? apiData.teamImageUrl,
+            thumbnailUrl: apiData.ThumbnailUrl ?? apiData.thumbnailUrl,
+            roster: this.mapRoster(apiData.Roster ?? apiData.roster ?? []),
+            distribution: apiData.Distribution ?? apiData.distribution ?? []
+          };
+          
+          this.myTeam.set(mappedTeam);
+          localStorage.setItem('xnf.currentTeamId', String(mappedTeam.teamId));
+        } else {
+          this.myTeam.set(null);
+        }
+        
         this.loading.set(false);
       },
-      error: () => this.loading.set(false),
+      error: (err) => {
+        console.error('❌ Error en reload:', err);
+        this.loading.set(false);
+      },
     });
+  }
+
+  private mapRoster(roster: any[]): RosterItem[] {
+    return roster.map(r => ({
+      rosterID: r.RosterID ?? r.rosterID ?? 0,
+      playerID: r.PlayerID ?? r.playerID ?? 0,
+      fullName: r.FullName ?? r.fullName ?? '',
+      firstName: r.FirstName ?? r.firstName,
+      lastName: r.LastName ?? r.lastName,
+      position: r.Position ?? r.position ?? '',
+      nflTeamName: r.NFLTeamName ?? r.nflTeamName,
+      photoUrl: r.PhotoUrl ?? r.photoUrl,
+      photoThumbnailUrl: r.PhotoThumbnailUrl ?? r.photoThumbnailUrl,
+      acquisitionType: r.AcquisitionType ?? r.acquisitionType,
+      acquiredAt: r.AcquiredAt ?? r.acquiredAt ?? r.AcquisitionDate ?? r.acquisitionDate,
+      isStarter: r.IsStarter ?? r.isStarter,
+      isIR: r.IsIR ?? r.isIR
+    }));
   }
 
   openAddPlayerDialog(): void {
@@ -63,16 +106,24 @@ export class ManageRosterComponent implements OnInit {
       this.saving.set(true);
       this.teamSrv.addPlayerToRoster(this.teamId(), dto).subscribe({
         next: (res) => {
-          if (res.success) {
-            this.snack.open(res.message || 'Player added', 'Close', { duration: 2500 });
+          console.log('🔍 Respuesta de addPlayerToRoster:', res);
+          
+          const success = (res as any)?.success ?? (res as any)?.Success ?? false;
+          const message = (res as any)?.message ?? (res as any)?.Message ?? 'Player added';
+          
+          if (success) {
+            this.snack.open(message, 'Close', { duration: 2500 });
             this.reload();
           } else {
-            this.snack.open(res.message || 'Could not add player', 'Close', { duration: 3500, panelClass: ['error-snackbar'] });
+            this.snack.open(message, 'Close', { duration: 3500, panelClass: ['error-snackbar'] });
           }
           this.saving.set(false);
         },
-        error: () => {
-          this.snack.open('Could not add player', 'Close', { duration: 3500, panelClass: ['error-snackbar'] });
+        error: (err) => {
+          console.error('❌ Error al agregar jugador:', err);
+          const e = err?.error ?? err;
+          const msg = e?.message ?? e?.Message ?? 'Could not add player';
+          this.snack.open(msg, 'Close', { duration: 3500, panelClass: ['error-snackbar'] });
           this.saving.set(false);
         }
       });
@@ -84,16 +135,24 @@ export class ManageRosterComponent implements OnInit {
     this.saving.set(true);
     this.teamSrv.removePlayerFromRoster(r.rosterID).subscribe({
       next: (res) => {
-        if (res.success) {
-          this.snack.open(res.message || 'Player removed', 'Close', { duration: 2500 });
+        console.log('🔍 Respuesta de removePlayerFromRoster:', res);
+        
+        const success = (res as any)?.success ?? (res as any)?.Success ?? false;
+        const message = (res as any)?.message ?? (res as any)?.Message ?? 'Player removed';
+        
+        if (success) {
+          this.snack.open(message, 'Close', { duration: 2500 });
           this.reload();
         } else {
-          this.snack.open(res.message || 'Could not remove player', 'Close', { duration: 3500, panelClass: ['error-snackbar'] });
+          this.snack.open(message, 'Close', { duration: 3500, panelClass: ['error-snackbar'] });
         }
         this.saving.set(false);
       },
-      error: () => {
-        this.snack.open('Could not remove player', 'Close', { duration: 3500, panelClass: ['error-snackbar'] });
+      error: (err) => {
+        console.error('❌ Error al remover jugador:', err);
+        const e = err?.error ?? err;
+        const msg = e?.message ?? e?.Message ?? 'Could not remove player';
+        this.snack.open(msg, 'Close', { duration: 3500, panelClass: ['error-snackbar'] });
         this.saving.set(false);
       }
     });

@@ -1,3 +1,143 @@
-.eb-card { max-width: 900px; margin: 0 auto; }
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
-@media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+/* edit-branding.component.css */
+.eb-card { 
+  max-width: 900px; 
+  margin: 0 auto; 
+}
+
+.grid { 
+  display: grid; 
+  grid-template-columns: 1fr; 
+  gap: 16px; 
+  align-items: start; 
+}
+
+.grid-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.full {
+  width: 100%;
+}
+
+.upload-section {
+  margin: 24px 0;
+  padding: 16px;
+  border: 2px dashed #ddd;
+  border-radius: 8px;
+  background-color: #fafafa;
+}
+
+.upload-section h3 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.upload-note {
+  margin: 0 0 16px 0;
+  color: #666;
+  font-size: 13px;
+}
+
+.upload-control {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.file-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: #e3f2fd;
+  border-radius: 4px;
+  color: #1976d2;
+  font-size: 14px;
+}
+
+.upload-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background-color: #fff3e0;
+  border-radius: 4px;
+  color: #e65100;
+  font-weight: 500;
+}
+
+.image-previews {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.preview-box {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 12px;
+  background-color: white;
+}
+
+.preview-label {
+  margin: 0 0 8px 0;
+  font-weight: 500;
+  color: #666;
+  font-size: 14px;
+}
+
+.preview-box img {
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.manual-url-section {
+  margin-top: 24px;
+}
+
+.section-note {
+  color: #666;
+  font-size: 14px;
+  font-style: italic;
+  margin-bottom: 16px;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+@media (max-width: 860px) { 
+  .grid { 
+    grid-template-columns: 1fr; 
+  }
+  
+  .grid-meta {
+    grid-template-columns: 1fr;
+  }
+  
+  .image-previews {
+    grid-template-columns: 1fr;
+  }
+  
+  .upload-control {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .upload-control button {
+    width: 100%;
+  }
+}

@@ -105,68 +105,102 @@ WHEN NOT MATCHED BY TARGET THEN
 PRINT N'✓ Formatos de posición y slots poblados';
 
 /* ============================================================
-   SECCIÓN 3: REF - Equipos NFL
+   SECCIÓN 3: REF - Equipos NFL (con metadata visual)
    ============================================================ */
 PRINT N'Poblando equipos NFL...';
 
--- Tabla temporal para equipos NFL
+-- Tabla temporal extendida para equipos NFL con metadatos visuales
 DECLARE @NFLTeams TABLE(
   TeamName NVARCHAR(100),
-  City NVARCHAR(100)
+  City NVARCHAR(100),
+  TeamImageUrl NVARCHAR(400),
+  TeamImageWidth SMALLINT,
+  TeamImageHeight SMALLINT,
+  TeamImageBytes INT,
+  ThumbnailUrl NVARCHAR(400),
+  ThumbnailWidth SMALLINT,
+  ThumbnailHeight SMALLINT,
+  ThumbnailBytes INT
 );
 
+-- URL y metadata base reutilizada del ejemplo de Arizona Cardinals
+DECLARE 
+  @BaseImageUrl NVARCHAR(400) = N'http://127.0.0.1:9000/nfl-fantasy-images/1761630653_LogoEj.png',
+  @BaseImageWidth SMALLINT = 383,
+  @BaseImageHeight SMALLINT = 304,
+  @BaseImageBytes INT = 305288,
+  @BaseThumbUrl NVARCHAR(400) = N'http://127.0.0.1:9000/nfl-fantasy-images/1761630654_thumb_LogoEj.png',
+  @BaseThumbWidth SMALLINT = 320,
+  @BaseThumbHeight SMALLINT = 180,
+  @BaseThumbBytes INT = 133333;
+
+-- Insertar todos los equipos con la metadata visual por defecto
 INSERT INTO @NFLTeams VALUES
   -- AFC East
-  (N'Buffalo Bills', N'Buffalo'),
-  (N'Miami Dolphins', N'Miami'),
-  (N'New England Patriots', N'Foxborough'),
-  (N'New York Jets', N'East Rutherford'),
+  (N'Buffalo Bills', N'Buffalo', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'Miami Dolphins', N'Miami', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'New England Patriots', N'Foxborough', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'New York Jets', N'East Rutherford', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
   -- AFC North
-  (N'Baltimore Ravens', N'Baltimore'),
-  (N'Cincinnati Bengals', N'Cincinnati'),
-  (N'Cleveland Browns', N'Cleveland'),
-  (N'Pittsburgh Steelers', N'Pittsburgh'),
+  (N'Baltimore Ravens', N'Baltimore', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'Cincinnati Bengals', N'Cincinnati', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'Cleveland Browns', N'Cleveland', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'Pittsburgh Steelers', N'Pittsburgh', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
   -- AFC South
-  (N'Houston Texans', N'Houston'),
-  (N'Indianapolis Colts', N'Indianapolis'),
-  (N'Jacksonville Jaguars', N'Jacksonville'),
-  (N'Tennessee Titans', N'Nashville'),
+  (N'Houston Texans', N'Houston', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'Indianapolis Colts', N'Indianapolis', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'Jacksonville Jaguars', N'Jacksonville', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'Tennessee Titans', N'Nashville', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
   -- AFC West
-  (N'Denver Broncos', N'Denver'),
-  (N'Kansas City Chiefs', N'Kansas City'),
-  (N'Las Vegas Raiders', N'Las Vegas'),
-  (N'Los Angeles Chargers', N'Los Angeles'),
+  (N'Denver Broncos', N'Denver', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'Kansas City Chiefs', N'Kansas City', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'Las Vegas Raiders', N'Las Vegas', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'Los Angeles Chargers', N'Los Angeles', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
   -- NFC East
-  (N'Dallas Cowboys', N'Arlington'),
-  (N'New York Giants', N'East Rutherford'),
-  (N'Philadelphia Eagles', N'Philadelphia'),
-  (N'Washington Commanders', N'Landover'),
+  (N'Dallas Cowboys', N'Arlington', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'New York Giants', N'East Rutherford', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'Philadelphia Eagles', N'Philadelphia', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'Washington Commanders', N'Landover', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
   -- NFC North
-  (N'Chicago Bears', N'Chicago'),
-  (N'Detroit Lions', N'Detroit'),
-  (N'Green Bay Packers', N'Green Bay'),
-  (N'Minnesota Vikings', N'Minneapolis'),
+  (N'Chicago Bears', N'Chicago', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'Detroit Lions', N'Detroit', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'Green Bay Packers', N'Green Bay', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'Minnesota Vikings', N'Minneapolis', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
   -- NFC South
-  (N'Atlanta Falcons', N'Atlanta'),
-  (N'Carolina Panthers', N'Charlotte'),
-  (N'New Orleans Saints', N'New Orleans'),
-  (N'Tampa Bay Buccaneers', N'Tampa'),
+  (N'Atlanta Falcons', N'Atlanta', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'Carolina Panthers', N'Charlotte', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'New Orleans Saints', N'New Orleans', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'Tampa Bay Buccaneers', N'Tampa', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
   -- NFC West
-  (N'Arizona Cardinals', N'Glendale'),
-  (N'Los Angeles Rams', N'Los Angeles'),
-  (N'San Francisco 49ers', N'Santa Clara'),
-  (N'Seattle Seahawks', N'Seattle');
+  (N'Arizona Cardinals', N'Glendale', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'Los Angeles Rams', N'Los Angeles', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'San Francisco 49ers', N'Santa Clara', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes),
+  (N'Seattle Seahawks', N'Seattle', @BaseImageUrl, @BaseImageWidth, @BaseImageHeight, @BaseImageBytes, @BaseThumbUrl, @BaseThumbWidth, @BaseThumbHeight, @BaseThumbBytes);
 
--- Insertar equipos NFL
+-- Insertar equipos NFL con metadata visual
 MERGE ref.NFLTeam AS T
 USING @NFLTeams AS S
 ON (T.TeamName = S.TeamName)
 WHEN NOT MATCHED BY TARGET THEN
-  INSERT(TeamName, City, IsActive, CreatedByUserID)
-  VALUES(S.TeamName, S.City, 1, NULL);
+  INSERT(TeamName, City, TeamImageUrl, TeamImageWidth, TeamImageHeight, TeamImageBytes,
+         ThumbnailUrl, ThumbnailWidth, ThumbnailHeight, ThumbnailBytes, IsActive, CreatedByUserID)
+  VALUES(S.TeamName, S.City, S.TeamImageUrl, S.TeamImageWidth, S.TeamImageHeight, S.TeamImageBytes,
+         S.ThumbnailUrl, S.ThumbnailWidth, S.ThumbnailHeight, S.ThumbnailBytes, 1, NULL)
+WHEN MATCHED THEN
+  UPDATE SET
+    T.City = S.City,
+    T.TeamImageUrl = S.TeamImageUrl,
+    T.TeamImageWidth = S.TeamImageWidth,
+    T.TeamImageHeight = S.TeamImageHeight,
+    T.TeamImageBytes = S.TeamImageBytes,
+    T.ThumbnailUrl = S.ThumbnailUrl,
+    T.ThumbnailWidth = S.ThumbnailWidth,
+    T.ThumbnailHeight = S.ThumbnailHeight,
+    T.ThumbnailBytes = S.ThumbnailBytes,
+    T.UpdatedAt = SYSUTCDATETIME();
 
 DECLARE @NFLTeamCount INT = @@ROWCOUNT;
-PRINT N'✓ ' + CAST(@NFLTeamCount AS NVARCHAR(10)) + N' equipos NFL insertados/actualizados';
+PRINT N'✓ ' + CAST(@NFLTeamCount AS NVARCHAR(10)) + N' equipos NFL insertados/actualizados con metadata visual.';
 
 /* ============================================================
    SECCIÓN 4: SCORING - Schemas + Rules (SIN CAMBIOS)
