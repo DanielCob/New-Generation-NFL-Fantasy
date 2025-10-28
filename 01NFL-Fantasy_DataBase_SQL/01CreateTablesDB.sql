@@ -273,17 +273,7 @@ BEGIN
     CreatedByUserID INT NULL,
     CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_NFLTeam_CreatedAt DEFAULT(SYSUTCDATETIME()),
     UpdatedByUserID INT NULL,
-    UpdatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_NFLTeam_UpdatedAt DEFAULT(SYSUTCDATETIME()),
-    CONSTRAINT CK_NFLTeam_ImageDims CHECK (
-      (TeamImageWidth IS NULL OR (TeamImageWidth BETWEEN 300 AND 1024)) AND
-      (TeamImageHeight IS NULL OR (TeamImageHeight BETWEEN 300 AND 1024))
-    ),
-    CONSTRAINT CK_NFLTeam_ImageSize CHECK (TeamImageBytes IS NULL OR TeamImageBytes <= 5242880),
-    CONSTRAINT CK_NFLTeam_ThumbnailDims CHECK (
-      (ThumbnailWidth IS NULL OR (ThumbnailWidth BETWEEN 300 AND 1024)) AND
-      (ThumbnailHeight IS NULL OR (ThumbnailHeight BETWEEN 300 AND 1024))
-    ),
-    CONSTRAINT CK_NFLTeam_ThumbnailSize CHECK (ThumbnailBytes IS NULL OR ThumbnailBytes <= 5242880)
+    UpdatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_NFLTeam_UpdatedAt DEFAULT(SYSUTCDATETIME())
   );
 END
 GO

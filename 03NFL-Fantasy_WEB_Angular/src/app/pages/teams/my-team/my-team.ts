@@ -1,3 +1,4 @@
+// my-team.component.ts
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, ActivatedRoute } from '@angular/router';
@@ -32,7 +33,6 @@ export class MyTeamComponent implements OnInit {
   private teamSrv = inject(TeamService);
   private route = inject(ActivatedRoute);
 
-  // estado UI
   loading = signal(true);
   noTeam = signal(false);
   errorMessage = signal<string | null>(null);
@@ -40,11 +40,9 @@ export class MyTeamComponent implements OnInit {
   teamId = signal<number>(0);
   myTeam = signal<MyTeamResponse | null>(null);
 
-  // filtros (controlados por <app-roster-filters>)
   filterPosition = signal<string | undefined>(undefined);
   filterSearch = signal<string | undefined>(undefined);
 
-  // roster filtrado para pasar al hijo
   filteredRoster = computed<RosterItem[]>(() => {
     const list = this.myTeam()?.roster ?? [];
     const pos = (this.filterPosition() || '').trim().toUpperCase();
@@ -58,7 +56,6 @@ export class MyTeamComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    // 1) Intentar id de ruta
     const idFromRoute = Number(this.route.snapshot.paramMap.get('id'));
     if (Number.isFinite(idFromRoute) && idFromRoute > 0) {
       this.teamId.set(idFromRoute);
@@ -66,7 +63,6 @@ export class MyTeamComponent implements OnInit {
       return;
     }
 
-    // 2) Intentar último teamId usado
     const stored = Number(localStorage.getItem('xnf.currentTeamId'));
     if (Number.isFinite(stored) && stored > 0) {
       this.teamId.set(stored);
@@ -74,13 +70,11 @@ export class MyTeamComponent implements OnInit {
       return;
     }
 
-    // 3) Consultar equipos del usuario; si viene vacío => noTeam
     this.loading.set(true);
     this.teamSrv.listOwnedTeams().subscribe({
       next: (res) => {
         const list = (res as any)?.data ?? (res as any)?.Data ?? [];
         const first = list?.[0] as any;
-        // ser tolerantes con el naming que venga del backend
         const id = first?.teamID ?? first?.TeamID ?? first?.id ?? first?.Id;
         if (Number.isFinite(id) && id > 0) {
           this.teamId.set(Number(id));
@@ -91,7 +85,6 @@ export class MyTeamComponent implements OnInit {
         }
       },
       error: () => {
-        // si falla el listado, mostramos "sin equipo" en lugar de romper la vista
         this.noTeam.set(true);
         this.loading.set(false);
       },
@@ -105,19 +98,39 @@ export class MyTeamComponent implements OnInit {
 
     this.teamSrv.getMyTeam(this.teamId()).subscribe({
       next: res => {
-        this.myTeam.set(res.data ?? null);
-        // persistimos el teamId para futuras cargas
-        if ((res as any)?.data?.teamID ?? (res as any)?.Data?.TeamID) {
-          const tid = (res as any).data?.teamID ?? (res as any).Data?.TeamID;
-          localStorage.setItem('xnf.currentTeamId', String(tid));
+        console.log('🔍 Respuesta completa de getMyTeam:', res);
+        
+        // Acceder a Data con ambos casos
+        const apiData = (res as any)?.Data ?? (res as any)?.data;
+        console.log('🔍 apiData:', apiData);
+        
+        if (apiData) {
+          // Mapear los datos de PascalCase a camelCase
+          const mappedTeam: MyTeamResponse = {
+            teamId: apiData.TeamID ?? apiData.teamId ?? 0,
+            teamName: apiData.TeamName ?? apiData.teamName ?? '',
+            leagueId: apiData.LeagueID ?? apiData.leagueId ?? 0,
+            leagueName: apiData.LeagueName ?? apiData.leagueName ?? '',
+            teamImageUrl: apiData.TeamImageUrl ?? apiData.teamImageUrl,
+            thumbnailUrl: apiData.ThumbnailUrl ?? apiData.thumbnailUrl,
+            roster: this.mapRoster(apiData.Roster ?? apiData.roster ?? []),
+            distribution: this.mapDistribution(apiData.Distribution ?? apiData.distribution ?? [])
+          };
+          
+          console.log('🔍 mappedTeam:', mappedTeam);
+          this.myTeam.set(mappedTeam);
+          
+          // Guardar teamId en localStorage
+          localStorage.setItem('xnf.currentTeamId', String(mappedTeam.teamId));
         } else {
-          localStorage.setItem('xnf.currentTeamId', String(this.teamId()));
+          this.noTeam.set(true);
         }
+        
         this.loading.set(false);
       },
       error: (err) => {
+        console.error('❌ Error en getMyTeam:', err);
         if (err?.status === 404) {
-          // Caso esperado: el usuario no tiene equipo
           this.myTeam.set(null);
           this.noTeam.set(true);
         } else {
@@ -128,13 +141,11 @@ export class MyTeamComponent implements OnInit {
     });
   }
 
-  // handler que pide el HTML
   onFiltersChange(e: { position?: string; search?: string }): void {
     this.filterPosition.set(e?.position);
     this.filterSearch.set(e?.search);
   }
 
-  // helper seguro para distribution
   distribution(): RosterDistribution[] {
     return this.myTeam()?.distribution ?? [];
   }
@@ -146,5 +157,31 @@ export class MyTeamComponent implements OnInit {
       err?.message ||
       'Ocurrió un error al cargar tu equipo.'
     );
+  }
+
+  private mapRoster(roster: any[]): RosterItem[] {
+    return roster.map(r => ({
+      rosterID: r.RosterID ?? r.rosterID ?? 0,
+      playerID: r.PlayerID ?? r.playerID ?? 0,
+      fullName: r.FullName ?? r.fullName ?? '',
+      firstName: r.FirstName ?? r.firstName,
+      lastName: r.LastName ?? r.lastName,
+      position: r.Position ?? r.position ?? '',
+      nflTeamName: r.NFLTeamName ?? r.nflTeamName,
+      photoUrl: r.PhotoUrl ?? r.photoUrl,
+      photoThumbnailUrl: r.PhotoThumbnailUrl ?? r.photoThumbnailUrl,
+      acquisitionType: r.AcquisitionType ?? r.acquisitionType,
+      acquiredAt: r.AcquiredAt ?? r.acquiredAt ?? r.AcquisitionDate ?? r.acquisitionDate,
+      isStarter: r.IsStarter ?? r.isStarter,
+      isIR: r.IsIR ?? r.isIR
+    }));
+  }
+
+  private mapDistribution(distribution: any[]): RosterDistribution[] {
+    return distribution.map(d => ({
+      position: d.Position ?? d.position ?? d.AcquisitionType ?? d.acquisitionType ?? '',
+      count: d.Count ?? d.count ?? d.PlayerCount ?? d.playerCount ?? 0,
+      percent: d.Percent ?? d.percent ?? d.Percentage ?? d.percentage ?? 0
+    }));
   }
 }

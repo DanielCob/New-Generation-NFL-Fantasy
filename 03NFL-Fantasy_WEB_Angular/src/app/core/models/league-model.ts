@@ -13,7 +13,7 @@ export interface CreateLeagueRequest {
   Description: string;
   TeamSlots: number;
   LeaguePassword: string;
-  InitialTeamName: string;
+  InitialTeamName?: string;
   PlayoffTeams: number;
   AllowDecimals: boolean;
   PositionFormatID: number;

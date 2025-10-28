@@ -67,6 +67,7 @@ export class SelectTeamDialog implements OnInit {
     if (!id) return;
     localStorage.setItem('xnf.currentTeamId', String(id));
     this.ref.close(String(id));
+    window.location.href = `/teams/${id}/my-team`;
   }
 
   close(): void { this.ref.close(); }

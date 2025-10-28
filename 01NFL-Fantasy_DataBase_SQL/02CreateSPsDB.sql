@@ -761,8 +761,6 @@ GO
 
 -- ============================================================================
 -- sp_CreateLeague - VERSIÓN ACTUALIZADA
--- Ahora valida nombre contra equipos NFL reales y desactiva ligas activas
--- NOTA: El creador recibe rol COMMISSIONER explícito + MANAGER derivado (por tener equipo)
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_CreateLeague
   @CreatorUserID        INT,
@@ -770,7 +768,7 @@ CREATE OR ALTER PROCEDURE app.sp_CreateLeague
   @Description          NVARCHAR(500) = NULL,
   @TeamSlots            TINYINT,
   @LeaguePassword       NVARCHAR(50),
-  @InitialTeamName      NVARCHAR(50),
+  @InitialTeamName      NVARCHAR(50) = NULL,
   @PlayoffTeams         TINYINT = 4,
   @AllowDecimals        BIT = 1,
   @PositionFormatID     INT = NULL,
@@ -781,7 +779,12 @@ AS
 BEGIN
   SET NOCOUNT ON;
 
-  -- Validaciones (mantener las existentes)
+  -------------------------------------------------------------------
+  -- Normalización: tratar vacío/espacios como NULL para el team name
+  -------------------------------------------------------------------
+  SET @InitialTeamName = NULLIF(LTRIM(RTRIM(@InitialTeamName)), N'');
+
+  -- Validaciones (mantener las existentes, ajustando InitialTeamName)
   IF @Name IS NULL OR LEN(@Name) < 1 OR LEN(@Name) > 100
     THROW 50040, 'Nombre de liga inválido (1-100).', 1;
 
@@ -791,8 +794,9 @@ BEGIN
   IF @PlayoffTeams NOT IN (4,6)
     THROW 50042, 'PlayoffTeams inválido (4 o 6).', 1;
 
-  IF @InitialTeamName IS NULL OR LEN(@InitialTeamName) < 1 OR LEN(@InitialTeamName) > 50
-    THROW 50043, 'Nombre de equipo inválido (1-50).', 1;
+  -- Antes era obligatorio; ahora solo valida si viene y no supere 50
+  IF @InitialTeamName IS NOT NULL AND LEN(@InitialTeamName) > 50
+    THROW 50043, 'Nombre de equipo inválido: no debe superar 50 caracteres.', 1;
 
   IF @LeaguePassword IS NULL OR LEN(@LeaguePassword) < 8 OR LEN(@LeaguePassword) > 12
     THROW 50045, 'Contraseña de liga inválida: longitud 8-12.', 1;
@@ -831,19 +835,19 @@ BEGIN
   DECLARE @Hash VARBINARY(64) = HASHBYTES('SHA2_256', @PwdBytes + @Salt);
 
   DECLARE @LeagueID INT;
+  DECLARE @AuditDetails NVARCHAR(400);
 
   BEGIN TRY
     BEGIN TRAN;
 
-      -- *** NUEVO: Desactivar cualquier liga activa (Status=1) antes de crear la nueva ***
+      -- Desactivar ligas activas del mismo creador en la temporada (opcional según tu política)
       UPDATE league.League
          SET Status = 2,  -- Inactive
              UpdatedAt = SYSUTCDATETIME()
        WHERE SeasonID = @SeasonID
          AND Status = 1  -- Active
-         AND CreatedByUserID = @CreatorUserID; -- Sólo las del creador
+         AND CreatedByUserID = @CreatorUserID;
 
-      -- Si hubo ligas desactivadas, registrar en historial
       IF @@ROWCOUNT > 0
       BEGIN
         INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
@@ -851,7 +855,7 @@ BEGIN
                N'Ligas activas desactivadas automáticamente al crear nueva liga', @SourceIp, @UserAgent);
       END
 
-      -- Crear la nueva liga
+      -- Crear la liga
       INSERT INTO league.League
       (SeasonID, Name, Description, TeamSlots,
        LeaguePasswordHash, LeaguePasswordSalt,
@@ -871,19 +875,31 @@ BEGIN
 
       SET @LeagueID = SCOPE_IDENTITY();
 
+      -- Miembro: comisionado principal
       INSERT INTO league.LeagueMember(LeagueID, UserID, RoleCode, IsPrimaryCommissioner)
       VALUES(@LeagueID, @CreatorUserID, N'COMMISSIONER', 1);
 
-      INSERT INTO league.Team(LeagueID, OwnerUserID, TeamName)
-      VALUES(@LeagueID, @CreatorUserID, @InitialTeamName);
+      -- Crear equipo SOLO si se proporcionó nombre
+      IF @InitialTeamName IS NOT NULL
+      BEGIN
+        INSERT INTO league.Team(LeagueID, OwnerUserID, TeamName)
+        VALUES(@LeagueID, @CreatorUserID, @InitialTeamName);
+
+        SET @AuditDetails = N'Liga creada en Pre-Draft con equipo inicial del comisionado';
+      END
+      ELSE
+      BEGIN
+        SET @AuditDetails = N'Liga creada en Pre-Draft sin equipo inicial';
+      END
 
       -- Auditoría con IP y UserAgent
       INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
       VALUES(@CreatorUserID, N'LEAGUE', CAST(@LeagueID AS NVARCHAR(50)), N'CREATE',
-             N'Liga creada en Pre-Draft con equipo del comisionado', @SourceIp, @UserAgent);
+             @AuditDetails, @SourceIp, @UserAgent);
 
     COMMIT;
 
+    -- Result set esperado por el backend
     SELECT
       l.LeagueID, l.Name, l.TeamSlots,
       (l.TeamSlots - (SELECT COUNT(*) FROM league.Team t WHERE t.LeagueID = l.LeagueID)) AS AvailableSlots,
@@ -1501,20 +1517,6 @@ BEGIN
     IF EXISTS (SELECT 1 FROM ref.NFLTeam WHERE TeamName = @TeamName)
       THROW 50102, 'Ya existe un equipo NFL con ese nombre.', 1;
 
-    IF @TeamImageBytes IS NOT NULL AND @TeamImageBytes > 5242880
-      THROW 50103, 'Imagen supera 5MB.', 1;
-    IF @TeamImageWidth IS NOT NULL AND (@TeamImageWidth < 300 OR @TeamImageWidth > 1024)
-      THROW 50104, 'Ancho de imagen fuera de rango (300-1024).', 1;
-    IF @TeamImageHeight IS NOT NULL AND (@TeamImageHeight < 300 OR @TeamImageHeight > 1024)
-      THROW 50105, 'Alto de imagen fuera de rango (300-1024).', 1;
-
-    IF @ThumbnailBytes IS NOT NULL AND @ThumbnailBytes > 5242880
-      THROW 50106, 'Thumbnail supera 5MB.', 1;
-    IF @ThumbnailWidth IS NOT NULL AND (@ThumbnailWidth < 300 OR @ThumbnailWidth > 1024)
-      THROW 50107, 'Ancho de thumbnail fuera de rango (300-1024).', 1;
-    IF @ThumbnailHeight IS NOT NULL AND (@ThumbnailHeight < 300 OR @ThumbnailHeight > 1024)
-      THROW 50108, 'Alto de thumbnail fuera de rango (300-1024).', 1;
-
     DECLARE @NFLTeamID INT;
 
     BEGIN TRAN;
@@ -1595,20 +1597,6 @@ BEGIN
 
     IF @City IS NOT NULL AND (LEN(@City) < 1 OR LEN(@City) > 100)
       THROW 50111, 'Ciudad inválida (1-100).', 1;
-
-    IF @TeamImageBytes IS NOT NULL AND @TeamImageBytes > 5242880
-      THROW 50112, 'Imagen supera 5MB.', 1;
-    IF @TeamImageWidth IS NOT NULL AND (@TeamImageWidth < 300 OR @TeamImageWidth > 1024)
-      THROW 50113, 'Ancho de imagen fuera de rango (300-1024).', 1;
-    IF @TeamImageHeight IS NOT NULL AND (@TeamImageHeight < 300 OR @TeamImageHeight > 1024)
-      THROW 50114, 'Alto de imagen fuera de rango (300-1024).', 1;
-
-    IF @ThumbnailBytes IS NOT NULL AND @ThumbnailBytes > 5242880
-      THROW 50115, 'Thumbnail supera 5MB.', 1;
-    IF @ThumbnailWidth IS NOT NULL AND (@ThumbnailWidth < 300 OR @ThumbnailWidth > 1024)
-      THROW 50116, 'Ancho de thumbnail fuera de rango (300-1024).', 1;
-    IF @ThumbnailHeight IS NOT NULL AND (@ThumbnailHeight < 300 OR @ThumbnailHeight > 1024)
-      THROW 50117, 'Alto de thumbnail fuera de rango (300-1024).', 1;
 
     DECLARE
       @OldName NVARCHAR(100),

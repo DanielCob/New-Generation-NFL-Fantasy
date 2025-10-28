@@ -20,26 +20,20 @@ namespace NFL_Fantasy_API.Models.DTOs
         [StringLength(400, ErrorMessage = "La URL de imagen no puede superar 400 caracteres.")]
         public string? TeamImageUrl { get; set; }
 
-        [Range(300, 1024, ErrorMessage = "El ancho de imagen debe estar entre 300 y 1024 píxeles.")]
         public short? TeamImageWidth { get; set; }
 
-        [Range(300, 1024, ErrorMessage = "El alto de imagen debe estar entre 300 y 1024 píxeles.")]
         public short? TeamImageHeight { get; set; }
 
-        [Range(1, 5242880, ErrorMessage = "El tamaño de imagen debe estar entre 1 byte y 5MB.")]
         public int? TeamImageBytes { get; set; }
 
         // Thumbnail
         [StringLength(400)]
         public string? ThumbnailUrl { get; set; }
 
-        [Range(300, 1024)]
         public short? ThumbnailWidth { get; set; }
 
-        [Range(300, 1024)]
         public short? ThumbnailHeight { get; set; }
 
-        [Range(1, 5242880)]
         public int? ThumbnailBytes { get; set; }
     }
 
@@ -69,25 +63,19 @@ namespace NFL_Fantasy_API.Models.DTOs
         [StringLength(400)]
         public string? TeamImageUrl { get; set; }
 
-        [Range(300, 1024)]
         public short? TeamImageWidth { get; set; }
 
-        [Range(300, 1024)]
         public short? TeamImageHeight { get; set; }
 
-        [Range(1, 5242880)]
         public int? TeamImageBytes { get; set; }
 
         [StringLength(400)]
         public string? ThumbnailUrl { get; set; }
 
-        [Range(300, 1024)]
         public short? ThumbnailWidth { get; set; }
 
-        [Range(300, 1024)]
         public short? ThumbnailHeight { get; set; }
 
-        [Range(1, 5242880)]
         public int? ThumbnailBytes { get; set; }
     }
 

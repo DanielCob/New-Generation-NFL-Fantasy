@@ -1,3 +1,4 @@
+<!-- edit-branding.component.html -->
 <mat-card class="eb-card">
   <mat-card-header>
     <mat-card-title><mat-icon>branding_watermark</mat-icon>&nbsp;Edit Team Branding</mat-card-title>
@@ -14,26 +15,142 @@
           Team name is required
         </mat-error>
       </mat-form-field>
-
-      <mat-form-field appearance="outline">
-        <mat-label>Image URL (optional)</mat-label>
-        <input matInput formControlName="teamImageUrl" />
-      </mat-form-field>
     </div>
 
-    <!-- Hidden metadata (si luego calculas desde un uploader) -->
-    <input type="hidden" formControlName="teamImageWidth" />
-    <input type="hidden" formControlName="teamImageHeight" />
-    <input type="hidden" formControlName="teamImageBytes" />
-    <input type="hidden" formControlName="thumbnailUrl" />
-    <input type="hidden" formControlName="thumbnailWidth" />
-    <input type="hidden" formControlName="thumbnailHeight" />
-    <input type="hidden" formControlName="thumbnailBytes" />
+    <div class="upload-section">
+      <h3>Team Image</h3>
+      <p class="upload-note">JPEG o PNG, máximo 5 MB, dimensiones entre 300x300 y 1024x1024 píxeles</p>
+      
+      <div class="upload-control">
+        <input 
+          type="file" 
+          #fileInput 
+          accept="image/jpeg,image/jpg,image/png"
+          (change)="onFileSelected($event)"
+          style="display: none"
+        />
+        
+        <button 
+          mat-raised-button 
+          type="button" 
+          color="accent"
+          (click)="fileInput.click()"
+          [disabled]="uploading() || uploadingThumb()"
+        >
+          <mat-icon>upload</mat-icon>
+          {{ imagePreview() ? 'Cambiar Imagen' : 'Seleccionar Imagen' }}
+        </button>
+
+        <button 
+          mat-raised-button 
+          type="button" 
+          color="primary"
+          (click)="uploadImage()"
+          [disabled]="!selectedFile() || uploading() || uploadingThumb()"
+          *ngIf="selectedFile()"
+        >
+          <mat-icon>cloud_upload</mat-icon>
+          Subir y Generar Thumbnail
+        </button>
+
+        <button 
+          mat-stroked-button 
+          type="button"
+          (click)="clearImage()"
+          [disabled]="uploading() || uploadingThumb()"
+          *ngIf="imagePreview()"
+        >
+          <mat-icon>clear</mat-icon>
+          Limpiar
+        </button>
+      </div>
+
+      <div class="file-info" *ngIf="selectedFile() && !uploading()">
+        <mat-icon>info</mat-icon>
+        <span>{{ selectedFile()!.name }} ({{ (selectedFile()!.size / 1024 / 1024).toFixed(2) }} MB)</span>
+      </div>
+
+      <div class="upload-status" *ngIf="uploading() || uploadingThumb()">
+        <mat-spinner diameter="24"></mat-spinner>
+        <span *ngIf="uploading()">Subiendo imagen principal...</span>
+        <span *ngIf="uploadingThumb()">Generando y subiendo thumbnail...</span>
+      </div>
+
+      <div class="image-previews" *ngIf="imagePreview() || thumbnailPreview()">
+        <div class="preview-box" *ngIf="imagePreview()">
+          <p class="preview-label">Imagen Principal:</p>
+          <img [src]="imagePreview()!" alt="Preview" />
+        </div>
+        <div class="preview-box" *ngIf="thumbnailPreview()">
+          <p class="preview-label">Thumbnail (320x320):</p>
+          <img [src]="thumbnailPreview()!" alt="Thumbnail" />
+        </div>
+      </div>
+    </div>
+
+    <div class="manual-url-section">
+      <p class="section-note">O ingresa las URLs manualmente:</p>
+      
+      <mat-form-field appearance="outline" class="full">
+        <mat-label>Image URL (optional)</mat-label>
+        <input matInput formControlName="teamImageUrl" (change)="onTeamImageUrlChanged()" (blur)="onTeamImageUrlChanged()" />
+      </mat-form-field>
+
+      <div class="grid-meta">
+        <mat-form-field appearance="outline">
+          <mat-label>Width</mat-label>
+          <input matInput formControlName="teamImageWidth" readonly />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Height</mat-label>
+          <input matInput formControlName="teamImageHeight" readonly />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Bytes</mat-label>
+          <input matInput formControlName="teamImageBytes" readonly />
+        </mat-form-field>
+      </div>
+
+      <div class="meta" *ngIf="computingA()">
+        <mat-spinner diameter="18"></mat-spinner>
+        <span>Computing image metadata…</span>
+      </div>
+
+      <mat-form-field appearance="outline" class="full">
+        <mat-label>Thumbnail URL</mat-label>
+        <input matInput formControlName="thumbnailUrl" (change)="onThumbUrlChanged()" (blur)="onThumbUrlChanged()" />
+      </mat-form-field>
+
+      <div class="grid-meta">
+        <mat-form-field appearance="outline">
+          <mat-label>Width</mat-label>
+          <input matInput formControlName="thumbnailWidth" readonly />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Height</mat-label>
+          <input matInput formControlName="thumbnailHeight" readonly />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Bytes</mat-label>
+          <input matInput formControlName="thumbnailBytes" readonly />
+        </mat-form-field>
+      </div>
+
+      <div class="meta" *ngIf="computingB()">
+        <mat-spinner diameter="18"></mat-spinner>
+        <span>Computing thumbnail metadata…</span>
+      </div>
+    </div>
   </mat-card-content>
 
   <mat-card-actions align="end">
     <a mat-stroked-button [routerLink]="['/teams', teamId(), 'my-team']">Cancel</a>
-    <button mat-flat-button color="primary" (click)="save()" [disabled]="form.invalid || saving()">
+    <button 
+      mat-flat-button 
+      color="primary" 
+      (click)="save()" 
+      [disabled]="form.invalid || saving() || uploading() || uploadingThumb() || computingA() || computingB()"
+    >
       <mat-icon>save</mat-icon>&nbsp;Save
       <mat-progress-spinner *ngIf="saving()" diameter="18" mode="indeterminate"></mat-progress-spinner>
     </button>

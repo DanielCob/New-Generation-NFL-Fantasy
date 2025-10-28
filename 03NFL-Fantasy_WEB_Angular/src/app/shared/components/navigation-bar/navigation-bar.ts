@@ -163,6 +163,7 @@ loadMyLeagues(): void {
     localStorage.setItem('xnf.currentLeagueId', String(l.LeagueID));
     localStorage.setItem('xnf.currentLeagueName', l.LeagueName);
     this.router.navigate(['/league', l.LeagueID, 'actions']);
+    window.location.href = `/league/${l.LeagueID}/actions`;
   }
 }
 

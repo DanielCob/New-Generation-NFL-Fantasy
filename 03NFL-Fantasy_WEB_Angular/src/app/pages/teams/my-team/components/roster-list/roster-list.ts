@@ -12,7 +12,7 @@ import { RosterItem } from '../../../../../core/models/team-model';
       <tr><th>Player</th><th>Pos</th><th>Team</th></tr>
     </thead>
     <tbody>
-      @for (r of roster; track r.rosterID) {
+      @for (r of roster; track r.playerID) {
         <tr>
           <td>{{ r.fullName }}</td>
           <td>{{ r.position }}</td>

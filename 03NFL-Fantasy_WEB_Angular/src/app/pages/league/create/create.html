@@ -1,3 +1,5 @@
+<!-- create.component.html - ACTUALIZAR EL CAMPO InitialTeamName -->
+
 <mat-card class="wrap">
   <h1 class="title">
     <mat-icon>add_circle</mat-icon>
@@ -8,7 +10,7 @@
     <!-- Columna izquierda -->
     <div class="col">
       <mat-form-field appearance="outline" class="w100">
-        <mat-label>Name *</mat-label>
+        <mat-label>League Name *</mat-label>
         <input matInput formControlName="Name" maxlength="80">
         <mat-hint align="end">{{ form.value.Name?.length || 0 }}/80</mat-hint>
         <mat-error *ngIf="form.controls.Name.hasError('required')">Required</mat-error>
@@ -55,26 +57,15 @@
         </mat-select>
       </mat-form-field>
 
-      <!-- 👇 Nuevo: elegir equipo propio en lugar de escribir nombre -->
       <mat-form-field appearance="outline" class="w100">
-        <mat-label>Choose your team *</mat-label>
-        <mat-select formControlName="SelectedTeamId" [disabled]="loadingProfile">
-          <mat-option *ngIf="loadingProfile" [value]="null" disabled>Loading teams…</mat-option>
-          <ng-container *ngIf="!loadingProfile">
-            <mat-option *ngFor="let t of teams" [value]="t.teamId">
-              {{ t.teamName }} <span *ngIf="t.leagueName">— {{ t.leagueName }}</span>
-            </mat-option>
-            <mat-option *ngIf="teams.length===0" [value]="null" disabled>
-              No teams found (create one first)
-            </mat-option>
-          </ng-container>
-        </mat-select>
-        <mat-error *ngIf="form.controls.SelectedTeamId.hasError('required')">
-          Required
-        </mat-error>
+        <mat-label>Your Team Name (optional)</mat-label>
+        <input matInput formControlName="InitialTeamName" maxlength="40" placeholder="Leave empty to set later">
+        <mat-hint align="end">{{ form.value.InitialTeamName?.length || 0 }}/40</mat-hint>
+        <mat-hint>You can join with a team later if you leave this empty</mat-hint>
       </mat-form-field>
+
       <mat-form-field appearance="outline" class="w100">
-        <mat-label>League password *</mat-label>
+        <mat-label>League Password *</mat-label>
         <input matInput [type]="hidePwd ? 'password' : 'text'" formControlName="LeaguePassword" maxlength="32">
         <button mat-icon-button matSuffix type="button" (click)="hidePwd = !hidePwd" aria-label="toggle">
           <mat-icon>{{ hidePwd ? 'visibility' : 'visibility_off' }}</mat-icon>
@@ -82,18 +73,13 @@
         <mat-error *ngIf="form.controls.LeaguePassword.hasError('required')">Required</mat-error>
         <mat-error *ngIf="form.controls.LeaguePassword.hasError('minlength')">Min 4 chars</mat-error>
       </mat-form-field>
-
-
-      <!-- Se eliminó el campo "Initial team name" -->
     </div>
 
     <!-- Acciones -->
     <div class="actions">
-
       <span class="spacer"></span>
-
-      <button mat-raised-button color="primary" type="submit" [disabled]="loading || form.invalid || loadingProfile || teams.length===0">
-        <mat-icon>save</mat-icon> Create
+      <button mat-raised-button color="primary" type="submit" [disabled]="loading || form.invalid">
+        <mat-icon>save</mat-icon> Create League
       </button>
     </div>
 
