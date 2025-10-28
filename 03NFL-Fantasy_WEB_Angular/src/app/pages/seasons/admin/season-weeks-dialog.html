@@ -1,0 +1,18 @@
+<h2 mat-dialog-title>
+  <mat-icon>date_range</mat-icon>
+  <span style="margin-left:8px">Semanas de {{ data.seasonLabel }}</span>
+</h2>
+<div mat-dialog-content>
+  <mat-list>
+    <mat-list-item *ngFor="let w of data.weeks">
+      <div matListItemTitle>Semana {{ w.WeekNumber }}</div>
+      <div matListItemLine>{{ w.StartDate | date:'yyyy-MM-dd' }} → {{ w.EndDate | date:'yyyy-MM-dd' }}</div>
+    </mat-list-item>
+  </mat-list>
+</div>
+<div mat-dialog-actions>
+  <button mat-stroked-button color="primary" (click)="close()">
+    <mat-icon>close</mat-icon>
+    Cerrar
+  </button>
+</div>

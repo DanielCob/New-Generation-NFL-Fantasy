@@ -1,4 +1,5 @@
-# API Integration Workflow (README)
+# API Integration Workflow (README) 
+# Image DataBase Added
 
 > **Goal**
 > Keep a strict 1:1 mapping between **Database objects** (Tables, Views, Stored Procedures) and our **.NET API** layers. This document explains **where** to put new files, **what** to edit, and **how** to keep security and organization consistent.
