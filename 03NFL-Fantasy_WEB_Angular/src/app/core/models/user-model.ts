@@ -41,7 +41,9 @@ export interface UserProfile {
   AccountStatus: number;
   CreatedAt: string; // ISO
   UpdatedAt: string; // ISO
-  Role: 'ADMIN' | 'MANAGER' | 'CLIENT';
+  /** Some APIs return SystemRoleCode instead of Role */
+  Role?: 'ADMIN' | 'MANAGER' | 'CLIENT';
+  SystemRoleCode?: 'ADMIN' | 'MANAGER' | 'CLIENT' | string;
   /** URL de imagen de perfil si existe (puede venir desde sp_GetUserProfile) */
   ProfileImageUrl?: string | null;
 
