@@ -51,20 +51,26 @@ namespace NFL_Fantasy_API.Services.Implementations
                     return ApiResponseDTO.ErrorResponse(string.Join(" ", passwordErrors));
                 }
 
+                // NUEVO: si no hay nombre de equipo (o es solo espacios), enviar NULL al SP
+                var initialTeamNameValue = string.IsNullOrWhiteSpace(dto.InitialTeamName)
+                    ? (object)DBNull.Value
+                    : dto.InitialTeamName!.Trim();
+
                 var parameters = new SqlParameter[]
                 {
-                    new SqlParameter("@CreatorUserID", creatorUserId),
-                    new SqlParameter("@Name", dto.Name),
-                    new SqlParameter("@Description", DatabaseHelper.DbNullIfNull(dto.Description)),
-                    new SqlParameter("@TeamSlots", dto.TeamSlots),
-                    new SqlParameter("@LeaguePassword", dto.LeaguePassword),
-                    new SqlParameter("@InitialTeamName", dto.InitialTeamName),
-                    new SqlParameter("@PlayoffTeams", dto.PlayoffTeams),
-                    new SqlParameter("@AllowDecimals", dto.AllowDecimals),
-                    new SqlParameter("@PositionFormatID", DatabaseHelper.DbNullIfNull(dto.PositionFormatID)),
-                    new SqlParameter("@ScoringSchemaID", DatabaseHelper.DbNullIfNull(dto.ScoringSchemaID)),
-                    new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
-                    new SqlParameter("@UserAgent", DatabaseHelper.DbNullIfNull(userAgent))
+            new SqlParameter("@CreatorUserID", creatorUserId),
+            new SqlParameter("@Name", dto.Name),
+            new SqlParameter("@Description", DatabaseHelper.DbNullIfNull(dto.Description)),
+            new SqlParameter("@TeamSlots", dto.TeamSlots),
+            new SqlParameter("@LeaguePassword", dto.LeaguePassword),
+            // Antes enviaba siempre un string no-vacío; ahora puede ir DBNull.Value
+            new SqlParameter("@InitialTeamName", initialTeamNameValue),
+            new SqlParameter("@PlayoffTeams", dto.PlayoffTeams),
+            new SqlParameter("@AllowDecimals", dto.AllowDecimals),
+            new SqlParameter("@PositionFormatID", DatabaseHelper.DbNullIfNull(dto.PositionFormatID)),
+            new SqlParameter("@ScoringSchemaID", DatabaseHelper.DbNullIfNull(dto.ScoringSchemaID)),
+            new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
+            new SqlParameter("@UserAgent", DatabaseHelper.DbNullIfNull(userAgent))
                 };
 
                 // sp_CreateLeague retorna un result set con información de la liga creada

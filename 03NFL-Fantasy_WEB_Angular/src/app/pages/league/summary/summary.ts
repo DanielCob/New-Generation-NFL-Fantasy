@@ -18,7 +18,7 @@ import { LeagueSummary } from '../../../core/models/league-model';
   selector: 'app-summary',
   standalone: true,
   imports: [
-    CommonModule, RouterLink,
+    CommonModule,
     MatIconModule, MatChipsModule, MatCardModule, MatDividerModule,
     MatProgressSpinnerModule, MatListModule, MatButtonModule, MatTooltipModule
   ],

@@ -85,22 +85,26 @@
           <mat-icon matPrefix>translate</mat-icon>
         </mat-form-field>
 
-        <!-- Profile image (optional) -->
+        <!-- Profile image (optional, only file) -->
         <div class="optional-section">
           <h4>Profile image (optional)</h4>
           <div class="row">
             <input type="file" (change)="onProfileImageSelected($event)" accept="image/png, image/jpeg" />
           </div>
-          <mat-hint>Only JPEG/PNG, max 5MB.</mat-hint>
+          <mat-hint>Only JPEG/PNG, max 5MB. Dimensions must be between 300 × 300 px and 1024 × 1024 px.</mat-hint>
+
           <div *ngIf="profileImageUploading()">
             <mat-spinner diameter="20"></mat-spinner> Uploading...
           </div>
           <div *ngIf="profileImageError()">
             <mat-error>{{ profileImageError() }}</mat-error>
           </div>
-          <img *ngIf="registerForm.get('profileImageUrl')?.value" 
-               [src]="registerForm.get('profileImageUrl')?.value" 
-               alt="Preview" class="profile-preview" />
+
+          <!-- small preview -->
+          <img *ngIf="previewImageUrl()"
+               [src]="previewImageUrl()"
+               alt="Preview"
+               class="profile-preview-small" />
         </div>
 
         <!-- Actions -->

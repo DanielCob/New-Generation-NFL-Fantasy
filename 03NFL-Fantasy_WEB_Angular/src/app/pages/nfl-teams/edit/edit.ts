@@ -11,6 +11,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { NFLTeamDetails, UpdateNFLTeamDTO } from '../../../core/models/nfl-team-model';
 import { NFLTeamService } from '../../../core/services/nfl-team-service';
+import { ImageStorageService } from '../../../core/services/image-storage.service';
 
 @Component({
   selector: 'app-nfl-team-edit',
@@ -29,13 +30,19 @@ export class EditNFLTeamComponent {
   private route = inject(ActivatedRoute);
   public router = inject(Router);
   private snack = inject(MatSnackBar);
+  private imageStorage = inject(ImageStorageService);
 
   teamId = signal<number | null>(null);
   loading = signal(true);
   saving = signal(false);
-
+  uploading = signal(false);
+  uploadingThumb = signal(false);
   computingA = signal(false);
   computingB = signal(false);
+
+  selectedFile = signal<File | null>(null);
+  imagePreview = signal<string | null>(null);
+  thumbnailPreview = signal<string | null>(null);
 
   form: FormGroup = this.fb.group({
     teamName: ['', [Validators.required, Validators.minLength(2)]],
@@ -87,12 +94,190 @@ export class EditNFLTeamComponent {
           thumbnailHeight: t.ThumbnailHeight || '',
           thumbnailBytes: t.ThumbnailBytes || '',
         });
+
+        // Mostrar preview de imágenes existentes
+        if (t.TeamImageUrl) {
+          this.imagePreview.set(t.TeamImageUrl);
+        }
+        if (t.ThumbnailUrl) {
+          this.thumbnailPreview.set(t.ThumbnailUrl);
+        }
+
         this.loading.set(false);
       },
       error: () => {
         this.snack.open('Failed to load team.', 'Close', { duration: 3000 });
         this.router.navigate(['/nfl-teams']);
       }
+    });
+  }
+
+  /**
+   * Maneja la selección de archivo de imagen
+   */
+  onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) return;
+
+    const file = input.files[0];
+
+    // Validar tipo de archivo
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+    if (!validTypes.includes(file.type)) {
+      this.snack.open('Solo se permiten imágenes JPEG o PNG.', 'Cerrar', { duration: 4000 });
+      input.value = ''; // Limpiar input
+      return;
+    }
+
+    this.selectedFile.set(file);
+    
+    // Mostrar preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      this.imagePreview.set(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  /**
+   * Sube la imagen seleccionada y genera el thumbnail automáticamente
+   */
+  async uploadImage(): Promise<void> {
+    const file = this.selectedFile();
+    if (!file) {
+      this.snack.open('Por favor selecciona una imagen primero.', 'Cerrar', { duration: 3000 });
+      return;
+    }
+
+    this.uploading.set(true);
+
+    try {
+      // 1. Subir imagen principal
+      const uploadResult = await this.imageStorage.uploadImage(file).toPromise();
+      if (!uploadResult?.imageUrl) {
+        throw new Error('No se recibió URL de la imagen.');
+      }
+
+      const mainImageUrl = uploadResult.imageUrl;
+      this.form.patchValue({ teamImageUrl: mainImageUrl });
+
+      // 2. Calcular metadatos de la imagen principal
+      this.computingA.set(true);
+      const mainMeta = await this.getImageMetaFromUrl(mainImageUrl);
+      this.form.patchValue({
+        teamImageWidth: mainMeta.width ?? '',
+        teamImageHeight: mainMeta.height ?? '',
+        teamImageBytes: mainMeta.bytes ?? ''
+      });
+      this.computingA.set(false);
+
+      // 3. Generar y subir thumbnail
+      this.uploadingThumb.set(true);
+      const thumbnailFile = await this.generateThumbnail(file, 320, 180);
+      const thumbResult = await this.imageStorage.uploadImage(thumbnailFile).toPromise();
+      
+      if (!thumbResult?.imageUrl) {
+        throw new Error('No se pudo generar el thumbnail.');
+      }
+
+      const thumbUrl = thumbResult.imageUrl;
+      this.form.patchValue({ thumbnailUrl: thumbUrl });
+
+      // Mostrar preview del thumbnail
+      const thumbReader = new FileReader();
+      thumbReader.onload = (e) => {
+        this.thumbnailPreview.set(e.target?.result as string);
+      };
+      thumbReader.readAsDataURL(thumbnailFile);
+
+      // 4. Calcular metadatos del thumbnail
+      this.computingB.set(true);
+      const thumbMeta = await this.getImageMetaFromUrl(thumbUrl);
+      this.form.patchValue({
+        thumbnailWidth: thumbMeta.width ?? '',
+        thumbnailHeight: thumbMeta.height ?? '',
+        thumbnailBytes: thumbMeta.bytes ?? ''
+      });
+      this.computingB.set(false);
+      this.uploadingThumb.set(false);
+
+      this.snack.open('Imagen y thumbnail cargados exitosamente.', 'Cerrar', { duration: 3000 });
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      this.snack.open('Error al subir la imagen. Intenta de nuevo.', 'Cerrar', { duration: 5000 });
+      this.computingA.set(false);
+      this.computingB.set(false);
+      this.uploadingThumb.set(false);
+    } finally {
+      this.uploading.set(false);
+    }
+  }
+
+  /**
+   * Genera un thumbnail redimensionado de la imagen
+   */
+  private generateThumbnail(file: File, targetWidth: number, targetHeight: number): Promise<File> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          // Crear canvas para redimensionar
+          const canvas = document.createElement('canvas');
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
+          const ctx = canvas.getContext('2d');
+          
+          if (!ctx) {
+            reject(new Error('No se pudo crear contexto de canvas.'));
+            return;
+          }
+
+          // Dibujar imagen redimensionada
+          ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+          // Convertir canvas a blob
+          canvas.toBlob((blob) => {
+            if (!blob) {
+              reject(new Error('No se pudo generar thumbnail.'));
+              return;
+            }
+
+            // Crear archivo del thumbnail
+            const thumbnailFile = new File(
+              [blob], 
+              `thumb_${file.name}`, 
+              { type: file.type }
+            );
+            resolve(thumbnailFile);
+          }, file.type, 0.9); // 0.9 = calidad 90%
+        };
+
+        img.onerror = () => reject(new Error('Error al cargar la imagen.'));
+        img.src = e.target?.result as string;
+      };
+
+      reader.onerror = () => reject(new Error('Error al leer el archivo.'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  /**
+   * Limpia la imagen seleccionada
+   */
+  clearImage(): void {
+    this.selectedFile.set(null);
+    this.imagePreview.set(null);
+    this.thumbnailPreview.set(null);
+    this.form.patchValue({
+      teamImageUrl: '',
+      teamImageWidth: '',
+      teamImageHeight: '',
+      teamImageBytes: '',
+      thumbnailUrl: '',
+      thumbnailWidth: '',
+      thumbnailHeight: '',
+      thumbnailBytes: '',
     });
   }
 
@@ -133,8 +318,8 @@ export class EditNFLTeamComponent {
       this.form.markAllAsTouched();
       return;
     }
-    if (this.computingA() || this.computingB()) {
-      this.snack.open('Espera a que se calculen los metadatos de imagen…', 'Cerrar', { duration: 3000 });
+    if (this.uploading() || this.uploadingThumb() || this.computingA() || this.computingB()) {
+      this.snack.open('Espera a que se complete la carga de imágenes…', 'Cerrar', { duration: 3000 });
       return;
     }
 
@@ -195,6 +380,7 @@ export class EditNFLTeamComponent {
     const n = Number(x);
     return Number.isFinite(n) ? n : undefined;
   }
+
   private async getImageMetaFromUrl(url: string): Promise<{ width: number | null, height: number | null, bytes: number | null }> {
     const dims = await new Promise<{ width: number | null; height: number | null }>((r) => {
       const img = new Image();

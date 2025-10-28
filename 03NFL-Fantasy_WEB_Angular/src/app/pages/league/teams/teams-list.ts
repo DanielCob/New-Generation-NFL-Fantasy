@@ -12,7 +12,7 @@ import { LeagueTeam } from '../../../core/models/league-model';
 @Component({
   selector: 'app-teams-list',
   standalone: true,
-  imports: [CommonModule, MatListModule, MatIconModule, MatProgressSpinnerModule, MatButtonModule, RouterLink],
+  imports: [CommonModule, MatListModule, MatIconModule, MatProgressSpinnerModule, MatButtonModule],
   templateUrl: './teams-list.html',
   styleUrl: './teams-list.css'
 })

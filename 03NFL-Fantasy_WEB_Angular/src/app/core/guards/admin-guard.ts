@@ -27,7 +27,8 @@ export const adminGuard: CanActivateFn = (route, state) => {
   return user.getHeader().pipe(
     take(1),
     map(p => {
-      const isAdmin = p?.Role === 'ADMIN';
+      const role = (p as any)?.Role ?? (p as any)?.SystemRoleCode ?? (p as any)?.role ?? (p as any)?.systemRoleCode;
+      const isAdmin = typeof role === 'string' ? role.toUpperCase() === 'ADMIN' : role === 1;
       if (!isAdmin) {
         router.navigate(['/profile/header'], { queryParams: { forbidden: 1 } });
       }

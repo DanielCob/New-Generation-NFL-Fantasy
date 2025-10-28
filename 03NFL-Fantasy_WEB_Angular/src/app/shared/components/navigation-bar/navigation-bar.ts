@@ -13,6 +13,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { SelectTeamDialog } from '../select-team-dialog/select-team-dialog';
 import { AuthService, AuthSession } from '../../../core/services/auth-service';
 import { UserService } from '../../../core/services/user-service';
+import { environment } from '../../../../environments/environment';
 
 type LeagueRow = { LeagueID: number; LeagueName: string; Status: number };
 
@@ -46,6 +47,9 @@ export class NavigationBar implements OnDestroy {
   leagues = signal<LeagueRow[]>([]);
   leaguesLoading = signal(false);
   leaguesError = signal<string | null>(null);
+  // admin flag
+  private _isAdmin = signal(false);
+  isAdmin = computed(() => this._isAdmin() || environment.enableAdmin === true);
 
   constructor() {
       this.sub = this.auth.session$.subscribe(s => this.session.set(s));
@@ -53,6 +57,8 @@ export class NavigationBar implements OnDestroy {
   effect(() => {
     const s = this.session();
     if (s?.SessionID) {
+      // ensure admin flag is set quickly on login
+      this.updateAdminFlag();
       // evitá recargar si ya hay datos
       if (!this.leaguesLoading() && this.leagues().length === 0 && !this.leaguesError()) {
         this.loadMyLeagues();
@@ -61,6 +67,7 @@ export class NavigationBar implements OnDestroy {
       this.leagues.set([]);
       this.leaguesError.set(null);
       this.leaguesLoading.set(false);
+      this._isAdmin.set(false);
     }
   });
   }
@@ -100,6 +107,10 @@ export class NavigationBar implements OnDestroy {
   this.router.navigate(['/league/directory']);
 }
 
+  // Admin navigation
+  navigateToSeasonsAdmin(): void {
+    this.router.navigate(['/seasons/admin']);
+  }
 
 
   openSetTeamIdDialog(): void {
@@ -142,6 +153,9 @@ loadMyLeagues(): void {
     this.leaguesError.set(null);
     this.users.getProfile().subscribe({
       next: (p) => {
+        // refresh admin flag from profile too
+        const role = (p as any)?.Role ?? (p as any)?.SystemRoleCode ?? (p as any)?.role ?? (p as any)?.systemRoleCode;
+        this._isAdmin.set(this.isAdminRole(role));
         // HOY: solo las que vienen como comisionado. FUTURO: todas las del user.
         const rows = (p?.CommissionedLeagues ?? []).map(x => ({
           LeagueID: x.LeagueID,
@@ -152,6 +166,7 @@ loadMyLeagues(): void {
         this.leaguesLoading.set(false);
       },
       error: () => {
+        this._isAdmin.set(false);
         this.leagues.set([]);
         this.leaguesLoading.set(false);
         this.leaguesError.set('No se pudieron cargar tus ligas');
@@ -159,10 +174,32 @@ loadMyLeagues(): void {
     });
   }
 
+  private updateAdminFlag(): void {
+    // try header (lighter) to determine admin quickly
+    this.users.getHeader().subscribe({
+      next: (p: any) => {
+        const role = (p as any)?.Role ?? (p as any)?.SystemRoleCode ?? (p as any)?.role ?? (p as any)?.systemRoleCode ?? '';
+        this._isAdmin.set(this.isAdminRole(role));
+      },
+      error: () => {
+        // don't block UI if this fails; leave flag as-is
+      }
+    });
+  }
+
+  private isAdminRole(role: unknown): boolean {
+    if (environment.enableAdmin === true) return true;
+    if (role == null) return false;
+    if (typeof role === 'string') return role.toUpperCase() === 'ADMIN' || role.toUpperCase() === 'SYSTEM_ADMIN';
+    if (typeof role === 'number') return role === 1; // fallback if backend uses numeric code
+    return false;
+  }
+
   selectLeague(l: LeagueRow): void {
     localStorage.setItem('xnf.currentLeagueId', String(l.LeagueID));
     localStorage.setItem('xnf.currentLeagueName', l.LeagueName);
     this.router.navigate(['/league', l.LeagueID, 'actions']);
+    window.location.href = `/league/${l.LeagueID}/actions`;
   }
 }
 
