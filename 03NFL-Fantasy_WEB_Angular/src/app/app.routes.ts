@@ -176,6 +176,12 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/views/league-summary-admin/league-summary-admin').then(m => m.LeagueSummaryAdmin)
         // o loadChildren si vas a colgar más subrutas de admin
       },
+          // Seasons Admin
+          {
+            path: 'seasons/admin',
+            canActivate: [adminGuard],
+            loadComponent: () => import('./pages/seasons/admin/admin').then(m => m.SeasonsAdminComponent)
+          },
     ]
   },
 

@@ -18,6 +18,14 @@
       <span>Home</span>
     </a>
 
+    <!-- Admin: Seasons (visible solo para ADMIN) -->
+    @if (isLoggedIn() && isAdmin()) {
+      <a routerLink="/seasons/admin" mat-button class="nav-link">
+        <mat-icon>calendar_month</mat-icon>
+        <span>Seasons</span>
+      </a>
+    }
+
     <!-- Teams -->
     <button mat-button [matMenuTriggerFor]="teamsMenu" class="nav-link">
       <mat-icon>groups</mat-icon>

@@ -1,0 +1,245 @@
+<div class="page">
+  <mat-tab-group>
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon>event_available</mat-icon>
+        <span>&nbsp;Temporada actual</span>
+      </ng-template>
+      <mat-card>
+        <mat-card-header>
+          <mat-card-title>
+            <mat-icon>event_available</mat-icon>
+            <span>Temporada actual</span>
+          </mat-card-title>
+          <button mat-icon-button (click)="refresh()" aria-label="Refresh">
+            <mat-icon>refresh</mat-icon>
+          </button>
+        </mat-card-header>
+        <mat-card-content>
+          <div *ngIf="loading()" class="loading">
+            <mat-progress-spinner mode="indeterminate" diameter="24"></mat-progress-spinner>
+            <span style="margin-left:8px">Cargando temporada actual…</span>
+          </div>
+          <div *ngIf="!loading() && error()" class="error">{{ error() }}</div>
+
+          <div *ngIf="!loading() && !error() && current() as s" style="margin-top:8px">
+            <div style="margin-bottom: 12px;">
+              <strong>Label:</strong> {{ s.Label }} · <strong>Año:</strong> {{ s.Year }} · <strong>Actual:</strong> {{ s.IsCurrent ? 'Sí' : 'No' }}
+              <div><strong>Inicio:</strong> {{ s.StartDate }} · <strong>Fin:</strong> {{ s.EndDate }}</div>
+            </div>
+
+            <form [formGroup]="editForm" style="display:grid; grid-template-columns: repeat(4, minmax(200px,1fr)); gap: 12px; align-items: end;">
+          <mat-form-field appearance="fill">
+            <mat-label>Nombre</mat-label>
+            <input matInput formControlName="Name" maxlength="100" />
+            <mat-hint align="end">{{ editForm.controls.Name.value?.length || 0 }}/100</mat-hint>
+            <mat-error *ngIf="editForm.controls.Name.invalid">Nombre requerido (1-100)</mat-error>
+          </mat-form-field>
+
+          <div>
+            <mat-slide-toggle formControlName="AutoWeekCount">Autocalcular semanas</mat-slide-toggle>
+            <div style="display:flex; gap:8px; align-items:center; margin-top:8px;" *ngIf="!editForm.controls.AutoWeekCount.value">
+              <mat-icon>tune</mat-icon>
+                  <span>Semanas: {{ editForm.controls.WeekCount.value }}</span>
+            </div>
+                <mat-slider *ngIf="!editForm.controls.AutoWeekCount.value" min="1" max="30" step="1" discrete showTickMarks style="width:100%">
+                  <input matSliderThumb formControlName="WeekCount" />
+                </mat-slider>
+          </div>
+
+          <mat-form-field appearance="fill">
+            <mat-label>Fecha de inicio</mat-label>
+            <input matInput [matDatepicker]="edp1" formControlName="StartDate" [min]="today" [matDatepickerFilter]="startFilter" />
+            <mat-datepicker-toggle matSuffix [for]="edp1"></mat-datepicker-toggle>
+            <mat-datepicker #edp1></mat-datepicker>
+          </mat-form-field>
+
+          <mat-form-field appearance="fill">
+            <mat-label>Fecha de fin</mat-label>
+                <input matInput [matDatepicker]="edp2" formControlName="EndDate" [min]="editForm.controls.StartDate.value || today" [matDatepickerFilter]="endFilterEdit" />
+            <mat-datepicker-toggle matSuffix [for]="edp2"></mat-datepicker-toggle>
+            <mat-datepicker #edp2></mat-datepicker>
+          </mat-form-field>
+
+          <mat-checkbox formControlName="SetAsCurrent">Marcar como actual</mat-checkbox>
+          <mat-checkbox formControlName="ConfirmMakeCurrent">Confirmar cambio de actual</mat-checkbox>
+
+          <div style="grid-column: 1 / -1; color: #c00; font-size: 12px;" *ngIf="editForm.errors as e">
+            <div *ngIf="e['dateOrder']">La fecha de fin debe ser posterior a la de inicio</div>
+            <div *ngIf="e['notInPast']">Las fechas no pueden estar en el pasado</div>
+          </div>
+
+          <div style="grid-column: 1 / -1;">
+            <h4>Semanas (previsualización)</h4>
+            <div *ngIf="editWeeks().length===0">Configura fechas y cantidad de semanas para ver la división.</div>
+            <mat-chip-set *ngIf="editWeeks().length>0">
+              <mat-chip *ngFor="let w of editWeeks()" color="primary" selected>
+                S{{ w.index }}: {{ w.start | date:'MMM d' }} → {{ w.end | date:'MMM d' }}
+              </mat-chip>
+            </mat-chip-set>
+          </div>
+            </form>
+          </div>
+        </mat-card-content>
+        <mat-card-actions>
+          <button mat-raised-button color="primary" (click)="saveEdits()" [disabled]="editForm.invalid">
+            <mat-icon>save</mat-icon>
+            Guardar cambios
+          </button>
+          <span style="flex:1 1 auto"></span>
+          <button mat-stroked-button color="primary" (click)="deactivate()" [disabled]="!canDeactivate()">
+            <mat-icon>archive</mat-icon>
+            Desactivar
+          </button>
+          <button mat-stroked-button color="warn" (click)="delete()" [disabled]="!canDelete()">
+            <mat-icon>delete</mat-icon>
+            Eliminar
+          </button>
+        </mat-card-actions>
+      </mat-card>
+    </mat-tab>
+
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon>add_circle</mat-icon>
+        <span>&nbsp;Crear temporada</span>
+      </ng-template>
+      <mat-card>
+        <mat-card-header>
+          <mat-card-title>
+            <mat-icon>add_circle</mat-icon>
+            <span>Crear nueva temporada</span>
+          </mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <form [formGroup]="createForm" style="display:grid; grid-template-columns: repeat(4, minmax(200px,1fr)); gap: 12px; align-items: end;">
+        <mat-form-field appearance="fill">
+          <mat-label>Nombre</mat-label>
+          <input matInput formControlName="Name" maxlength="100" />
+          <mat-hint align="end">{{ createForm.controls.Name.value?.length || 0 }}/100</mat-hint>
+          <mat-error *ngIf="createForm.controls.Name.invalid">Nombre requerido (1-100)</mat-error>
+        </mat-form-field>
+
+            <div>
+              <mat-slide-toggle formControlName="AutoWeekCount">Autocalcular semanas</mat-slide-toggle>
+              <div style="display:flex; gap:8px; align-items:center; margin-top:8px;" *ngIf="!createForm.controls.AutoWeekCount.value">
+                <mat-icon>tune</mat-icon>
+                <span>Semanas: {{ createForm.controls.WeekCount.value }}</span>
+              </div>
+              <mat-slider *ngIf="!createForm.controls.AutoWeekCount.value" min="1" max="30" step="1" discrete showTickMarks style="width:100%">
+                <input matSliderThumb formControlName="WeekCount" />
+              </mat-slider>
+            </div>
+
+        <mat-form-field appearance="fill">
+          <mat-label>Fecha de inicio</mat-label>
+          <input matInput [matDatepicker]="cdp1" formControlName="StartDate" [min]="today" [matDatepickerFilter]="startFilter" />
+          <mat-datepicker-toggle matSuffix [for]="cdp1"></mat-datepicker-toggle>
+          <mat-datepicker #cdp1></mat-datepicker>
+        </mat-form-field>
+
+        <mat-form-field appearance="fill">
+          <mat-label>Fecha de fin</mat-label>
+          <input matInput [matDatepicker]="cdp2" formControlName="EndDate" [min]="createForm.controls.StartDate.value || today" [matDatepickerFilter]="endFilterCreate" />
+          <mat-datepicker-toggle matSuffix [for]="cdp2"></mat-datepicker-toggle>
+          <mat-datepicker #cdp2></mat-datepicker>
+        </mat-form-field>
+
+        <mat-checkbox formControlName="MarkAsCurrent">Marcar como actual</mat-checkbox>
+
+        <div style="grid-column: 1 / -1; color: #c00; font-size: 12px;" *ngIf="createForm.errors as e">
+          <div *ngIf="e['dateOrder']">La fecha de fin debe ser posterior a la de inicio</div>
+          <div *ngIf="e['notInPast']">Las fechas no pueden estar en el pasado</div>
+        </div>
+
+        <div style="grid-column: 1 / -1;">
+          <h4>Semanas (previsualización)</h4>
+          <div *ngIf="createWeeks().length===0">Configura fechas y cantidad de semanas para ver la división.</div>
+          <mat-chip-set *ngIf="createWeeks().length>0">
+            <mat-chip *ngFor="let w of createWeeks()" color="accent" selected>
+              S{{ w.index }}: {{ w.start | date:'MMM d' }} → {{ w.end | date:'MMM d' }}
+            </mat-chip>
+          </mat-chip-set>
+        </div>
+          </form>
+        </mat-card-content>
+        <mat-card-actions>
+          <button mat-raised-button color="primary" (click)="createSeason()" [disabled]="createForm.invalid">
+            <mat-icon>check_circle</mat-icon>
+            Crear temporada
+          </button>
+        </mat-card-actions>
+      </mat-card>
+    </mat-tab>
+
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon>inventory_2</mat-icon>
+        <span>&nbsp;Históricas</span>
+      </ng-template>
+      <mat-card>
+        <mat-card-header>
+          <mat-card-title>
+            <mat-icon>inventory_2</mat-icon>
+            <span>Temporadas históricas</span>
+          </mat-card-title>
+          <span style="flex:1 1 auto"></span>
+          <mat-form-field appearance="outline" style="width:180px; margin-right:8px">
+            <mat-label>ID de temporada</mat-label>
+            <input matInput type="number" [value]="historySeasonId() ?? ''" (input)="historySeasonId.set(($any($event.target).valueAsNumber === $any($event.target).valueAsNumber) ? $any($event.target).valueAsNumber : null)" />
+          </mat-form-field>
+          <button mat-stroked-button color="primary" (click)="loadHistoricalById()">
+            <mat-icon>search</mat-icon>
+            Buscar por ID
+          </button>
+          <button mat-icon-button matTooltip="Limpiar lista" (click)="clearHistoryList()" aria-label="Limpiar">
+            <mat-icon>clear_all</mat-icon>
+          </button>
+        </mat-card-header>
+        <mat-card-content>
+          <div *ngIf="historyLoading()" class="loading">
+            <mat-progress-spinner mode="indeterminate" diameter="24"></mat-progress-spinner>
+            <span style="margin-left:8px">Cargando…</span>
+          </div>
+          <div *ngIf="!historyLoading() && historyError()" class="error">{{ historyError() }}</div>
+
+          <div *ngIf="!historyLoading() && !historyError()">
+            <table mat-table [dataSource]="history()" class="mat-elevation-z1" style="width:100%">
+              <ng-container matColumnDef="label">
+                <th mat-header-cell *matHeaderCellDef> Nombre </th>
+                <td mat-cell *matCellDef="let s"> {{ s.Label }} </td>
+              </ng-container>
+              <ng-container matColumnDef="year">
+                <th mat-header-cell *matHeaderCellDef> Año </th>
+                <td mat-cell *matCellDef="let s"> {{ s.Year }} </td>
+              </ng-container>
+              <ng-container matColumnDef="start">
+                <th mat-header-cell *matHeaderCellDef> Inicio </th>
+                <td mat-cell *matCellDef="let s"> {{ s.StartDate | date:'yyyy-MM-dd' }} </td>
+              </ng-container>
+              <ng-container matColumnDef="end">
+                <th mat-header-cell *matHeaderCellDef> Fin </th>
+                <td mat-cell *matCellDef="let s"> {{ s.EndDate | date:'yyyy-MM-dd' }} </td>
+              </ng-container>
+              <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef> Acciones </th>
+                <td mat-cell *matCellDef="let s">
+                  <button mat-icon-button matTooltip="Semanas" (click)="openWeeksDialog(s)">
+                    <mat-icon>date_range</mat-icon>
+                  </button>
+                  <button mat-icon-button color="warn" matTooltip="Eliminar" (click)="deleteHistorical(s)" [disabled]="s.IsCurrent">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </td>
+              </ng-container>
+
+              <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+            </table>
+            <div *ngIf="history().length===0" style="padding:16px; color: rgba(0,0,0,0.6)">Sin resultados. Ingresa un ID y pulsa Buscar.</div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </mat-tab>
+  </mat-tab-group>
+</div>
