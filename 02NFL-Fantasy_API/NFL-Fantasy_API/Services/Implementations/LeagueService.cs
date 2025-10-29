@@ -58,19 +58,18 @@ namespace NFL_Fantasy_API.Services.Implementations
 
                 var parameters = new SqlParameter[]
                 {
-            new SqlParameter("@CreatorUserID", creatorUserId),
-            new SqlParameter("@Name", dto.Name),
-            new SqlParameter("@Description", DatabaseHelper.DbNullIfNull(dto.Description)),
-            new SqlParameter("@TeamSlots", dto.TeamSlots),
-            new SqlParameter("@LeaguePassword", dto.LeaguePassword),
-            // Antes enviaba siempre un string no-vacío; ahora puede ir DBNull.Value
-            new SqlParameter("@InitialTeamName", initialTeamNameValue),
-            new SqlParameter("@PlayoffTeams", dto.PlayoffTeams),
-            new SqlParameter("@AllowDecimals", dto.AllowDecimals),
-            new SqlParameter("@PositionFormatID", DatabaseHelper.DbNullIfNull(dto.PositionFormatID)),
-            new SqlParameter("@ScoringSchemaID", DatabaseHelper.DbNullIfNull(dto.ScoringSchemaID)),
-            new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
-            new SqlParameter("@UserAgent", DatabaseHelper.DbNullIfNull(userAgent))
+                    new SqlParameter("@CreatorUserID", creatorUserId),
+                    new SqlParameter("@Name", dto.Name),
+                    new SqlParameter("@Description", DatabaseHelper.DbNullIfNull(dto.Description)),
+                    new SqlParameter("@TeamSlots", dto.TeamSlots),
+                    new SqlParameter("@LeaguePassword", dto.LeaguePassword),
+                    new SqlParameter("@InitialTeamName", initialTeamNameValue),
+                    new SqlParameter("@PlayoffTeams", dto.PlayoffTeams),
+                    new SqlParameter("@AllowDecimals", dto.AllowDecimals),
+                    new SqlParameter("@PositionFormatID", DatabaseHelper.DbNullIfNull(dto.PositionFormatID)),
+                    new SqlParameter("@ScoringSchemaID", DatabaseHelper.DbNullIfNull(dto.ScoringSchemaID)),
+                    new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
+                    new SqlParameter("@UserAgent", DatabaseHelper.DbNullIfNull(userAgent))
                 };
 
                 // sp_CreateLeague retorna un result set con información de la liga creada
@@ -691,12 +690,12 @@ namespace NFL_Fantasy_API.Services.Implementations
         {
             var parameters = new SqlParameter[]
             {
-        new SqlParameter("@UserID", userId),
-        new SqlParameter("@LeagueID", request.LeagueID),
-        new SqlParameter("@LeaguePassword", request.LeaguePassword),
-        new SqlParameter("@TeamName", request.TeamName),
-        new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
-        new SqlParameter("@UserAgent", DatabaseHelper.DbNullIfNull(userAgent))
+                new SqlParameter("@UserID", userId),
+                new SqlParameter("@LeagueID", request.LeagueID),
+                new SqlParameter("@LeaguePassword", request.LeaguePassword),
+                new SqlParameter("@TeamName", request.TeamName),
+                new SqlParameter("@SourceIp", DatabaseHelper.DbNullIfNull(sourceIp)),
+                new SqlParameter("@UserAgent", DatabaseHelper.DbNullIfNull(userAgent))
             };
 
             // Retorna un solo resultado, igual que CreateLeague
