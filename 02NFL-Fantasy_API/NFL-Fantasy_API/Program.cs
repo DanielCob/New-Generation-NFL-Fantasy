@@ -1,8 +1,30 @@
 using Microsoft.OpenApi.Models;
-using NFL_Fantasy_API.Middleware;
-using NFL_Fantasy_API.Services.Implementations;
-using NFL_Fantasy_API.Services.Interfaces;
+using NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations;
+using NFL_Fantasy_API.SharedSystems.Middleware;
+using Microsoft.Extensions.Options;
+using Minio;
 using System.Diagnostics;
+using NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Interfaces;
+using NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.Audit;
+using NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.Auth;
+using NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.Fantasy;
+using NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.NflDetails;
+using NFL_Fantasy_API.DataAccessLayer.StorageDatabase.Implementations;
+using NFL_Fantasy_API.SharedSystems.StorageConfig;
+using NFL_Fantasy_API.SharedSystems.EmailConfig;
+using NFL_Fantasy_API.Helpers.Filters;
+using NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Auth;
+using NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Fantasy;
+using NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Audit;
+using NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.NflDetails;
+using NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Implementations.Storage;
+using NFL_Fantasy_API.LogicLayer.EmailLogic.Services.Implementations.Email;
+using NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Interfaces.NflDetails;
+using NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Interfaces.Auth;
+using NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Interfaces.Fantasy;
+using NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Interfaces.Audit;
+using NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Interfaces.Storage;
+using NFL_Fantasy_API.LogicLayer.EmailLogic.Services.Interfaces.Email;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -58,8 +80,17 @@ builder.Services.AddCors(options =>
 #region Controllers Configuration
 
 // Agregar controllers con configuraciones
-builder.Services.AddControllers()
-    .AddJsonOptions(options =>
+builder.Services.AddControllers(options =>
+    {
+    // Validación automática de ModelState en TODOS los endpoints
+    options.Filters.Add<ModelStateValidationFilter>();
+
+    // Manejo centralizado de excepciones en TODA la aplicación
+    options.Filters.Add<GlobalExceptionFilter>();
+
+    // (Opcional) Logging de autenticación en endpoints protegidos
+    options.Filters.Add<AuthorizationLoggingFilter>();
+    }).AddJsonOptions(options =>
     {
         // Configurar serializacion JSON
         options.JsonSerializerOptions.PropertyNamingPolicy = null; // PascalCase
@@ -70,45 +101,140 @@ builder.Services.AddControllers()
 
 #endregion
 
-#region Dependency Injection - Services
+#region Dependency Injection - Configuration Options
 
-// Registrar todos los servicios de la aplicacion
-// Usar Scoped para servicios que necesitan mantener estado durante una request
+// Configurar opciones desde appsettings.json usando Options Pattern
+// Estas configuraciones se inyectan como IOptions<T> en los servicios
 
-// Servicios de autenticacion y usuarios
+// SMTP Configuration para envío de emails
+builder.Services.Configure<SmtpSettings>(
+    builder.Configuration.GetSection("Smtp")
+);
+
+// MinIO Configuration para almacenamiento de imágenes
+builder.Services.Configure<MinIOSettings>(
+    builder.Configuration.GetSection("MinIO")
+);
+
+#endregion
+
+#region Dependency Injection - Database & Core Infrastructure
+
+// DatabaseHelper: Wrapper de ADO.NET para operaciones con SQL Server
+// Scoped: Una instancia por request HTTP
+builder.Services.AddScoped<IDatabaseHelper, DatabaseHelper>();
+
+#endregion
+
+#region Dependency Injection - DataAccess Layer
+
+// Capa de acceso a datos (DAL)
+// Responsabilidad: Construcción de queries, parámetros y mapeo de resultados
+// NO contienen lógica de negocio
+
+// Auth & Users
+builder.Services.AddScoped<AuthDataAccess>();
+builder.Services.AddScoped<UserDataAccess>();
+
+// Leagues & Teams
+builder.Services.AddScoped<LeagueDataAccess>();
+builder.Services.AddScoped<TeamDataAccess>();
+
+// NFL Data
+builder.Services.AddScoped<NFLTeamDataAccess>();
+builder.Services.AddScoped<PlayerDataAccess>();
+builder.Services.AddScoped<ScoringDataAccess>();
+
+// System & Configuration
+builder.Services.AddScoped<ReferenceDataAccess>();
+builder.Services.AddScoped<SeasonDataAccess>();
+builder.Services.AddScoped<SystemRolesDataAccess>();
+builder.Services.AddScoped<AuditDataAccess>();
+
+#endregion
+
+#region Dependency Injection - Business Logic Services
+
+// Capa de lógica de negocio (BLL)
+// Responsabilidad: Orquestación, validaciones y reglas de negocio
+// Delegan acceso a datos a DataAccess
+
+// Authentication & Authorization
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<ISystemRolesService, SystemRolesService>();
 
-// Servicios de ligas
+// League Management
 builder.Services.AddScoped<ILeagueService, LeagueService>();
-
-// Servicios de referencia y configuracion
-builder.Services.AddScoped<IReferenceService, ReferenceService>();
-builder.Services.AddScoped<IScoringService, ScoringService>();
-
-// NUEVOS SERVICIOS - Features 3.1 y 10.1:
-builder.Services.AddScoped<INFLTeamService, NFLTeamService>();
 builder.Services.AddScoped<ITeamService, TeamService>();
+
+// NFL Data & Configuration
+builder.Services.AddScoped<INFLTeamService, NFLTeamService>();
 builder.Services.AddScoped<IPlayerService, PlayerService>();
-
-// Servicios de vistas/reportes
-builder.Services.AddScoped<IViewsService, ViewsService>();
-
-// Servicio de auditoria y mantenimiento
-builder.Services.AddScoped<IAuditService, AuditService>();
-
-// Servicio de temporadas
+builder.Services.AddScoped<IScoringService, ScoringService>();
 builder.Services.AddScoped<ISeasonService, SeasonService>();
 
-// Servicio de email (SMTP)
-builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("Smtp"));
-builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+// System Services
+builder.Services.AddScoped<IReferenceService, ReferenceService>();
+builder.Services.AddScoped<IAuditService, AuditService>();
 
-// Servicio de almacenamiento MinIO
-builder.Services.AddSingleton<IStorageService, MinIOStorageService>();
+#endregion
 
-// Servicio de roles
-builder.Services.AddScoped<ISystemRolesService, SystemRolesService>();
+#region Dependency Injection - Email System (SharedSystems)
+
+// Sistema de envío de emails
+// Ubicación: SharedSystems/Email/
+// Implementación actual: SMTP (compatible con SendGrid, Gmail, Office365)
+
+builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
+
+// NOTA: SmtpSettings ya configurado en sección "Configuration Options"
+
+#endregion
+
+#region Dependency Injection - Storage System (SharedSystems)
+
+// Sistema de almacenamiento de imágenes
+// Ubicación: SharedSystems/Storage/
+// Implementación actual: MinIO (S3-compatible)
+
+// MinIO Client (Singleton - reutilizable en toda la app)
+builder.Services.AddSingleton<IMinioClient>(sp =>
+{
+    var config = sp.GetRequiredService<IOptions<MinIOSettings>>().Value;
+
+    return new MinioClient()
+        .WithEndpoint(config.Endpoint)
+        .WithCredentials(config.AccessKey, config.SecretKey)
+        .WithSSL(config.UseSSL)
+        .Build();
+});
+
+// MinIO DataAccess y Service
+builder.Services.AddScoped<MinIODataAccess>();
+builder.Services.AddScoped<IStorageService, StorageService>();
+
+// MinIO Initializer (ejecuta al arrancar la app)
+// Crea bucket y configura política pública si no existe
+builder.Services.AddHostedService<MinIOInitializer>();
+
+// NOTA: MinIOSettings ya configurado en sección "Configuration Options"
+
+#endregion
+
+#region Dependency Injection - Filters
+
+// Action Filters para validación y logging
+// Scoped: Se crean por request
+
+// Validación automática de ModelState
+builder.Services.AddScoped<ModelStateValidationFilter>();
+
+// Manejo global de excepciones
+builder.Services.AddScoped<GlobalExceptionFilter>();
+
+// Logging de autorización
+builder.Services.AddScoped<AuthorizationLoggingFilter>();
 
 #endregion
 
@@ -150,8 +276,7 @@ builder.Services.AddSwaggerGen(options =>
         BearerFormat = "GUID",
         In = ParameterLocation.Header,
         Description = "Ingrese el SessionID (GUID) obtenido al iniciar sesion.\n\n" +
-                      "Ejemplo: `3fa85f64-5717-4562-b3fc-2c963f66afa6`\n\n" +
-                      "No incluir la palabra 'Bearer', solo el GUID."
+                      "Ejemplo: `3fa85f64-5717-4562-b3fc-2c963f66afa6`\n\n"
     });
 
     options.AddSecurityRequirement(new OpenApiSecurityRequirement
@@ -168,9 +293,6 @@ builder.Services.AddSwaggerGen(options =>
             Array.Empty<string>()
         }
     });
-
-    // IMPORTANTE: Configuración para manejar file uploads
-    options.OperationFilter<NFL_Fantasy_API.Filters.SwaggerFileOperationFilter>();
 });
 
 #endregion
