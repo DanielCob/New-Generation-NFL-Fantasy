@@ -516,6 +516,7 @@ GO
 -- ============================================================================
 -- sp_GetUserProfile - VERSIÓN ACTUALIZADA
 -- Devuelve el SystemRoleCode real del usuario
+-- MODIFICADO: Excluye ligas finalizadas (Status = 5)
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_GetUserProfile
   @UserID INT
@@ -537,7 +538,9 @@ BEGIN
     lm.RoleCode, lm.JoinedAt
   FROM league.LeagueMember lm
   JOIN league.League l ON l.LeagueID = lm.LeagueID
-  WHERE lm.UserID = @UserID AND lm.RoleCode = N'COMMISSIONER'
+  WHERE lm.UserID = @UserID 
+    AND lm.RoleCode = N'COMMISSIONER'
+    AND l.Status <> 5  -- ⭐ NUEVO: Excluir ligas finalizadas
   ORDER BY l.CreatedAt DESC;
 
   -- 3) Mis equipos por liga
@@ -547,6 +550,7 @@ BEGIN
   JOIN league.League l ON l.LeagueID = t.LeagueID
   WHERE t.OwnerUserID = @UserID
     AND t.IsActive = 1
+    AND l.Status <> 5  -- ⭐ NUEVO: Excluir equipos de ligas finalizadas
   ORDER BY t.CreatedAt DESC;
 END
 GO
@@ -760,8 +764,8 @@ GRANT EXECUTE ON OBJECT::app.sp_GetSystemRoleHistory TO app_executor;
 GO
 
 -- ============================================================================
--- sp_CreateLeague - VERSIÓN ACTUALIZADA
--- @InitialTeamName ahora es OBLIGATORIO
+-- sp_CreateLeague - VERSIÓN CON IDs ALEATORIOS
+-- Genera LeagueID y LeaguePublicID aleatorios
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_CreateLeague
   @CreatorUserID        INT,
@@ -786,7 +790,6 @@ BEGIN
   IF @InitialTeamName IS NULL OR LTRIM(RTRIM(@InitialTeamName)) = N''
     THROW 50039, 'Nombre de equipo inicial es obligatorio.', 1;
 
-  -- Normalización después de validar que no es vacío
   SET @InitialTeamName = LTRIM(RTRIM(@InitialTeamName));
 
   -- Validaciones existentes
@@ -799,7 +802,6 @@ BEGIN
   IF @PlayoffTeams NOT IN (4,6)
     THROW 50042, 'PlayoffTeams inválido (4 o 6).', 1;
 
-  -- Validar longitud del nombre de equipo (ahora siempre se valida)
   IF LEN(@InitialTeamName) > 50
     THROW 50043, 'Nombre de equipo inválido: no debe superar 50 caracteres.', 1;
 
@@ -839,7 +841,11 @@ BEGIN
   DECLARE @PwdBytes VARBINARY(4000) = CONVERT(VARBINARY(4000), @LeaguePassword);
   DECLARE @Hash VARBINARY(64) = HASHBYTES('SHA2_256', @PwdBytes + @Salt);
 
+  -- GENERAR IDs ALEATORIOS ÚNICOS
   DECLARE @LeagueID INT;
+  DECLARE @LeaguePublicID INT;
+  DECLARE @MaxAttempts INT = 100;
+  DECLARE @Attempt INT = 0;
 
   BEGIN TRY
     BEGIN TRAN;
@@ -849,7 +855,7 @@ BEGIN
          SET Status = 2,  -- Inactive
              UpdatedAt = SYSUTCDATETIME()
        WHERE SeasonID = @SeasonID
-         AND Status = 1  -- Active
+         AND Status IN (0,1)  -- Active
          AND CreatedByUserID = @CreatorUserID;
 
       IF @@ROWCOUNT > 0
@@ -859,9 +865,40 @@ BEGIN
                N'Ligas activas desactivadas automáticamente al crear nueva liga', @SourceIp, @UserAgent);
       END
 
-      -- Crear la liga
+      -- GENERAR LeagueID ÚNICO
+      WHILE @Attempt < @MaxAttempts
+      BEGIN
+        SET @LeagueID = dbo.fn_GenerateRandomInt();
+        
+        IF NOT EXISTS (SELECT 1 FROM league.League WHERE LeagueID = @LeagueID)
+          BREAK;
+        
+        SET @Attempt = @Attempt + 1;
+      END
+
+      IF @Attempt >= @MaxAttempts
+        THROW 50055, 'No se pudo generar un LeagueID único después de múltiples intentos.', 1;
+
+      -- GENERAR LeaguePublicID ÚNICO (diferente del LeagueID)
+      SET @Attempt = 0;
+      WHILE @Attempt < @MaxAttempts
+      BEGIN
+        SET @LeaguePublicID = dbo.fn_GenerateRandomInt();
+        
+        -- Debe ser diferente del LeagueID y no existir en la tabla
+        IF @LeaguePublicID <> @LeagueID 
+           AND NOT EXISTS (SELECT 1 FROM league.League WHERE LeaguePublicID = @LeaguePublicID)
+          BREAK;
+        
+        SET @Attempt = @Attempt + 1;
+      END
+
+      IF @Attempt >= @MaxAttempts
+        THROW 50056, 'No se pudo generar un LeaguePublicID único después de múltiples intentos.', 1;
+
+      -- Crear la liga con IDs aleatorios
       INSERT INTO league.League
-      (SeasonID, Name, Description, TeamSlots,
+      (LeagueID, LeaguePublicID, SeasonID, Name, Description, TeamSlots,
        LeaguePasswordHash, LeaguePasswordSalt,
        Status, AllowDecimals, PlayoffTeams,
        TradeDeadlineEnabled, TradeDeadlineDate,
@@ -869,7 +906,7 @@ BEGIN
        PositionFormatID, ScoringSchemaID,
        CreatedByUserID)
       VALUES
-      (@SeasonID, @Name, @Description, @TeamSlots,
+      (@LeagueID, @LeaguePublicID, @SeasonID, @Name, @Description, @TeamSlots,
        @Hash, @Salt,
        0, @AllowDecimals, @PlayoffTeams,
        0, NULL,
@@ -877,28 +914,33 @@ BEGIN
        @PositionFormatID, @ScoringSchemaID,
        @CreatorUserID);
 
-      SET @LeagueID = SCOPE_IDENTITY();
-
       -- Miembro: comisionado principal
       INSERT INTO league.LeagueMember(LeagueID, UserID, RoleCode)
       VALUES(@LeagueID, @CreatorUserID, N'COMMISSIONER');
 
-      -- Crear equipo inicial (SIEMPRE, ya que @InitialTeamName es obligatorio)
+      -- Crear equipo inicial
       INSERT INTO league.Team(LeagueID, OwnerUserID, TeamName)
       VALUES(@LeagueID, @CreatorUserID, @InitialTeamName);
 
       -- Auditoría
       INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
       VALUES(@CreatorUserID, N'LEAGUE', CAST(@LeagueID AS NVARCHAR(50)), N'CREATE',
-             N'Liga creada en Pre-Draft con equipo inicial del comisionado', @SourceIp, @UserAgent);
+             CONCAT(N'Liga creada (ID:', @LeagueID, N', PublicID:', @LeaguePublicID, N') en Pre-Draft con equipo inicial'), 
+             @SourceIp, @UserAgent);
 
     COMMIT;
 
     -- Result set esperado por el backend
     SELECT
-      l.LeagueID, l.Name, l.TeamSlots,
+      l.LeagueID, 
+      l.LeaguePublicID,  -- NUEVO: Incluir en respuesta
+      l.Name, 
+      l.TeamSlots,
       (l.TeamSlots - (SELECT COUNT(*) FROM league.Team t WHERE t.LeagueID = l.LeagueID)) AS AvailableSlots,
-      l.Status, l.PlayoffTeams, l.AllowDecimals, l.CreatedAt
+      l.Status, 
+      l.PlayoffTeams, 
+      l.AllowDecimals, 
+      l.CreatedAt
     FROM league.League l
     WHERE l.LeagueID = @LeagueID;
   END TRY
@@ -1155,8 +1197,7 @@ GRANT EXECUTE ON OBJECT::app.sp_EditLeagueConfig TO app_executor;
 GO
 
 -- ============================================================================
--- sp_GetLeagueSummary - VERSIÓN ACTUALIZADA
--- Incluye información adicional de equipos con imágenes
+-- sp_GetLeagueSummary - VERSIÓN ACTUALIZADA CON LeaguePublicID
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_GetLeagueSummary
   @LeagueID INT
@@ -1166,24 +1207,40 @@ BEGIN
 
   -- 1) Información de la liga
   SELECT
-    l.LeagueID, l.Name, l.Description, l.Status,
+    l.LeagueID, 
+    l.LeaguePublicID,  -- NUEVO
+    l.Name, 
+    l.Description, 
+    l.Status,
     l.TeamSlots,
     TeamsCount = (SELECT COUNT(*) FROM league.Team t WHERE t.LeagueID = l.LeagueID),
     AvailableSlots = l.TeamSlots - (SELECT COUNT(*) FROM league.Team t WHERE t.LeagueID = l.LeagueID),
-    l.PlayoffTeams, l.AllowDecimals,
-    l.TradeDeadlineEnabled, l.TradeDeadlineDate,
-    l.MaxRosterChangesPerTeam, l.MaxFreeAgentAddsPerTeam,
-    l.PositionFormatID, pf.Name AS PositionFormatName,
-    l.ScoringSchemaID, ss.Name AS ScoringSchemaName, ss.Version,
-    l.SeasonID, s.Label AS SeasonLabel, s.Year, s.StartDate, s.EndDate,
-    l.CreatedByUserID, l.CreatedAt, l.UpdatedAt
+    l.PlayoffTeams, 
+    l.AllowDecimals,
+    l.TradeDeadlineEnabled, 
+    l.TradeDeadlineDate,
+    l.MaxRosterChangesPerTeam, 
+    l.MaxFreeAgentAddsPerTeam,
+    l.PositionFormatID, 
+    pf.Name AS PositionFormatName,
+    l.ScoringSchemaID, 
+    ss.Name AS ScoringSchemaName, 
+    ss.Version,
+    l.SeasonID, 
+    s.Label AS SeasonLabel, 
+    s.Year, 
+    s.StartDate, 
+    s.EndDate,
+    l.CreatedByUserID, 
+    l.CreatedAt, 
+    l.UpdatedAt
   FROM league.League l
   JOIN ref.PositionFormat pf ON pf.PositionFormatID = l.PositionFormatID
   JOIN scoring.ScoringSchema ss ON ss.ScoringSchemaID = l.ScoringSchemaID
   JOIN league.Season s ON s.SeasonID = l.SeasonID
   WHERE l.LeagueID = @LeagueID;
 
-  -- 2) Equipos de la liga (con imagen y thumbnail)
+  -- 2) Equipos de la liga (sin cambios)
   SELECT 
     t.TeamID, 
     t.TeamName, 
@@ -1193,7 +1250,6 @@ BEGIN
     t.ThumbnailUrl,
     t.IsActive,
     t.CreatedAt,
-    -- Contar jugadores en el roster
     (SELECT COUNT(*) FROM league.TeamRoster tr WHERE tr.TeamID = t.TeamID AND tr.IsActive = 1) AS RosterCount
   FROM league.Team t
   JOIN auth.UserAccount u ON u.UserID = t.OwnerUserID
@@ -2357,9 +2413,8 @@ GRANT EXECUTE ON OBJECT::app.sp_GetUserRolesInLeague TO app_executor;
 GO
 
 -- ============================================================================
--- sp_SearchLeagues
--- Busca ligas disponibles para unirse (con slots disponibles y en Pre-Draft)
--- REQUIERE mínimo 3 caracteres en @SearchTerm para mostrar resultados
+-- sp_SearchLeagues - VERSIÓN CON BÚSQUEDA POR LeaguePublicID
+-- Busca por LeaguePublicID en lugar de LeagueID para proteger el ID real
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_SearchLeagues
   @SearchTerm     NVARCHAR(100) = NULL,
@@ -2372,13 +2427,12 @@ AS
 BEGIN
   SET NOCOUNT ON;
 
-  -- ⚠️ NUEVA VALIDACIÓN: Requiere al menos 3 caracteres en @SearchTerm
-  -- Si es NULL o tiene menos de 3 caracteres, no retornar nada
+  -- Validación: Requiere al menos 3 caracteres en @SearchTerm
   IF @SearchTerm IS NULL OR LEN(LTRIM(RTRIM(@SearchTerm))) < 3
   BEGIN
-    -- Retornar resultado vacío con estructura correcta
     SELECT
       NULL AS LeagueID,
+      NULL AS LeaguePublicID,  -- ⭐ NUEVO
       NULL AS Name,
       NULL AS Description,
       NULL AS TeamSlots,
@@ -2394,11 +2448,10 @@ BEGIN
       @PageNumber AS CurrentPage,
       @PageSize AS PageSize,
       0 AS TotalPages
-    WHERE 1 = 0;  -- Esto garantiza que no se retornen filas
+    WHERE 1 = 0;
     RETURN;
   END
 
-  -- Limpiar @SearchTerm de espacios
   SET @SearchTerm = LTRIM(RTRIM(@SearchTerm));
 
   -- Validar paginación
@@ -2411,20 +2464,39 @@ BEGIN
   IF @SeasonID IS NULL
     SELECT @SeasonID = SeasonID FROM league.Season WHERE IsCurrent = 1;
 
+  -- INTENTAR CONVERTIR @SearchTerm A INT PARA BÚSQUEDA POR LeaguePublicID
+  DECLARE @SearchPublicID INT = NULL;
+  IF ISNUMERIC(@SearchTerm) = 1
+  BEGIN
+    BEGIN TRY
+      SET @SearchPublicID = CAST(@SearchTerm AS INT);
+    END TRY
+    BEGIN CATCH
+      SET @SearchPublicID = NULL;
+    END CATCH
+  END
+
   -- Total de registros
   DECLARE @TotalRecords INT;
   SELECT @TotalRecords = COUNT(*)
   FROM league.League l
   WHERE l.SeasonID = @SeasonID
-    AND l.Status = 0  -- Solo ligas en Pre-Draft (excluye Status = 5 Finalizadas)
-    AND (l.TeamSlots - (SELECT COUNT(*) FROM league.Team t WHERE t.LeagueID = l.LeagueID)) > 0  -- Tiene slots disponibles
-    AND (l.Name LIKE N'%' + @SearchTerm + N'%' OR l.Description LIKE N'%' + @SearchTerm + N'%')  -- Ahora @SearchTerm siempre tiene valor
+    AND l.Status = 0  -- Solo Pre-Draft
+    AND (l.TeamSlots - (SELECT COUNT(*) FROM league.Team t WHERE t.LeagueID = l.LeagueID)) > 0
+    AND (
+      -- BUSCAR POR LeaguePublicID SI ES NÚMERO
+      (@SearchPublicID IS NOT NULL AND l.LeaguePublicID = @SearchPublicID)
+      OR
+      -- O BUSCAR POR NOMBRE/DESCRIPCIÓN SI ES TEXTO
+      (@SearchPublicID IS NULL AND (l.Name LIKE N'%' + @SearchTerm + N'%' OR l.Description LIKE N'%' + @SearchTerm + N'%'))
+    )
     AND (@MinSlots IS NULL OR l.TeamSlots >= @MinSlots)
     AND (@MaxSlots IS NULL OR l.TeamSlots <= @MaxSlots);
 
   -- Resultados paginados
   SELECT
     l.LeagueID,
+    l.LeaguePublicID,  -- NUEVO: Retornar para mostrar al usuario
     l.Name,
     l.Description,
     l.TeamSlots,
@@ -2444,9 +2516,13 @@ BEGIN
   JOIN league.Season s ON s.SeasonID = l.SeasonID
   JOIN auth.UserAccount u ON u.UserID = l.CreatedByUserID
   WHERE l.SeasonID = @SeasonID
-    AND l.Status = 0  -- Solo Pre-Draft (automáticamente excluye Status = 5)
+    AND l.Status = 0
     AND (l.TeamSlots - (SELECT COUNT(*) FROM league.Team t WHERE t.LeagueID = l.LeagueID)) > 0
-    AND (l.Name LIKE N'%' + @SearchTerm + N'%' OR l.Description LIKE N'%' + @SearchTerm + N'%')
+    AND (
+      (@SearchPublicID IS NOT NULL AND l.LeaguePublicID = @SearchPublicID)
+      OR
+      (@SearchPublicID IS NULL AND (l.Name LIKE N'%' + @SearchTerm + N'%' OR l.Description LIKE N'%' + @SearchTerm + N'%'))
+    )
     AND (@MinSlots IS NULL OR l.TeamSlots >= @MinSlots)
     AND (@MaxSlots IS NULL OR l.TeamSlots <= @MaxSlots)
   ORDER BY l.CreatedAt DESC

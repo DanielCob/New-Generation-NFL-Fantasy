@@ -513,13 +513,14 @@ GRANT SELECT ON dbo.vw_NFLTeamDetails TO app_executor;
 GO
 
 -- ============================================================================
--- vw_LeagueDirectory - VERSIÓN ACTUALIZADA
--- Incluye conteo de equipos activos
+-- vw_LeagueDirectory - VERSIÓN ACTUALIZADA CON LeaguePublicID
+-- Incluye conteo de equipos activos y el ID público
 -- ============================================================================
 CREATE OR ALTER VIEW dbo.vw_LeagueDirectory
 AS
 SELECT
   l.LeagueID,
+  l.LeaguePublicID,  -- NUEVO
   s.Label AS SeasonLabel,
   l.Name,
   l.Status,
@@ -698,13 +699,14 @@ GRANT SELECT ON dbo.vw_UserTeams TO app_executor;
 GO
 
 -- ============================================================================
--- vw_LeagueSummary - VERSIÓN ACTUALIZADA
--- Incluye SystemRoleCode del creador de la liga
+-- vw_LeagueSummary - VERSIÓN ACTUALIZADA CON LeaguePublicID
+-- Incluye SystemRoleCode del creador de la liga y el ID público
 -- ============================================================================
 CREATE OR ALTER VIEW dbo.vw_LeagueSummary
 AS
 SELECT
   l.LeagueID,
+  l.LeaguePublicID,  -- NUEVO
   l.Name,
   l.Description,
   l.Status,

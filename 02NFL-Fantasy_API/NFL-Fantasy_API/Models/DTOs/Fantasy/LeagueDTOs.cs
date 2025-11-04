@@ -46,10 +46,12 @@ namespace NFL_Fantasy_API.Models.DTOs.Fantasy
 
     /// <summary>
     /// Respuesta de creación de liga exitosa
+    /// ⭐ ACTUALIZADO: Incluye LeaguePublicID
     /// </summary>
     public class CreateLeagueResponseDTO
     {
         public int LeagueID { get; set; }
+        public int LeaguePublicID { get; set; }  // NUEVO
         public string Name { get; set; } = string.Empty;
         public byte TeamSlots { get; set; }
         public int AvailableSlots { get; set; }
@@ -120,10 +122,12 @@ namespace NFL_Fantasy_API.Models.DTOs.Fantasy
 
     /// <summary>
     /// Resumen completo de una liga (Feature 1.2 - Ver liga)
+    /// ⭐ ACTUALIZADO: Incluye LeaguePublicID
     /// </summary>
     public class LeagueSummaryDTO
     {
         public int LeagueID { get; set; }
+        public int LeaguePublicID { get; set; }  // NUEVO
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public byte Status { get; set; }
@@ -255,10 +259,12 @@ namespace NFL_Fantasy_API.Models.DTOs.Fantasy
 
     /// <summary>
     /// DTO para resultado de búsqueda de ligas
+    /// ⭐ ACTUALIZADO: Incluye LeaguePublicID
     /// </summary>
     public class SearchLeaguesResultDTO
     {
         public int LeagueID { get; set; }
+        public int LeaguePublicID { get; set; }  // NUEVO
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public byte TeamSlots { get; set; }
@@ -327,12 +333,31 @@ namespace NFL_Fantasy_API.Models.DTOs.Fantasy
     }
 
     /// <summary>
+    /// DTO para resultado de remover equipo
+    /// </summary>
+    public class RemoveTeamResultDTO
+    {
+        public int AvailableSlots { get; set; }
+        public string Message { get; set; } = string.Empty;
+    }
+
+    /// <summary>
     /// DTO para transferir comisionado
     /// </summary>
     public class TransferCommissionerRequestDTO
     {
         [Required(ErrorMessage = "NewCommissionerID es requerido")]
         public int NewCommissionerID { get; set; }
+    }
+
+    /// <summary>
+    /// DTO para resultado de transferencia de comisionado
+    /// </summary>
+    public class TransferCommissionerResultDTO
+    {
+        public string Message { get; set; } = string.Empty;
+        public int NewCommissionerID { get; set; }
+        public string NewCommissionerName { get; set; } = string.Empty;
     }
 
     /// <summary>

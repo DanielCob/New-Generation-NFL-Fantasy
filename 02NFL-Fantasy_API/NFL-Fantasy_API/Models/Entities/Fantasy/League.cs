@@ -15,6 +15,10 @@ namespace NFL_Fantasy_API.Models.Entities.Fantasy
         [Key]
         public int LeagueID { get; set; }
 
+        // NUEVO: ID público para búsquedas
+        [Required]
+        public int LeaguePublicID { get; set; }
+
         [Required]
         public int SeasonID { get; set; }
 

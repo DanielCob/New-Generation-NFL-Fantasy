@@ -3,10 +3,12 @@
     /// <summary>
     /// Mapea vw_LeagueSummary
     /// Vista: resumen completo de una liga con todos sus datos configurados
+    /// ACTUALIZADO: Incluye LeaguePublicID
     /// </summary>
     public class LeagueSummaryVM
     {
         public int LeagueID { get; set; }
+        public int LeaguePublicID { get; set; }  // NUEVO
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public byte Status { get; set; }
@@ -47,10 +49,12 @@
     /// <summary>
     /// Mapea vw_LeagueDirectory
     /// Vista: directorio público/listado de ligas disponibles
+    /// ACTUALIZADO: Incluye LeaguePublicID
     /// </summary>
     public class LeagueDirectoryVM
     {
         public int LeagueID { get; set; }
+        public int LeaguePublicID { get; set; }  // NUEVO
         public string SeasonLabel { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public byte Status { get; set; }
@@ -74,10 +78,10 @@
         public DateTime? LeftAt { get; set; }
         public string UserName { get; set; } = string.Empty;
         public string UserEmail { get; set; } = string.Empty;
-        public string? UserAlias { get; set; } // NUEVO
+        public string? UserAlias { get; set; }
         public string SystemRoleCode { get; set; } = "USER";
-        public string SystemRoleDisplay { get; set; } = string.Empty; // NUEVO
-        public string? ProfileImageUrl { get; set; } // NUEVO
+        public string SystemRoleDisplay { get; set; } = string.Empty;
+        public string? ProfileImageUrl { get; set; }
     }
 
     /// <summary>
@@ -92,7 +96,7 @@
         public int OwnerUserID { get; set; }
         public string OwnerName { get; set; } = string.Empty;
         public string OwnerSystemRoleCode { get; set; } = "USER";
-        public string? OwnerProfileImage { get; set; } // NUEVO
+        public string? OwnerProfileImage { get; set; }
         public string? TeamImageUrl { get; set; }
         public string? ThumbnailUrl { get; set; }
         public bool IsActive { get; set; }

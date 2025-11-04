@@ -648,17 +648,10 @@ DECLARE
 
 -- 8.1 Liga principal (se activa)
 IF NOT EXISTS (
-  SELECT 1
-  FROM league.League l
+  SELECT 1 FROM league.League l
   WHERE l.SeasonID = @SeasonID_Current AND l.Name = N'XNFL Prime League'
 )
 BEGIN
-  DECLARE @tCreatePrime TABLE(
-    LeagueID INT, Name NVARCHAR(100), TeamSlots TINYINT, AvailableSlots INT,
-    Status TINYINT, PlayoffTeams TINYINT, AllowDecimals BIT, CreatedAt DATETIME2(0)
-  );
-
-  INSERT INTO @tCreatePrime
   EXEC app.sp_CreateLeague
        @CreatorUserID    = @U_Admin,
        @Name             = N'XNFL Prime League',
@@ -670,7 +663,7 @@ BEGIN
        @AllowDecimals    = 1,
        @PositionFormatID = @PF_DefaultID,
        @ScoringSchemaID  = @SS_DefaultID;
-  
+
   PRINT N'✓ Liga XNFL Prime League creada';
 END
 
@@ -694,7 +687,6 @@ IF NOT EXISTS (SELECT 1 FROM league.Team WHERE LeagueID=@L_Prime AND OwnerUserID
 BEGIN
   INSERT INTO league.Team(LeagueID, OwnerUserID, TeamName)
   VALUES(@L_Prime, @U_Alice, N'Buffalo Bills');
-  -- ✅ NO insertar en LeagueMember - MANAGER se deriva automáticamente
   PRINT N'✓ Equipo Buffalo Bills agregado (Alice)';
 END
 
@@ -702,7 +694,6 @@ IF NOT EXISTS (SELECT 1 FROM league.Team WHERE LeagueID=@L_Prime AND OwnerUserID
 BEGIN
   INSERT INTO league.Team(LeagueID, OwnerUserID, TeamName)
   VALUES(@L_Prime, @U_Bob, N'Dallas Cowboys');
-  -- ✅ NO insertar en LeagueMember - MANAGER se deriva automáticamente
   PRINT N'✓ Equipo Dallas Cowboys agregado (Bob)';
 END
 
@@ -710,7 +701,6 @@ IF NOT EXISTS (SELECT 1 FROM league.Team WHERE LeagueID=@L_Prime AND OwnerUserID
 BEGIN
   INSERT INTO league.Team(LeagueID, OwnerUserID, TeamName)
   VALUES(@L_Prime, @U_Carol, N'Philadelphia Eagles');
-  -- ✅ NO insertar en LeagueMember - MANAGER se deriva automáticamente
   PRINT N'✓ Equipo Philadelphia Eagles agregado (Carol)';
 END
 
@@ -730,12 +720,6 @@ IF NOT EXISTS (
   WHERE l.SeasonID = @SeasonID_Current AND l.Name = N'Rookies League'
 )
 BEGIN
-  DECLARE @tCreateRookies TABLE(
-    LeagueID INT, Name NVARCHAR(100), TeamSlots TINYINT, AvailableSlots INT,
-    Status TINYINT, PlayoffTeams TINYINT, AllowDecimals BIT, CreatedAt DATETIME2(0)
-  );
-
-  INSERT INTO @tCreateRookies
   EXEC app.sp_CreateLeague
        @CreatorUserID    = @U_Bob,
        @Name             = N'Rookies League',
@@ -747,7 +731,7 @@ BEGIN
        @AllowDecimals    = 1,
        @PositionFormatID = @PF_OfID,
        @ScoringSchemaID  = @SS_MaxID;
-  
+
   PRINT N'✓ Liga Rookies League creada (comisionado: Bob)';
 END
 
@@ -761,7 +745,6 @@ IF NOT EXISTS (SELECT 1 FROM league.Team WHERE LeagueID=@L_Rookies AND OwnerUser
 BEGIN
   INSERT INTO league.Team(LeagueID, OwnerUserID, TeamName)
   VALUES(@L_Rookies, @U_Alice, N'Miami Dolphins');
-  -- ✅ NO insertar en LeagueMember - MANAGER se deriva automáticamente
   PRINT N'✓ Equipo Miami Dolphins agregado a Rookies League (Alice)';
 END
 
@@ -892,7 +875,7 @@ DECLARE @RosterCount INT = @@ROWCOUNT;
 PRINT N'✓ ' + CAST(@RosterCount AS NVARCHAR(10)) + N' jugadores asignados a rosters';
 
 /* ============================================================
-   RESUMEN FINAL
+   RESUMEN FINAL - VERSIÓN MEJORADA
    ============================================================ */
 PRINT N'';
 PRINT N'═══════════════════════════════════════════════════════════';
@@ -952,13 +935,50 @@ PRINT N'  • bob@xnfldemo.com (ROL: USER - Comisionado de Rookies League)';
 PRINT N'  • carol@xnfldemo.com (ROL: USER - Manager de Prime League)';
 PRINT N'  • brand@xnfldemo.com (ROL: BRAND_MANAGER - Gestor de Marca)';
 PRINT N'';
+
+-- NUEVA SECCIÓN: Mostrar IDs de las ligas creadas
 PRINT N'🏈 Ligas disponibles:';
-PRINT N'  • XNFL Prime League (Estado: Activa, 4 equipos - Comisionado: Admin)';
-PRINT N'  • Rookies League (Estado: Pre-Draft, 2 equipos - Comisionado: Bob)';
+
+DECLARE @PrimeLeagueID INT, @PrimeLeaguePublicID INT, @PrimeLeagueStatus TINYINT, @PrimeTeamCount INT;
+DECLARE @RookiesLeagueID INT, @RookiesLeaguePublicID INT, @RookiesLeagueStatus TINYINT, @RookiesTeamCount INT;
+
+SELECT 
+  @PrimeLeagueID = l.LeagueID,
+  @PrimeLeaguePublicID = l.LeaguePublicID,
+  @PrimeLeagueStatus = l.Status,
+  @PrimeTeamCount = (SELECT COUNT(*) FROM league.Team t WHERE t.LeagueID = l.LeagueID)
+FROM league.League l
+WHERE l.SeasonID = @SeasonID_Current AND l.Name = N'XNFL Prime League';
+
+SELECT 
+  @RookiesLeagueID = l.LeagueID,
+  @RookiesLeaguePublicID = l.LeaguePublicID,
+  @RookiesLeagueStatus = l.Status,
+  @RookiesTeamCount = (SELECT COUNT(*) FROM league.Team t WHERE t.LeagueID = l.LeagueID)
+FROM league.League l
+WHERE l.SeasonID = @SeasonID_Current AND l.Name = N'Rookies League';
+
+PRINT N'  • XNFL Prime League';
+PRINT N'    - Estado: ' + CASE @PrimeLeagueStatus WHEN 1 THEN N'Activa' ELSE N'Pre-Draft' END;
+PRINT N'    - Equipos: ' + CAST(@PrimeTeamCount AS NVARCHAR(10));
+PRINT N'    - ID Interno: ' + CAST(@PrimeLeagueID AS NVARCHAR(20));
+PRINT N'    - ID Público: ' + CAST(@PrimeLeaguePublicID AS NVARCHAR(20)) + N' (usar para búsquedas)';
+PRINT N'    - Comisionado: Admin (admin@xnfldemo.com)';
+PRINT N'';
+PRINT N'  • Rookies League';
+PRINT N'    - Estado: ' + CASE @RookiesLeagueStatus WHEN 1 THEN N'Activa' ELSE N'Pre-Draft' END;
+PRINT N'    - Equipos: ' + CAST(@RookiesTeamCount AS NVARCHAR(10));
+PRINT N'    - ID Interno: ' + CAST(@RookiesLeagueID AS NVARCHAR(20));
+PRINT N'    - ID Público: ' + CAST(@RookiesLeaguePublicID AS NVARCHAR(20)) + N' (usar para búsquedas)';
+PRINT N'    - Comisionado: Bob (bob@xnfldemo.com)';
 PRINT N'';
 PRINT N'🔐 Roles del Sistema:';
 PRINT N'  • ADMIN: Control total, gestión de usuarios y equipos NFL';
 PRINT N'  • USER: Usuario regular, puede ser manager/comisionado';
 PRINT N'  • BRAND_MANAGER: Permisos especiales para gestión de marca';
+PRINT N'';
+PRINT N'💡 Para buscar ligas públicamente:';
+PRINT N'  • Usa el LeaguePublicID (ej: sp_SearchLeagues @SearchTerm = ''123456789'')';
+PRINT N'  • El LeagueID interno permanece oculto para seguridad';
 PRINT N'';
 PRINT N'═══════════════════════════════════════════════════════════';

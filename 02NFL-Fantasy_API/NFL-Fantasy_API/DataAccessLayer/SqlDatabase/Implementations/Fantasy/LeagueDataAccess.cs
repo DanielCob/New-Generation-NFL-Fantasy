@@ -57,6 +57,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.Fantasy
                 reader => new CreateLeagueResponseDTO
                 {
                     LeagueID = reader.GetSafeInt32("LeagueID"),
+                    LeaguePublicID = reader.GetSafeInt32("LeaguePublicID"),
                     Name = reader.GetSafeString("Name"),
                     TeamSlots = reader.GetSafeByte("TeamSlots"),
                     AvailableSlots = reader.GetSafeInt32("AvailableSlots"),
@@ -183,6 +184,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.Fantasy
                 summary = new LeagueSummaryDTO
                 {
                     LeagueID = reader.GetSafeInt32("LeagueID"),
+                    LeaguePublicID = reader.GetSafeInt32("LeaguePublicID"),
                     Name = reader.GetSafeString("Name"),
                     Description = reader.GetSafeNullableString("Description"),
                     Status = reader.GetSafeByte("Status"),
@@ -257,6 +259,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.Fantasy
                 reader => new SearchLeaguesResultDTO
                 {
                     LeagueID = reader.GetSafeInt32("LeagueID"),
+                    LeaguePublicID = reader.GetSafeInt32("LeaguePublicID"),
                     Name = reader.GetSafeString("Name"),
                     Description = reader.GetSafeString("Description"),
                     TeamSlots = reader.GetSafeByte("TeamSlots"),
@@ -496,6 +499,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.Fantasy
                 reader => new LeagueDirectoryVM
                 {
                     LeagueID = reader.GetSafeInt32("LeagueID"),
+                    LeaguePublicID = reader.GetSafeInt32("LeaguePublicID"),
                     SeasonLabel = reader.GetSafeString("SeasonLabel"),
                     Name = reader.GetSafeString("Name"),
                     Status = reader.GetSafeByte("Status"),
@@ -574,6 +578,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.Fantasy
                 reader => new LeagueSummaryVM
                 {
                     LeagueID = reader.GetSafeInt32("LeagueID"),
+                    LeaguePublicID = reader.GetSafeInt32("LeaguePublicID"),
                     Name = reader.GetSafeString("Name"),
                     Description = reader.GetSafeNullableString("Description"),
                     Status = reader.GetSafeByte("Status"),
@@ -674,6 +679,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.Fantasy
                 reader => new LeagueDirectoryVM
                 {
                     LeagueID = reader.GetSafeInt32("LeagueID"),
+                    LeaguePublicID = reader.GetSafeInt32("LeaguePublicID"),
                     SeasonLabel = reader.GetSafeString("SeasonLabel"),
                     Name = reader.GetSafeString("Name"),
                     Status = reader.GetSafeByte("Status"),
