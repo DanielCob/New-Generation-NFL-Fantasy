@@ -65,6 +65,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.NflDetails
                 nflTeamId,
                 injuryStatus
             );
+            if (players is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudieron obtener los jugadores."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Jugadores obtenidos exitosamente.",
@@ -92,6 +93,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.NflDetails
             [FromQuery] string? position = null)
         {
             var players = await _playerService.GetAvailablePlayersAsync(position);
+            if (players is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudieron obtener los jugadores disponibles."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Jugadores disponibles obtenidos exitosamente.",
@@ -113,6 +115,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.NflDetails
         public async Task<ActionResult<ApiResponseDTO>> GetPlayersByNFLTeam(int nflTeamId)
         {
             var players = await _playerService.GetPlayersByNFLTeamAsync(nflTeamId);
+            if (players is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudieron obtener los jugadores del equipo NFL."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Jugadores del equipo obtenidos exitosamente.",

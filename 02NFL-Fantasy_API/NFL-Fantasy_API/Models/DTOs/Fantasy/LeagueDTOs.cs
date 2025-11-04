@@ -24,10 +24,8 @@ namespace NFL_Fantasy_API.Models.DTOs.Fantasy
         [StringLength(12, MinimumLength = 8, ErrorMessage = "La contraseña debe tener entre 8 y 12 caracteres.")]
         public string LeaguePassword { get; set; } = string.Empty;
 
-        // Ahora es OPCIONAL.
-        // Si viene null o vacío, NO se crea el equipo del creador.
-        [StringLength(50, MinimumLength = 1, ErrorMessage = "El nombre del equipo debe tener entre 1 y 50 caracteres.")]
-        public string? InitialTeamName { get; set; } = null;
+        [StringLength(50, MinimumLength = 1, ErrorMessage = "El nombre del equipo es obligatorio y debe tener entre 1 y 50 caracteres.")]
+        public string InitialTeamName { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "La configuración de playoffs es obligatoria.")]
         [Range(4, 6, ErrorMessage = "PlayoffTeams debe ser 4 o 6.")]
@@ -183,7 +181,6 @@ namespace NFL_Fantasy_API.Models.DTOs.Fantasy
         public int LeagueID { get; set; }
         public int UserID { get; set; }
         public string RoleCode { get; set; } = string.Empty;
-        public bool IsPrimaryCommissioner { get; set; }
         public DateTime JoinedAt { get; set; }
         public DateTime? LeftAt { get; set; }
         public string UserName { get; set; } = string.Empty;
@@ -215,7 +212,6 @@ namespace NFL_Fantasy_API.Models.DTOs.Fantasy
         public string RoleName { get; set; } = string.Empty;
         public bool IsExplicit { get; set; }
         public bool IsDerived { get; set; }
-        public bool IsPrimaryCommissioner { get; set; }
         public DateTime JoinedAt { get; set; }
     }
 
@@ -227,7 +223,6 @@ namespace NFL_Fantasy_API.Models.DTOs.Fantasy
     {
         public string PrimaryRole { get; set; } = string.Empty;
         public string AllRoles { get; set; } = string.Empty;
-        public bool IsPrimaryCommissioner { get; set; }
     }
 
     /// <summary>
@@ -332,24 +327,6 @@ namespace NFL_Fantasy_API.Models.DTOs.Fantasy
     }
 
     /// <summary>
-    /// DTO para asignar co-comisionado
-    /// </summary>
-    public class AssignCoCommissionerRequestDTO
-    {
-        [Required(ErrorMessage = "TargetUserID es requerido")]
-        public int TargetUserID { get; set; }
-    }
-
-    /// <summary>
-    /// DTO para remover co-comisionado
-    /// </summary>
-    public class RemoveCoCommissionerRequestDTO
-    {
-        [Required(ErrorMessage = "TargetUserID es requerido")]
-        public int TargetUserID { get; set; }
-    }
-
-    /// <summary>
     /// DTO para transferir comisionado
     /// </summary>
     public class TransferCommissionerRequestDTO
@@ -377,20 +354,6 @@ namespace NFL_Fantasy_API.Models.DTOs.Fantasy
     public class ValidateLeaguePasswordResultDTO
     {
         public bool IsValid { get; set; }
-        public string Message { get; set; } = string.Empty;
-    }
-
-    /// <summary>
-    /// DTO para información de contraseña de liga
-    /// </summary>
-    public class LeaguePasswordInfoDTO
-    {
-        public int LeagueID { get; set; }
-        public string LeagueName { get; set; } = string.Empty;
-        public byte Status { get; set; }
-        public byte TeamSlots { get; set; }
-        public int TeamsCount { get; set; }
-        public int AvailableSlots { get; set; }
         public string Message { get; set; } = string.Empty;
     }
 }

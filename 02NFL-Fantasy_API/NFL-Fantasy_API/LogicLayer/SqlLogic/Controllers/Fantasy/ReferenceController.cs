@@ -57,6 +57,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Fantasy
         public async Task<ActionResult<ApiResponseDTO>> ListPositionFormats()
         {
             var formats = await _referenceService.ListPositionFormatsAsync();
+            if (formats is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudieron obtener los formatos de posiciones."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Formatos de posiciones obtenidos exitosamente.",

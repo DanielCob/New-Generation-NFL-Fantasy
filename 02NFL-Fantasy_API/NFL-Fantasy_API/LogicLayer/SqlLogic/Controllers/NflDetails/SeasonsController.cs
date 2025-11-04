@@ -93,6 +93,9 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.NflDetails
 
             var season = await _seasonService.CreateSeasonAsync(dto, userId, ip, ua);
 
+            if (season is null)
+                return BadRequest(ApiResponseDTO.ErrorResponse("Datos inválidos o temporada duplicada."));
+
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Temporada creada exitosamente.",
                 season
@@ -123,6 +126,9 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.NflDetails
             var ua = this.UserAgent();
 
             var season = await _seasonService.UpdateSeasonAsync(id, dto, userId, ip, ua);
+
+            if (season is null)
+                return BadRequest(ApiResponseDTO.ErrorResponse("Datos inválidos o temporada duplicada."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Temporada actualizada exitosamente.",
@@ -160,6 +166,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.NflDetails
                 ip,
                 ua
             );
+            if (message is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo desactivar la temporada."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 message,
@@ -203,6 +210,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.NflDetails
                 ip,
                 ua
             );
+            if (message is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo eliminar la temporada."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 message,
@@ -256,6 +264,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.NflDetails
         public async Task<ActionResult<ApiResponseDTO>> GetWeeks([FromRoute] int id)
         {
             var weeks = await _seasonService.GetSeasonWeeksAsync(id);
+            if (weeks is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudieron obtener las semanas de la temporada."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Semanas obtenidas exitosamente.",

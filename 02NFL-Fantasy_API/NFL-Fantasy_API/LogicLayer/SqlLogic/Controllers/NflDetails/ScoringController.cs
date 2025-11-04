@@ -56,6 +56,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.NflDetails
         public async Task<ActionResult<ApiResponseDTO>> ListSchemas()
         {
             var schemas = await _scoringService.ListSchemasAsync();
+            if (schemas is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudieron obtener los esquemas de puntuación."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Esquemas de puntuación obtenidos exitosamente.",

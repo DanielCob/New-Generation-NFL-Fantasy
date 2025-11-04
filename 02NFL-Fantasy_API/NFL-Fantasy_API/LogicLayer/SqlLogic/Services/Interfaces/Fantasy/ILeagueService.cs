@@ -145,24 +145,9 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Interfaces.Fantasy
         Task<ApiResponseDTO> LeaveLeagueAsync(int userId, int leagueId, string? sourceIp, string? userAgent);
 
         /// <summary>
-        /// Asigna a un miembro como co-comisionado
-        /// </summary>
-        Task<ApiResponseDTO> AssignCoCommissionerAsync(int actorUserId, int leagueId, AssignCoCommissionerRequestDTO request, string? sourceIp, string? userAgent);
-
-        /// <summary>
-        /// Remueve el rol de co-comisionado a un miembro
-        /// </summary>
-        Task<ApiResponseDTO> RemoveCoCommissionerAsync(int actorUserId, int leagueId, RemoveCoCommissionerRequestDTO request, string? sourceIp, string? userAgent);
-
-        /// <summary>
         /// Transfiere el rol de comisionado principal a otro miembro
         /// </summary>
         Task<ApiResponseDTO> TransferCommissionerAsync(int actorUserId, int leagueId, TransferCommissionerRequestDTO request, string? sourceIp, string? userAgent);
-
-        /// <summary>
-        /// Obtiene información sobre la contraseña de la liga (solo comisionado)
-        /// </summary>
-        Task<LeaguePasswordInfoDTO> GetLeaguePasswordInfoAsync(int actorUserId, int leagueId);
 
         /// <summary>
         /// Obtiene el resumen de una liga desde la VIEW (versión ligera).

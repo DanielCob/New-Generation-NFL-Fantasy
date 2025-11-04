@@ -65,6 +65,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Fantasy
                 sourceIp,
                 userAgent
             );
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo crear la liga."));
 
             if (result.Success)
             {
@@ -116,6 +117,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Fantasy
                 sourceIp,
                 userAgent
             );
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo actualizar la configuración de la liga."));
 
             if (result.Success)
             {
@@ -165,6 +167,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Fantasy
                 sourceIp,
                 userAgent
             );
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo cambiar el estado de la liga."));
 
             if (result.Success)
             {
@@ -218,6 +221,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Fantasy
         public async Task<ActionResult<ApiResponseDTO>> GetLeagueDirectory()
         {
             var directory = await _leagueService.GetLeagueDirectoryAsync();
+            if (directory is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo obtener el directorio de ligas."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Directorio de ligas obtenido exitosamente.",
@@ -236,6 +240,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Fantasy
         public async Task<ActionResult<ApiResponseDTO>> GetLeagueMembers(int id)
         {
             var members = await _leagueService.GetLeagueMembersAsync(id);
+            if (members is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudieron obtener los miembros de la liga."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Miembros de liga obtenidos exitosamente.",
@@ -254,6 +259,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Fantasy
         public async Task<ActionResult<ApiResponseDTO>> GetLeagueTeams(int id)
         {
             var teams = await _leagueService.GetLeagueTeamsAsync(id);
+            if (teams is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudieron obtener los equipos de la liga."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Equipos de liga obtenidos exitosamente.",
@@ -290,29 +296,6 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Fantasy
             ));
         }
 
-        /// <summary>
-        /// Obtiene información sobre la contraseña de la liga.
-        /// GET /api/league/{leagueId}/password-info
-        /// </summary>
-        /// <param name="leagueId">ID de la liga</param>
-        /// <returns>Información sobre si tiene contraseña y hint</returns>
-        /// <response code="200">Información obtenida exitosamente</response>
-        /// <response code="403">No eres el comisionado principal</response>
-        /// <remarks>
-        /// Solo el comisionado principal puede ver esta información.
-        /// </remarks>
-        [HttpGet("{leagueId}/password-info")]
-        public async Task<ActionResult<ApiResponseDTO>> GetLeaguePasswordInfo(int leagueId)
-        {
-            var userId = this.UserId();
-            var result = await _leagueService.GetLeaguePasswordInfoAsync(userId, leagueId);
-
-            return Ok(ApiResponseDTO.SuccessResponse(
-                "Información obtenida exitosamente.",
-                result
-            ));
-        }
-
         // ============================================================================
         // ENDPOINTS - Búsqueda y Unión a Ligas
         // ============================================================================
@@ -333,6 +316,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Fantasy
             [FromQuery] SearchLeaguesRequestDTO request)
         {
             var results = await _leagueService.SearchLeaguesAsync(request);
+            if (results is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo realizar la búsqueda de ligas."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 $"Se encontraron {results.FirstOrDefault()?.TotalRecords ?? 0} ligas.",
@@ -357,6 +341,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Fantasy
             [FromBody] ValidateLeaguePasswordRequestDTO request)
         {
             var result = await _leagueService.ValidateLeaguePasswordAsync(request);
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo validar la contraseña de la liga."));
 
             return Ok(ApiResponseDTO.SuccessResponse(result.Message, result));
         }
@@ -383,6 +368,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Fantasy
                 sourceIp,
                 userAgent
             );
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo unirse a la liga."));
 
             return Ok(ApiResponseDTO.SuccessResponse(result.Message, result));
         }
@@ -420,6 +406,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Fantasy
                 sourceIp,
                 userAgent
             );
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo remover el equipo de la liga."));
 
             return Ok(result);
         }
@@ -445,6 +432,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Fantasy
                 sourceIp,
                 userAgent
             );
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo salir de la liga."));
 
             return Ok(result);
         }
@@ -452,66 +440,6 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Fantasy
         // ============================================================================
         // ENDPOINTS - Gestión de Comisionados
         // ============================================================================
-
-        /// <summary>
-        /// Asigna un co-comisionado a la liga.
-        /// POST /api/league/{leagueId}/co-commissioner
-        /// </summary>
-        /// <param name="leagueId">ID de la liga</param>
-        /// <param name="request">ID del usuario a asignar como co-comisionado</param>
-        /// <returns>Confirmación de asignación</returns>
-        /// <response code="200">Co-comisionado asignado exitosamente</response>
-        /// <response code="400">Usuario no es miembro o ya es co-comisionado</response>
-        /// <response code="403">No eres el comisionado principal</response>
-        [HttpPost("{leagueId}/co-commissioner")]
-        public async Task<ActionResult<ApiResponseDTO>> AssignCoCommissioner(
-            int leagueId,
-            [FromBody] AssignCoCommissionerRequestDTO request)
-        {
-            var userId = this.UserId();
-            var sourceIp = this.ClientIp();
-            var userAgent = this.UserAgent();
-
-            var result = await _leagueService.AssignCoCommissionerAsync(
-                userId,
-                leagueId,
-                request,
-                sourceIp,
-                userAgent
-            );
-
-            return Ok(result);
-        }
-
-        /// <summary>
-        /// Remueve un co-comisionado de la liga.
-        /// DELETE /api/league/{leagueId}/co-commissioner
-        /// </summary>
-        /// <param name="leagueId">ID de la liga</param>
-        /// <param name="request">ID del usuario a remover como co-comisionado</param>
-        /// <returns>Confirmación de remoción</returns>
-        /// <response code="200">Co-comisionado removido exitosamente</response>
-        /// <response code="400">Usuario no es co-comisionado</response>
-        /// <response code="403">No eres el comisionado principal</response>
-        [HttpDelete("{leagueId}/co-commissioner")]
-        public async Task<ActionResult<ApiResponseDTO>> RemoveCoCommissioner(
-            int leagueId,
-            [FromBody] RemoveCoCommissionerRequestDTO request)
-        {
-            var userId = this.UserId();
-            var sourceIp = this.ClientIp();
-            var userAgent = this.UserAgent();
-
-            var result = await _leagueService.RemoveCoCommissionerAsync(
-                userId,
-                leagueId,
-                request,
-                sourceIp,
-                userAgent
-            );
-
-            return Ok(result);
-        }
 
         /// <summary>
         /// Transfiere el rol de comisionado principal a otro miembro.
@@ -542,6 +470,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Fantasy
                 sourceIp,
                 userAgent
             );
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo transferir el comisionado principal."));
 
             return Ok(result);
         }

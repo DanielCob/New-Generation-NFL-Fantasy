@@ -23,7 +23,7 @@ namespace NFL_Fantasy_API.Models.DTOs.Fantasy
     /// </summary>
     public class AddPlayerToRosterResponseDTO
     {
-        public int RosterID { get; set; }
+        public long RosterID { get; set; }
         public string Message { get; set; } = "Jugador agregado al roster exitosamente.";
     }
 }

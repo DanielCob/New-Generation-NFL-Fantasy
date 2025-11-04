@@ -40,7 +40,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Fantasy
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al listar formatos de posiciones");
-                return new List<PositionFormatVM>();
+                throw;
             }
         }
 
@@ -62,7 +62,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Fantasy
                     "Error al obtener slots de formato: FormatId={PositionFormatId}",
                     positionFormatId
                 );
-                return new List<PositionFormatSlotVM>();
+                throw;
             }
         }
 
@@ -84,7 +84,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Fantasy
                     "Error al obtener formato por ID: FormatId={PositionFormatId}",
                     positionFormatId
                 );
-                return null;
+                throw;
             }
         }
 

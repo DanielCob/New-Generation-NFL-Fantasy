@@ -1,6 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
-
-namespace NFL_Fantasy_API.Models.DTOs
+﻿namespace NFL_Fantasy_API.Models.DTOs
 {
     /// <summary>
     /// Respuesta estándar de la API para todas las operaciones
@@ -11,23 +9,34 @@ namespace NFL_Fantasy_API.Models.DTOs
         public string Message { get; set; } = string.Empty;
         public object? Data { get; set; }
 
-        public static ApiResponseDTO SuccessResponse(string message, object? data = null)
+        // NUEVO: Código específico del error (cuando aplique; p.ej., códigos de SP 50xxx)
+        public int? ErrorCode { get; set; }
+
+        // NUEVO: Id de traza para correlacionar en logs
+        public string? TraceId { get; set; }
+
+        // Mantiene compatibilidad: firma original + opcionales nuevos
+        public static ApiResponseDTO SuccessResponse(string message, object? data = null, string? traceId = null)
         {
             return new ApiResponseDTO
             {
                 Success = true,
                 Message = message,
-                Data = data
+                Data = data,
+                TraceId = traceId
             };
         }
 
-        public static ApiResponseDTO ErrorResponse(string message)
+        // Mantiene compatibilidad: firma original + opcionales nuevos
+        public static ApiResponseDTO ErrorResponse(string message, int? errorCode = null, string? traceId = null, object? data = null)
         {
             return new ApiResponseDTO
             {
                 Success = false,
                 Message = message,
-                Data = null
+                Data = data,          // normalmente null; deja el parámetro por si quieres adjuntar contexto
+                ErrorCode = errorCode,
+                TraceId = traceId
             };
         }
     }

@@ -21,6 +21,14 @@ namespace NFL_Fantasy_API.Models.Entities.NflDetails
         [Required]
         public byte SlotCount { get; set; }
 
+        /// <summary>
+        /// Indica si esta posición permite acumular puntos en el sistema de scoring.
+        /// true = Posición activa (QB, RB, WR, TE, K, DEF, etc.)
+        /// false = Posición inactiva (BENCH, IR)
+        /// </summary>
+        [Required]
+        public bool PointsAllowed { get; set; } = true;  // ← NUEVA PROPIEDAD
+
         // Navigation
         [ForeignKey("PositionFormatID")]
         public virtual PositionFormat? PositionFormat { get; set; }

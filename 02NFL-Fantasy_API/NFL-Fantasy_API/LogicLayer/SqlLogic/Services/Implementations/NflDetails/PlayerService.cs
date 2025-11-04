@@ -49,7 +49,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.NflDetail
                     nflTeamId,
                     injuryStatus
                 );
-                return new List<PlayerBasicDTO>();
+                throw;
             }
         }
 
@@ -75,7 +75,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.NflDetail
                     "Error al obtener jugadores disponibles: Position={Position}",
                     position
                 );
-                return new List<AvailablePlayerDTO>();
+                throw;
             }
         }
 
@@ -101,7 +101,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.NflDetail
                     "Error al obtener jugadores de equipo NFL {NFLTeamId}",
                     nflTeamId
                 );
-                return new List<PlayerBasicDTO>();
+                throw;
             }
         }
 
@@ -127,7 +127,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.NflDetail
                     "Error al obtener jugador {PlayerId}",
                     playerId
                 );
-                return null;
+                throw;
             }
         }
 

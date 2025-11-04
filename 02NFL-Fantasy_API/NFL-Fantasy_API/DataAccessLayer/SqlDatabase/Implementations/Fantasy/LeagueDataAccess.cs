@@ -34,10 +34,6 @@ namespace NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.Fantasy
             string? sourceIp,
             string? userAgent)
         {
-            // Procesar nombre de equipo inicial
-            var initialTeamNameValue = string.IsNullOrWhiteSpace(dto.InitialTeamName)
-                ? (object)DBNull.Value
-                : dto.InitialTeamName!.Trim();
 
             var parameters = new SqlParameter[]
             {
@@ -46,7 +42,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.Fantasy
                 SqlParameterExtensions.CreateParameter("@Description", dto.Description),
                 SqlParameterExtensions.CreateParameter("@TeamSlots", dto.TeamSlots),
                 SqlParameterExtensions.CreateParameter("@LeaguePassword", dto.LeaguePassword),
-                SqlParameterExtensions.CreateParameter("@InitialTeamName", initialTeamNameValue),
+                SqlParameterExtensions.CreateParameter("@InitialTeamName", dto.InitialTeamName),
                 SqlParameterExtensions.CreateParameter("@PlayoffTeams", dto.PlayoffTeams),
                 SqlParameterExtensions.CreateParameter("@AllowDecimals", dto.AllowDecimals),
                 SqlParameterExtensions.CreateParameter("@PositionFormatID", dto.PositionFormatID),
@@ -400,71 +396,6 @@ namespace NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.Fantasy
         }
 
         /// <summary>
-        /// Asigna a un miembro como co-comisionado.
-        /// SP: app.sp_AssignCoCommissioner
-        /// </summary>
-        public async Task<AssignCoCommissionerResultDTO?> AssignCoCommissionerAsync(
-            int actorUserId,
-            int leagueId,
-            AssignCoCommissionerRequestDTO request,
-            string? sourceIp,
-            string? userAgent)
-        {
-            var parameters = new SqlParameter[]
-            {
-                SqlParameterExtensions.CreateParameter("@ActorUserID", actorUserId),
-                SqlParameterExtensions.CreateParameter("@LeagueID", leagueId),
-                SqlParameterExtensions.CreateParameter("@TargetUserID", request.TargetUserID),
-                SqlParameterExtensions.CreateParameter("@SourceIp", sourceIp),
-                SqlParameterExtensions.CreateParameter("@UserAgent", userAgent)
-            };
-
-            return await _db.ExecuteStoredProcedureAsync(
-                "app.sp_AssignCoCommissioner",
-                parameters,
-                reader => new AssignCoCommissionerResultDTO
-                {
-                    Message = reader.GetSafeString("Message"),
-                    UserID = reader.GetSafeInt32("UserID"),
-                    UserName = reader.GetSafeString("UserName"),
-                    NewRole = reader.GetSafeString("NewRole")
-                }
-            );
-        }
-
-        /// <summary>
-        /// Remueve el rol de co-comisionado a un miembro.
-        /// SP: app.sp_RemoveCoCommissioner
-        /// </summary>
-        public async Task<RemoveCoCommissionerResultDTO?> RemoveCoCommissionerAsync(
-            int actorUserId,
-            int leagueId,
-            RemoveCoCommissionerRequestDTO request,
-            string? sourceIp,
-            string? userAgent)
-        {
-            var parameters = new SqlParameter[]
-            {
-                SqlParameterExtensions.CreateParameter("@ActorUserID", actorUserId),
-                SqlParameterExtensions.CreateParameter("@LeagueID", leagueId),
-                SqlParameterExtensions.CreateParameter("@TargetUserID", request.TargetUserID),
-                SqlParameterExtensions.CreateParameter("@SourceIp", sourceIp),
-                SqlParameterExtensions.CreateParameter("@UserAgent", userAgent)
-            };
-
-            return await _db.ExecuteStoredProcedureAsync(
-                "app.sp_RemoveCoCommissioner",
-                parameters,
-                reader => new RemoveCoCommissionerResultDTO
-                {
-                    Message = reader.GetSafeString("Message"),
-                    UserID = reader.GetSafeInt32("UserID"),
-                    UserName = reader.GetSafeString("UserName")
-                }
-            );
-        }
-
-        /// <summary>
         /// Transfiere el rol de comisionado principal a otro miembro.
         /// SP: app.sp_TransferCommissioner
         /// </summary>
@@ -492,36 +423,6 @@ namespace NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.Fantasy
                     Message = reader.GetSafeString("Message"),
                     NewCommissionerID = reader.GetSafeInt32("NewCommissionerID"),
                     NewCommissionerName = reader.GetSafeString("NewCommissionerName")
-                }
-            );
-        }
-
-        /// <summary>
-        /// Obtiene información sobre la contraseña de la liga.
-        /// SP: app.sp_GetLeaguePassword
-        /// </summary>
-        public async Task<LeaguePasswordInfoDTO?> GetLeaguePasswordInfoAsync(
-            int actorUserId,
-            int leagueId)
-        {
-            var parameters = new SqlParameter[]
-            {
-                SqlParameterExtensions.CreateParameter("@ActorUserID", actorUserId),
-                SqlParameterExtensions.CreateParameter("@LeagueID", leagueId)
-            };
-
-            return await _db.ExecuteStoredProcedureAsync(
-                "app.sp_GetLeaguePassword",
-                parameters,
-                reader => new LeaguePasswordInfoDTO
-                {
-                    LeagueID = reader.GetSafeInt32("LeagueID"),
-                    LeagueName = reader.GetSafeString("LeagueName"),
-                    Status = reader.GetSafeByte("Status"),
-                    TeamSlots = reader.GetSafeByte("TeamSlots"),
-                    TeamsCount = reader.GetSafeInt32("TeamsCount"),
-                    AvailableSlots = reader.GetSafeInt32("AvailableSlots"),
-                    Message = reader.GetSafeString("Message")
                 }
             );
         }
@@ -561,7 +462,6 @@ namespace NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.Fantasy
                             RoleName = reader.GetSafeString("RoleName"),
                             IsExplicit = reader.GetSafeBool("IsExplicit"),
                             IsDerived = reader.GetSafeBool("IsDerived"),
-                            IsPrimaryCommissioner = reader.GetSafeBool("IsPrimaryCommissioner"),
                             JoinedAt = reader.GetSafeDateTime("JoinedAt")
                         });
                     }
@@ -572,8 +472,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.Fantasy
                         result.Summary = new UserLeagueRoleSummaryDTO
                         {
                             PrimaryRole = reader.GetSafeString("PrimaryRole"),
-                            AllRoles = reader.GetSafeString("AllRoles"),
-                            IsPrimaryCommissioner = reader.GetSafeBool("IsPrimaryCommissioner")
+                            AllRoles = reader.GetSafeString("AllRoles")
                         };
                     }
                 }
@@ -626,7 +525,6 @@ namespace NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.Fantasy
                     UserAlias = reader.GetSafeNullableString("UserAlias"),
                     SystemRoleDisplay = reader.GetSafeString("SystemRoleDisplay"),
                     ProfileImageUrl = reader.GetSafeNullableString("ProfileImageUrl"),
-                    IsPrimaryCommissioner = reader.GetSafeBool("IsPrimaryCommissioner"),
                     JoinedAt = reader.GetSafeDateTime("JoinedAt"),
                     LeftAt = reader.GetSafeNullableDateTime("LeftAt"),
                     UserName = reader.GetSafeString("UserName"),
@@ -726,7 +624,6 @@ namespace NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.Fantasy
                     TeamSlots = reader.GetSafeByte("TeamSlots"),
                     AvailableSlots = reader.GetSafeInt32("AvailableSlots"),
                     RoleCode = reader.GetSafeString("RoleCode"),
-                    IsPrimaryCommissioner = reader.GetSafeBool("IsPrimaryCommissioner"),
                     JoinedAt = reader.GetSafeDateTime("JoinedAt"),
                     LeagueCreatedAt = reader.GetSafeDateTime("LeagueCreatedAt")
                 },

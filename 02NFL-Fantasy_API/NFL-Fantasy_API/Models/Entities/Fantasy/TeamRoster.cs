@@ -13,7 +13,7 @@ namespace NFL_Fantasy_API.Models.Entities.Fantasy
     public class TeamRoster
     {
         [Key]
-        public int RosterID { get; set; }
+        public long RosterID { get; set; }
 
         [Required]
         public int TeamID { get; set; }

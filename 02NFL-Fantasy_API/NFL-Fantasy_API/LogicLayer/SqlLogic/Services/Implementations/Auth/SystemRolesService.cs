@@ -40,7 +40,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Auth
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener roles del sistema");
-                return new List<SystemRoleDTO>();
+                throw;
             }
         }
 
@@ -157,7 +157,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Auth
                     "Error al obtener historial de roles: Target={TargetUserId}",
                     targetUserId
                 );
-                return new List<UserRoleChangeHistoryDTO>();
+                throw;
             }
         }
 
@@ -208,7 +208,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Auth
                     "Error al obtener usuarios por rol: FilterRole={FilterRole}",
                     filterRole
                 );
-                return new UsersByRolePageDTO();
+                throw;
             }
         }
 
@@ -230,7 +230,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Auth
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener roles del sistema desde VIEW");
-                return new List<SystemRoleVM>();
+                throw;
             }
         }
 
@@ -252,7 +252,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Auth
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener usuarios con roles completos");
-                return new List<UserWithFullRoleVM>();
+                throw;
             }
         }
 

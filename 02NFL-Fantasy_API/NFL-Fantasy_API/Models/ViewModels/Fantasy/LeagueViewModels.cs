@@ -69,8 +69,7 @@
     {
         public int LeagueID { get; set; }
         public int UserID { get; set; }
-        public string LeagueRoleCode { get; set; } = string.Empty; // RENOMBRADO de RoleCode
-        public bool IsPrimaryCommissioner { get; set; }
+        public string LeagueRoleCode { get; set; } = string.Empty;
         public DateTime JoinedAt { get; set; }
         public DateTime? LeftAt { get; set; }
         public string UserName { get; set; } = string.Empty;
@@ -115,7 +114,6 @@
         public byte TeamSlots { get; set; }
         public int AvailableSlots { get; set; }
         public string RoleCode { get; set; } = string.Empty;
-        public bool IsPrimaryCommissioner { get; set; }
         public DateTime JoinedAt { get; set; }
         public DateTime LeagueCreatedAt { get; set; }
     }

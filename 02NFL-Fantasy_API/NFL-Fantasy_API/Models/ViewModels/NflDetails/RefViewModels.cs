@@ -53,5 +53,12 @@
         /// Cantidad de slots para esta posición
         /// </summary>
         public byte SlotCount { get; set; }
+
+        /// <summary>
+        /// Indica si esta posición permite acumular puntos.
+        /// true = Posición activa (cuenta para scoring)
+        /// false = Posición inactiva (BENCH, IR)
+        /// </summary>
+        public bool PointsAllowed { get; set; }
     }
 }

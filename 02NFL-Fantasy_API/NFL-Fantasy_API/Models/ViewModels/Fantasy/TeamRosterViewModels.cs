@@ -41,7 +41,7 @@
     /// </summary>
     public class TeamRosterVM
     {
-        public int RosterID { get; set; }
+        public long RosterID { get; set; }
         public int TeamID { get; set; }
         public string TeamName { get; set; } = string.Empty;
         public int LeagueID { get; set; }
@@ -73,7 +73,7 @@
     /// </summary>
     public class TeamRosterActiveVM
     {
-        public int RosterID { get; set; }
+        public long RosterID { get; set; }
         public int TeamID { get; set; }
         public string TeamName { get; set; } = string.Empty;
         public int LeagueID { get; set; }
@@ -95,7 +95,7 @@
     /// </summary>
     public class TeamRosterByPositionVM
     {
-        public int RosterID { get; set; }
+        public long RosterID { get; set; }
         public int TeamID { get; set; }
         public string TeamName { get; set; } = string.Empty;
         public int PlayerID { get; set; }

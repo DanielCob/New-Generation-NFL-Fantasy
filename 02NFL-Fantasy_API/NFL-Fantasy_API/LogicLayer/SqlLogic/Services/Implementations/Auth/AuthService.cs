@@ -143,7 +143,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Auth
             }
             catch
             {
-                return new SessionValidationDTO { IsValid = false, UserID = 0 };
+                throw;
             }
         }
 

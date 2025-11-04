@@ -67,7 +67,6 @@ namespace NFL_Fantasy_API.Models.DTOs.Auth
         public byte Status { get; set; }
         public byte TeamSlots { get; set; }
         public string RoleCode { get; set; } = string.Empty;
-        public bool IsPrimaryCommissioner { get; set; }
         public DateTime JoinedAt { get; set; }
     }
 

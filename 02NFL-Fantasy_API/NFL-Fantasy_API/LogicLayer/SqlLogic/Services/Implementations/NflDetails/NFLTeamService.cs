@@ -141,7 +141,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.NflDetail
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al listar equipos NFL");
-                return new ListNFLTeamsResponseDTO();
+                throw;
             }
         }
 
@@ -167,7 +167,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.NflDetail
                     "Error al obtener detalles de equipo NFL {NFLTeamId}",
                     nflTeamId
                 );
-                return null;
+                throw;
             }
         }
 
@@ -365,7 +365,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.NflDetail
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener equipos NFL activos");
-                return new List<NFLTeamBasicVM>();
+                throw;
             }
         }
 

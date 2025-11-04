@@ -141,6 +141,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Auth
             var userId = this.UserId();
 
             var sessions = await _userService.GetActiveSessionsAsync(userId);
+            if (sessions is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudieron obtener las sesiones activas."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Sesiones activas obtenidas exitosamente.",
@@ -192,6 +193,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Auth
                 sourceIp: sourceIp,
                 userAgent: userAgent
             );
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo actualizar el perfil del usuario."));
 
             if (result.Success)
             {
@@ -226,6 +228,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Auth
         public async Task<ActionResult<ApiResponseDTO>> GetActiveUsers()
         {
             var users = await _userService.GetActiveUsersAsync();
+            if (users is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudieron obtener los usuarios activos."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Usuarios activos obtenidos exitosamente.",

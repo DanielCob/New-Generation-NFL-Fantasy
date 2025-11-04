@@ -124,7 +124,6 @@ namespace NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.Auth
                         Status = reader.GetSafeByte("Status"),
                         TeamSlots = reader.GetSafeByte("TeamSlots"),
                         RoleCode = reader.GetSafeString("RoleCode"),
-                        IsPrimaryCommissioner = reader.GetSafeBool("IsPrimaryCommissioner"),
                         JoinedAt = reader.GetSafeDateTime("JoinedAt")
                     });
                 }

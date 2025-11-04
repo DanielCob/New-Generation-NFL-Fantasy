@@ -270,7 +270,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Fantasy
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener resumen de liga {LeagueID}", leagueId);
-                return null;
+                throw;
             }
         }
 
@@ -292,7 +292,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Fantasy
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al buscar ligas");
-                return new List<SearchLeaguesResultDTO>();
+                throw;
             }
         }
 
@@ -461,111 +461,6 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Fantasy
         }
 
         /// <summary>
-        /// Asigna a un miembro como co-comisionado.
-        /// SP: app.sp_AssignCoCommissioner
-        /// </summary>
-        public async Task<ApiResponseDTO> AssignCoCommissionerAsync(
-            int actorUserId,
-            int leagueId,
-            AssignCoCommissionerRequestDTO request,
-            string? sourceIp,
-            string? userAgent)
-        {
-            try
-            {
-                // EJECUCIÓN: Delegada a DataAccess
-                var result = await _dataAccess.AssignCoCommissionerAsync(
-                    actorUserId,
-                    leagueId,
-                    request,
-                    sourceIp,
-                    userAgent
-                );
-
-                _logger.LogInformation(
-                    "User {ActorUserID} assigned User {TargetUserID} as co-commissioner in league {LeagueID} from {IP}",
-                    actorUserId,
-                    request.TargetUserID,
-                    leagueId,
-                    sourceIp
-                );
-
-                return ApiResponseDTO.SuccessResponse(
-                    result?.Message ?? "Co-comisionado asignado exitosamente.",
-                    new
-                    {
-                        result?.UserID,
-                        result?.UserName,
-                        result?.NewRole
-                    }
-                );
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(
-                    ex,
-                    "Error al asignar co-comisionado: Actor={ActorUserID}, Target={TargetUserID}, League={LeagueID}",
-                    actorUserId,
-                    request.TargetUserID,
-                    leagueId
-                );
-                throw;
-            }
-        }
-
-        /// <summary>
-        /// Remueve el rol de co-comisionado a un miembro.
-        /// SP: app.sp_RemoveCoCommissioner
-        /// </summary>
-        public async Task<ApiResponseDTO> RemoveCoCommissionerAsync(
-            int actorUserId,
-            int leagueId,
-            RemoveCoCommissionerRequestDTO request,
-            string? sourceIp,
-            string? userAgent)
-        {
-            try
-            {
-                // EJECUCIÓN: Delegada a DataAccess
-                var result = await _dataAccess.RemoveCoCommissionerAsync(
-                    actorUserId,
-                    leagueId,
-                    request,
-                    sourceIp,
-                    userAgent
-                );
-
-                _logger.LogInformation(
-                    "User {ActorUserID} removed User {TargetUserID} as co-commissioner from league {LeagueID} from {IP}",
-                    actorUserId,
-                    request.TargetUserID,
-                    leagueId,
-                    sourceIp
-                );
-
-                return ApiResponseDTO.SuccessResponse(
-                    result?.Message ?? "Co-comisionado removido exitosamente.",
-                    new
-                    {
-                        result?.UserID,
-                        result?.UserName
-                    }
-                );
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(
-                    ex,
-                    "Error al remover co-comisionado: Actor={ActorUserID}, Target={TargetUserID}, League={LeagueID}",
-                    actorUserId,
-                    request.TargetUserID,
-                    leagueId
-                );
-                throw;
-            }
-        }
-
-        /// <summary>
         /// Transfiere el rol de comisionado principal a otro miembro.
         /// SP: app.sp_TransferCommissioner
         /// </summary>
@@ -617,38 +512,6 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Fantasy
             }
         }
 
-        /// <summary>
-        /// Obtiene información sobre la contraseña de la liga.
-        /// SP: app.sp_GetLeaguePassword
-        /// </summary>
-        public async Task<LeaguePasswordInfoDTO> GetLeaguePasswordInfoAsync(
-            int actorUserId,
-            int leagueId)
-        {
-            try
-            {
-                // EJECUCIÓN: Delegada a DataAccess
-                var result = await _dataAccess.GetLeaguePasswordInfoAsync(actorUserId, leagueId);
-
-                if (result == null)
-                {
-                    throw new InvalidOperationException("No se pudo obtener información de la liga.");
-                }
-
-                return result;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(
-                    ex,
-                    "Error al obtener info de contraseña: Actor={ActorUserID}, League={LeagueID}",
-                    actorUserId,
-                    leagueId
-                );
-                throw;
-            }
-        }
-
         #endregion
 
         #region User Roles
@@ -674,7 +537,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Fantasy
                     userId,
                     leagueId
                 );
-                return null;
+                throw;
             }
         }
 
@@ -696,7 +559,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Fantasy
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener directorio de ligas");
-                return new List<LeagueDirectoryVM>();
+                throw;
             }
         }
 
@@ -714,7 +577,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Fantasy
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener miembros de liga {LeagueID}", leagueId);
-                return new List<LeagueMemberVM>();
+                throw;
             }
         }
 
@@ -732,7 +595,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Fantasy
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener equipos de liga {LeagueID}", leagueId);
-                return new List<LeagueTeamVM>();
+                throw;
             }
         }
 
@@ -750,7 +613,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Fantasy
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener resumen ligero de liga {LeagueID}", leagueId);
-                return null;
+                throw;
             }
         }
 
@@ -768,7 +631,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Fantasy
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener ligas como comisionado de usuario {UserID}", userId);
-                return new List<UserCommissionedLeagueVM>();
+                throw;
             }
         }
 
@@ -786,7 +649,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Fantasy
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener equipos de usuario {UserID}", userId);
-                return new List<UserTeamVM>();
+                throw;
             }
         }
 

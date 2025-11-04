@@ -72,6 +72,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Auth
                 sourceIp,
                 userAgent
             );
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo cambiar el rol del usuario."));
 
             _logger.LogInformation(
                 "Admin {ActorUserId} changed role of User {TargetUserId} to {NewRole} from {IP}",
@@ -118,6 +119,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Auth
                 userId,
                 top
             );
+            if (changes is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo obtener el historial de cambios de rol."));
 
             _logger.LogInformation(
                 "Admin {ActorUserId} consulted role change history for User {UserId}",
@@ -149,6 +151,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Auth
         public async Task<ActionResult<ApiResponseDTO>> GetSystemRoles()
         {
             var roles = await _systemRolesService.GetSystemRolesAsync();
+            if (roles is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudieron obtener los roles del sistema."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Roles del sistema obtenidos exitosamente.",
@@ -179,6 +182,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Auth
         public async Task<ActionResult<ApiResponseDTO>> GetUsersWithRoles()
         {
             var users = await _systemRolesService.GetUsersWithRolesAsync();
+            if (users is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo obtener la lista de usuarios con roles."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Usuarios con roles obtenidos exitosamente.",

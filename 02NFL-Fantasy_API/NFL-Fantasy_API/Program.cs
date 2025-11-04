@@ -254,6 +254,7 @@ builder.Services.AddSwaggerGen(options =>
                       "- Feature 1.2: Creacion y administracion de ligas de fantasy\n\n" +
                       "- Feature 3.1: Creacion y administracion de equipos fantasy (branding, roster, distribucion)\n\n" +
                       "- Feature 10.1: Gestion de Equipos NFL (CRUD completo con validaciones)\n\n" +
+                      "- Feature 10.5: Temporadas y Vigencia: Modelar vigencia por temporada\n\n" +
                       "- Storage: Manejo de imágenes con MinIO\n\n" +
                       "**Autenticacion:**\n" +
                       "La mayoria de endpoints requieren autenticacion Bearer token.\n" +
@@ -425,10 +426,7 @@ app.MapGet("/", () => Results.Ok(new
             // NUEVOS ENDPOINTS - Gestión de Miembros
             removeTeam = "DELETE /api/league/{leagueId}/teams",
             leave = "POST /api/league/{leagueId}/leave",
-            assignCoCommissioner = "POST /api/league/{leagueId}/co-commissioner",
-            removeCoCommissioner = "DELETE /api/league/{leagueId}/co-commissioner",
-            transferCommissioner = "POST /api/league/{leagueId}/transfer-commissioner",
-            passwordInfo = "GET /api/league/{leagueId}/password-info"
+            transferCommissioner = "POST /api/league/{leagueId}/transfer-commissioner"
         },
         nflteam = new
         {

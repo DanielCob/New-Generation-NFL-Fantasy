@@ -36,140 +36,121 @@ namespace NFL_Fantasy_API.Helpers.Filters
 
         public void OnException(ExceptionContext context)
         {
-            // Determinar respuesta según tipo de excepción
-            var (statusCode, userMessage) = GetErrorResponse(context.Exception);
+            var (statusCode, userMessage, errorCode) = GetErrorResponse(context.Exception);
 
-            // Log completo del error con stack trace
-            _logger.LogError(
-                context.Exception,
-                "Unhandled exception in {Action}: {Message}",
-                context.ActionDescriptor.DisplayName,
-                context.Exception.Message
-            );
+            // Log completo con acción y número de error (si aplica)
+            if (context.Exception is SqlException sqlEx)
+            {
+                _logger.LogError(
+                    context.Exception,
+                    "Unhandled SQL exception in {Action}: {Message}. SqlError={SqlError}",
+                    context.ActionDescriptor.DisplayName,
+                    context.Exception.Message,
+                    sqlEx.Number
+                );
+            }
+            else
+            {
+                _logger.LogError(
+                    context.Exception,
+                    "Unhandled exception in {Action}: {Message}",
+                    context.ActionDescriptor.DisplayName,
+                    context.Exception.Message
+                );
+            }
 
-            // Retornar respuesta al cliente
-            context.Result = new ObjectResult(ApiResponseDTO.ErrorResponse(userMessage))
+            var traceId = context.HttpContext.TraceIdentifier;
+
+            // Respuesta uniforme (con errorCode y traceId si agregaste el DTO extendido)
+            context.Result = new ObjectResult(ApiResponseDTO.ErrorResponse(userMessage, errorCode, traceId))
             {
                 StatusCode = statusCode
             };
-
-            // Marcar como manejada para evitar que se propague
             context.ExceptionHandled = true;
         }
 
         /// <summary>
         /// Determina el código de estado HTTP y mensaje según el tipo de excepción.
         /// </summary>
-        private (int statusCode, string message) GetErrorResponse(Exception exception)
+        private static (int statusCode, string message, int? errorCode) GetErrorResponse(Exception exception)
         {
             return exception switch
             {
-                // ===== SQL SERVER EXCEPTIONS =====
                 SqlException sqlEx => HandleSqlException(sqlEx),
 
-                // ===== VALIDATION EXCEPTIONS =====
-                ArgumentNullException => (400, "Parámetro requerido faltante."),
-                ArgumentException argEx => (400, argEx.Message),
-                InvalidOperationException invalidOp => (400, invalidOp.Message),
+                ArgumentNullException => (400, "Parámetro requerido faltante.", null),
+                ArgumentException argEx => (400, argEx.Message, null),
+                InvalidOperationException invalidOp => (400, invalidOp.Message, null),
 
-                // ===== AUTHORIZATION EXCEPTIONS =====
-                UnauthorizedAccessException => (403, "No autorizado para realizar esta acción."),
+                UnauthorizedAccessException => (403, "No autorizado para realizar esta acción.", null),
+                TimeoutException => (408, "La operación tardó demasiado. Intente nuevamente.", null),
 
-                // ===== TIMEOUT EXCEPTIONS =====
-                TimeoutException => (408, "La operación tardó demasiado. Intente nuevamente."),
-
-                // ===== GENERIC EXCEPTIONS =====
-                _ => (500, "Error interno del servidor.")
+                _ => (500, "Error interno del servidor.", null)
             };
         }
 
         /// <summary>
-        /// Maneja excepciones SQL Server según el número de error.
+        /// Códigos personalizados mapeados:
+        /// - 50320: Solo el comisionado puede remover equipos de la liga → 403 (Forbidden)
+        /// - 50353: No tienes un equipo activo en esta liga → 404 (Not Found) [o 400 si prefieres "Bad Request"]
+        /// 
+        /// Recomendación de rangos por dominio:
+        /// 50310-50339 → Permisos/rol en liga (403)
+        /// 50340-50369 → Estado de membresía/equipo (404/409/400 según el caso)
         /// </summary>
-        /// <remarks>
-        /// CÓDIGOS PERSONALIZADOS DE STORED PROCEDURES (50000-50999):
-        /// Estos códigos son lanzados por nuestros SPs usando THROW para indicar errores de negocio.
-        /// 
-        /// RANGO 50000-50099: Errores generales de negocio
-        /// - 50000: Error de negocio genérico (validación, regla de negocio violada)
-        /// 
-        /// RANGO 50200-50299: Errores de permisos y autorización
-        /// - 50210: Permiso denegado - Solo ADMIN puede realizar esta operación
-        /// - 50220: Operación no permitida - Violación de regla de negocio específica
-        /// 
-        /// RANGO 50230-50249: Errores de recursos
-        /// - 50230: Recurso no encontrado
-        /// - 50240: Conflicto - El recurso ya existe
-        /// 
-        /// RANGO 50250-50299: Errores de validación
-        /// - 50250: Validación fallida - Datos inválidos
-        /// 
-        /// CÓDIGOS ESTÁNDAR SQL SERVER:
-        /// - 2627: Violación de UNIQUE constraint
-        /// - 2601: Duplicate key
-        /// - 515: Cannot insert NULL into NOT NULL column
-        /// - 547: Violación de FOREIGN KEY constraint
-        /// - -2: Connection timeout
-        /// </remarks>
-        private (int statusCode, string message) HandleSqlException(SqlException sqlEx)
+        private static (int statusCode, string message, int? errorCode) HandleSqlException(SqlException sqlEx)
         {
-            return sqlEx.Number switch
+            switch (sqlEx.Number)
             {
-                // ===== CÓDIGOS PERSONALIZADOS (50000-50999) =====
+                // ======== NUEVOS CASOS ========
+                case 50360:
+                    // "Solo el comisionado puede transferir el comisionado."
+                    return (403, sqlEx.Message, 50360);
 
-                // 50000: Error de negocio genérico
-                // Los SPs usan este código para errores de validación y reglas de negocio
-                // Ejemplos: "Liga llena", "Ya eres miembro", "Contraseña incorrecta"
-                50000 => (400, sqlEx.Message),
+                case 50362:
+                    // "El nuevo comisionado debe tener un equipo en la liga."
+                    // Precondición de estado no satisfecha -> Conflict
+                    return (409, sqlEx.Message, 50362);
 
-                // 50210: Permiso denegado - Solo ADMIN puede hacer esta operación
-                // Ejemplo: "Solo un ADMIN puede cambiar roles de sistema"
-                50210 => (403, sqlEx.Message),
+                case 50308:
+                    // "Ya tienes una liga activa como comisionado. Debes desactivarla antes de unirte a otra."
+                    return (409, sqlEx.Message, 50308);
 
-                // 50220: Violación de regla de negocio
-                50220 => (403, sqlEx.Message),
+                case 50303:
+                    // "Contraseña de liga incorrecta."
+                    // Autenticación a nivel de recurso (liga protegida por contraseña)
+                    return (401, sqlEx.Message, 50303);
 
-                // 50230: Recurso no encontrado
-                // Ejemplo: "Usuario no existe", "Liga no encontrada"
-                50230 => (404, sqlEx.Message),
+                // ======== TUS CASOS NUEVOS ========
+                case 50320:
+                    // "Solo el comisionado puede remover equipos de la liga."
+                    return (403, sqlEx.Message, 50320);
 
-                // 50240: Conflicto - Ya existe
-                // Ejemplo: "Email ya está registrado", "Username ya en uso"
-                50240 => (409, sqlEx.Message),
+                case 50353:
+                    // "No tienes un equipo activo en esta liga."
+                    // Semánticamente es "membership no encontrada" => 404
+                    return (404, sqlEx.Message, 50353);
 
-                // 50250: Validación fallida
-                // Ejemplo: "El rol especificado no es válido"
-                50250 => (400, sqlEx.Message),
+                // ======== PERSONALIZADOS GENERALES EXISTENTES ========
+                case 50000: return (400, sqlEx.Message, 50000);
+                case 50210: return (403, sqlEx.Message, 50210);
+                case 50220: return (403, sqlEx.Message, 50220);
+                case 50230: return (404, sqlEx.Message, 50230);
+                case 50240: return (409, sqlEx.Message, 50240);
+                case 50250: return (400, sqlEx.Message, 50250);
 
-                // ===== CÓDIGOS ESTÁNDAR SQL SERVER =====
+                // ======== SQL SERVER ESTÁNDAR ========
+                case 2627: return (409, "Ya existe un registro con estos datos únicos.", 2627);
+                case 2601: return (409, "Valor duplicado no permitido.", 2601);
+                case 515: return (400, "Faltan datos requeridos.", 515);
+                case 547: return (400, "Referencia a un registro que no existe.", 547);
+                case -2: return (504, "Timeout de conexión a base de datos.", -2);
+                case -1: return (503, "No se pudo conectar a la base de datos.", -1);
+                case 1205: return (409, "Conflicto de concurrencia. Intente nuevamente.", 1205);
+                case 208: return (500, "Error de configuración de base de datos.", 208);
 
-                // 2627: Violación de UNIQUE constraint
-                2627 => (409, "Ya existe un registro con estos datos únicos."),
-
-                // 2601: Duplicate key (similar a 2627)
-                2601 => (409, "Valor duplicado no permitido."),
-
-                // 515: Cannot insert NULL into NOT NULL column
-                515 => (400, "Faltan datos requeridos."),
-
-                // 547: Violación de FOREIGN KEY constraint
-                547 => (400, "Referencia a un registro que no existe."),
-
-                // -2: Connection timeout
-                -2 => (504, "Timeout de conexión a base de datos."),
-
-                // -1: Connection error general
-                -1 => (503, "No se pudo conectar a la base de datos."),
-
-                // 1205: Deadlock victim
-                1205 => (409, "Conflicto de concurrencia. Intente nuevamente."),
-
-                // 208: Invalid object name (tabla/vista no existe)
-                208 => (500, "Error de configuración de base de datos."),
-
-                // Cualquier otro error SQL
-                _ => (500, "Error de base de datos. Intente nuevamente.")
-            };
+                default: return (500, "Error de base de datos. Intente nuevamente.", sqlEx.Number);
+            }
         }
     }
 }

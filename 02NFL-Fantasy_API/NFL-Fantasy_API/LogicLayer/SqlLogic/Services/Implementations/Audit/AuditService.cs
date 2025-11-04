@@ -54,7 +54,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Audit
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener logs de auditoría con filtros");
-                return new List<AuditLogVM>();
+                throw;
             }
         }
 
@@ -89,7 +89,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Audit
                     "Error al obtener historial de auditoría del usuario {UserId}",
                     userId
                 );
-                return new List<UserAuditHistoryVM>();
+                throw;
             }
         }
 
@@ -187,7 +187,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Audit
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener estadísticas de auditoría");
-                return new AuditStatsVM();
+                throw;
             }
         }
 
@@ -218,7 +218,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Audit
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener estadísticas del sistema");
-                return new { Error = "Error al obtener estadísticas" };
+                throw;
             }
         }
 
@@ -269,6 +269,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Audit
                     entityType,
                     entityId
                 );
+                throw;
             }
         }
 

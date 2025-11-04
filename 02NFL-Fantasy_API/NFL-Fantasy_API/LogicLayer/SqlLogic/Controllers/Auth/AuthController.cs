@@ -62,6 +62,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Auth
 
             // Delegar al servicio
             var result = await _authService.RegisterAsync(dto, sourceIp, userAgent);
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo registrar el usuario."));
 
             // Log de éxito (los errores los maneja el ExceptionFilter)
             if (result.Success)
@@ -95,6 +96,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Auth
             var userAgent = this.UserAgent();
 
             var result = await _authService.LoginAsync(dto, sourceIp, userAgent);
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo iniciar sesión."));
 
             if (result.Success)
             {
@@ -126,6 +128,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Auth
             var userAgent = this.UserAgent();
 
             var result = await _authService.LogoutAsync(sessionId, sourceIp, userAgent);
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo cerrar la sesión actual."));
 
             _logger.LogInformation(
                 "User {UserID} logged out successfully from {IP}",
@@ -152,6 +155,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Auth
             var userAgent = this.UserAgent();
 
             var result = await _authService.LogoutAllAsync(userId, sourceIp, userAgent);
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudieron cerrar todas las sesiones."));
 
             _logger.LogInformation(
                 "User {UserID} closed all sessions from {IP}",
@@ -180,6 +184,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Auth
             var sourceIp = this.ClientIp();
 
             var result = await _authService.RequestPasswordResetAsync(dto, sourceIp);
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo procesar la solicitud de restablecimiento de contraseña."));
 
             _logger.LogInformation(
                 "Password reset requested for {Email} from {IP}",
@@ -207,6 +212,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Auth
             var userAgent = this.UserAgent();
 
             var result = await _authService.ResetPasswordWithTokenAsync(dto, sourceIp, userAgent);
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo restablecer la contraseña."));
 
             if (result.Success)
             {

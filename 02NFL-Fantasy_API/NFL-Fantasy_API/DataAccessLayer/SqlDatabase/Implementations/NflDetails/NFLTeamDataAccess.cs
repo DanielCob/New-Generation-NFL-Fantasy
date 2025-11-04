@@ -232,7 +232,8 @@ namespace NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.NflDetails
                         LastName = reader.GetSafeString("LastName"),
                         FullName = reader.GetSafeString("FullName"),
                         Position = reader.GetSafeString("Position"),
-                        InjuryStatus = reader.GetSafeNullableString("InjuryStatus")
+                        InjuryStatus = reader.GetSafeNullableString("InjuryStatus"),
+                        IsActive = reader.GetSafeBool("IsActive")
                     });
                 }
             }

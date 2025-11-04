@@ -76,6 +76,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Fantasy
                 sourceIp,
                 userAgent
             );
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo actualizar el branding del equipo."));
 
             if (result.Success)
             {
@@ -158,6 +159,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Fantasy
         public async Task<ActionResult<ApiResponseDTO>> GetRosterDistribution(int id)
         {
             var distribution = await _teamService.GetTeamRosterDistributionAsync(id);
+            if (distribution is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo obtener la distribución del roster."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Distribución de roster obtenida exitosamente.",
@@ -200,6 +202,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Fantasy
                 sourceIp,
                 userAgent
             );
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo agregar el jugador al roster."));
 
             if (result.Success)
             {
@@ -245,6 +248,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Fantasy
                 sourceIp,
                 userAgent
             );
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo remover el jugador del roster."));
 
             if (result.Success)
             {

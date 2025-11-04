@@ -121,7 +121,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Fantasy
                     teamId,
                     actorUserId
                 );
-                return null;
+                throw;
             }
         }
 
@@ -147,7 +147,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Fantasy
                     "Error al obtener distribución de roster: Team={TeamId}",
                     teamId
                 );
-                return new List<RosterDistributionItemDTO>();
+                throw;
             }
         }
 
@@ -283,7 +283,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Fantasy
                     "Error al obtener detalles de equipo: Team={TeamId}",
                     teamId
                 );
-                return null;
+                throw;
             }
         }
 

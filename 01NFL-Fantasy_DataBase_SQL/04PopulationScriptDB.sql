@@ -29,7 +29,6 @@ PRINT N'Poblando roles de liga...';
 MERGE ref.LeagueRole AS T
 USING (VALUES
   (N'COMMISSIONER',     N'Comisionado'),
-  (N'CO_COMMISSIONER',  N'Co-Comisionado'),
   (N'SPECTATOR',        N'Espectador')
 ) AS S(RoleCode, Display)
 ON (T.RoleCode = S.RoleCode)
@@ -38,8 +37,11 @@ WHEN MATCHED AND T.Display <> S.Display THEN
 WHEN NOT MATCHED BY TARGET THEN
   INSERT(RoleCode, Display) VALUES(S.RoleCode, S.Display);
 
+PRINT N'✓ Roles de liga poblados (COMMISSIONER, SPECTATOR)';
+
 /* ============================================================
-   SECCIÓN 2: REF - PositionFormat + PositionSlot (SIN CAMBIOS)
+   SECCIÓN 2: REF - PositionFormat + PositionSlot (ACTUALIZADO)
+   Ahora incluye PointsAllowed para cada slot
    ============================================================ */
 PRINT N'Poblando formatos de posición...';
 
@@ -57,52 +59,88 @@ WHEN MATCHED AND ISNULL(T.Description,N'') <> ISNULL(S.Description,N'') THEN
 WHEN NOT MATCHED BY TARGET THEN
   INSERT(Name, Description) VALUES(S.Name, S.Description);
 
--- 2.2 Slots por formato
-DECLARE @Slots TABLE(PositionFormatName NVARCHAR(50), PositionCode NVARCHAR(20), SlotCount TINYINT);
+-- 2.2 Slots por formato (ACTUALIZADO con PointsAllowed)
+DECLARE @Slots TABLE(
+  PositionFormatName NVARCHAR(50), 
+  PositionCode NVARCHAR(20), 
+  SlotCount TINYINT,
+  PointsAllowed BIT  -- ← NUEVA COLUMNA
+);
 
 -- Default
+-- ✅ Posiciones activas: permiten puntos (1)
+-- ❌ Posiciones inactivas: NO permiten puntos (0)
 INSERT INTO @Slots VALUES
- (N'Default', N'QB', 1),(N'Default', N'RB', 2),(N'Default', N'WR', 2),
- (N'Default', N'TE', 1),(N'Default', N'RB/WR', 1),
- (N'Default', N'K', 1),(N'Default', N'DEF', 1),
- (N'Default', N'BENCH', 6),(N'Default', N'IR', 2);
+ (N'Default', N'QB', 1, 1),       -- ✅ Permite puntos
+ (N'Default', N'RB', 2, 1),       -- ✅ Permite puntos
+ (N'Default', N'WR', 2, 1),       -- ✅ Permite puntos
+ (N'Default', N'TE', 1, 1),       -- ✅ Permite puntos
+ (N'Default', N'RB/WR', 1, 1),    -- ✅ Permite puntos
+ (N'Default', N'K', 1, 1),        -- ✅ Permite puntos
+ (N'Default', N'DEF', 1, 1),      -- ✅ Permite puntos
+ (N'Default', N'BENCH', 6, 0),    -- ❌ NO permite puntos
+ (N'Default', N'IR', 2, 0);       -- ❌ NO permite puntos
 
 -- Detallado
 INSERT INTO @Slots VALUES
- (N'Detallado', N'QB', 1),(N'Detallado', N'RB', 2),(N'Detallado', N'WR', 3),
- (N'Detallado', N'TE', 1),(N'Detallado', N'RB/WR', 1),
- (N'Detallado', N'K', 1),(N'Detallado', N'DEF', 1),
- (N'Detallado', N'BENCH', 8),(N'Detallado', N'IR', 2);
+ (N'Detallado', N'QB', 1, 1),       -- ✅ Permite puntos
+ (N'Detallado', N'RB', 2, 1),       -- ✅ Permite puntos
+ (N'Detallado', N'WR', 3, 1),       -- ✅ Permite puntos
+ (N'Detallado', N'TE', 1, 1),       -- ✅ Permite puntos
+ (N'Detallado', N'RB/WR', 1, 1),    -- ✅ Permite puntos
+ (N'Detallado', N'K', 1, 1),        -- ✅ Permite puntos
+ (N'Detallado', N'DEF', 1, 1),      -- ✅ Permite puntos
+ (N'Detallado', N'BENCH', 8, 0),    -- ❌ NO permite puntos
+ (N'Detallado', N'IR', 2, 0);       -- ❌ NO permite puntos
 
 -- Extremo
 INSERT INTO @Slots VALUES
- (N'Extremo', N'QB', 1),(N'Extremo', N'RB', 2),(N'Extremo', N'WR', 2),
- (N'Extremo', N'TE', 1),(N'Extremo', N'RB/WR', 1),
- (N'Extremo', N'DL', 1),(N'Extremo', N'LB', 1),(N'Extremo', N'CB', 1),
- (N'Extremo', N'K', 1),(N'Extremo', N'DEF', 1),
- (N'Extremo', N'BENCH', 10),(N'Extremo', N'IR', 3);
+ (N'Extremo', N'QB', 1, 1),       -- ✅ Permite puntos
+ (N'Extremo', N'RB', 2, 1),       -- ✅ Permite puntos
+ (N'Extremo', N'WR', 2, 1),       -- ✅ Permite puntos
+ (N'Extremo', N'TE', 1, 1),       -- ✅ Permite puntos
+ (N'Extremo', N'RB/WR', 1, 1),    -- ✅ Permite puntos
+ (N'Extremo', N'DL', 1, 1),       -- ✅ Permite puntos
+ (N'Extremo', N'LB', 1, 1),       -- ✅ Permite puntos
+ (N'Extremo', N'CB', 1, 1),       -- ✅ Permite puntos
+ (N'Extremo', N'K', 1, 1),        -- ✅ Permite puntos
+ (N'Extremo', N'DEF', 1, 1),      -- ✅ Permite puntos
+ (N'Extremo', N'BENCH', 10, 0),   -- ❌ NO permite puntos
+ (N'Extremo', N'IR', 3, 0);       -- ❌ NO permite puntos
 
 -- Ofensivo
 INSERT INTO @Slots VALUES
- (N'Ofensivo', N'QB', 1),(N'Ofensivo', N'RB', 3),(N'Ofensivo', N'WR', 3),
- (N'Ofensivo', N'TE', 1),(N'Ofensivo', N'RB/WR', 2),
- (N'Ofensivo', N'K', 1),(N'Ofensivo', N'DEF', 1),
- (N'Ofensivo', N'BENCH', 7),(N'Ofensivo', N'IR', 2);
+ (N'Ofensivo', N'QB', 1, 1),       -- ✅ Permite puntos
+ (N'Ofensivo', N'RB', 3, 1),       -- ✅ Permite puntos
+ (N'Ofensivo', N'WR', 3, 1),       -- ✅ Permite puntos
+ (N'Ofensivo', N'TE', 1, 1),       -- ✅ Permite puntos
+ (N'Ofensivo', N'RB/WR', 2, 1),    -- ✅ Permite puntos
+ (N'Ofensivo', N'K', 1, 1),        -- ✅ Permite puntos
+ (N'Ofensivo', N'DEF', 1, 1),      -- ✅ Permite puntos
+ (N'Ofensivo', N'BENCH', 7, 0),    -- ❌ NO permite puntos
+ (N'Ofensivo', N'IR', 2, 0);       -- ❌ NO permite puntos
 
+-- MERGE actualizado con PointsAllowed
 MERGE ref.PositionSlot AS T
 USING (
-  SELECT pf.PositionFormatID, s.PositionCode, s.SlotCount
+  SELECT 
+    pf.PositionFormatID, 
+    s.PositionCode, 
+    s.SlotCount,
+    s.PointsAllowed  -- ← INCLUIR EN EL SELECT
   FROM @Slots s
   JOIN ref.PositionFormat pf ON pf.Name = s.PositionFormatName
-) AS S(PositionFormatID, PositionCode, SlotCount)
+) AS S(PositionFormatID, PositionCode, SlotCount, PointsAllowed)
 ON (T.PositionFormatID = S.PositionFormatID AND T.PositionCode = S.PositionCode)
-WHEN MATCHED AND T.SlotCount <> S.SlotCount THEN
-  UPDATE SET T.SlotCount = S.SlotCount
+WHEN MATCHED AND (T.SlotCount <> S.SlotCount OR T.PointsAllowed <> S.PointsAllowed) THEN
+  UPDATE SET 
+    T.SlotCount = S.SlotCount,
+    T.PointsAllowed = S.PointsAllowed  -- ← ACTUALIZAR SI CAMBIÓ
 WHEN NOT MATCHED BY TARGET THEN
-  INSERT(PositionFormatID, PositionCode, SlotCount)
-  VALUES(S.PositionFormatID, S.PositionCode, S.SlotCount);
+  INSERT(PositionFormatID, PositionCode, SlotCount, PointsAllowed)
+  VALUES(S.PositionFormatID, S.PositionCode, S.SlotCount, S.PointsAllowed);  -- ← INCLUIR EN INSERT
 
-PRINT N'✓ Formatos de posición y slots poblados';
+PRINT N'✓ Formatos de posición y slots poblados (con configuración de puntos)';
 
 /* ============================================================
    SECCIÓN 3: REF - Equipos NFL (con metadata visual)
@@ -641,12 +679,14 @@ DECLARE @L_Prime INT = (
   WHERE l.SeasonID = @SeasonID_Current AND l.Name = N'XNFL Prime League'
 );
 
--- Co-comisionado
-IF NOT EXISTS (SELECT 1 FROM league.LeagueMember WHERE LeagueID=@L_Prime AND UserID=@U_Co)
+-- El usuario @U_Co ahora será simplemente un manager con equipo
+-- ✅ Agregar equipo para Co (ahora es solo un manager regular)
+IF NOT EXISTS (SELECT 1 FROM league.Team WHERE LeagueID=@L_Prime AND OwnerUserID=@U_Co)
 BEGIN
-  INSERT INTO league.LeagueMember(LeagueID, UserID, RoleCode, IsPrimaryCommissioner)
-  VALUES(@L_Prime, @U_Co, N'CO_COMMISSIONER', 0);
-  PRINT N'✓ Co-comisionado agregado a Prime League';
+  INSERT INTO league.Team(LeagueID, OwnerUserID, TeamName)
+  VALUES(@L_Prime, @U_Co, N'Miami Dolphins');
+  -- ✅ NO insertar en LeagueMember - MANAGER se deriva automáticamente
+  PRINT N'✓ Equipo Miami Dolphins agregado (Co)';
 END
 
 -- Equipos de managers (SIN insertar en LeagueMember - el rol MANAGER se deriva del equipo)
@@ -683,7 +723,7 @@ EXEC app.sp_SetLeagueStatus
 
 PRINT N'✓ Liga Prime activada';
 
--- 8.2 Liga secundaria
+-- 8.2 Liga secundaria (ahora creada por Bob en vez de Co)
 IF NOT EXISTS (
   SELECT 1
   FROM league.League l
@@ -697,18 +737,18 @@ BEGIN
 
   INSERT INTO @tCreateRookies
   EXEC app.sp_CreateLeague
-       @CreatorUserID    = @U_Co,
+       @CreatorUserID    = @U_Bob,
        @Name             = N'Rookies League',
        @Description      = N'Liga demo ofensiva para onboarding',
        @TeamSlots        = 8,
        @LeaguePassword   = N'LeaguePass1',
-       @InitialTeamName  = N'San Francisco 49ers',
+       @InitialTeamName  = N'Green Bay Packers',
        @PlayoffTeams     = 4,
        @AllowDecimals    = 1,
        @PositionFormatID = @PF_OfID,
        @ScoringSchemaID  = @SS_MaxID;
   
-  PRINT N'✓ Liga Rookies League creada';
+  PRINT N'✓ Liga Rookies League creada (comisionado: Bob)';
 END
 
 DECLARE @L_Rookies INT = (
@@ -905,16 +945,16 @@ PRINT N'  ✓ ' + CAST(@cnt_games AS NVARCHAR(10)) + N' partidos NFL programados
 PRINT N'  ✓ ' + CAST(@cnt_roster AS NVARCHAR(10)) + N' jugadores en rosters activos';
 PRINT N'';
 PRINT N'🎮 Usuarios demo (password: Secure123):';
-PRINT N'  • admin@xnfldemo.com (ROL: ADMIN - Comisionado Principal)';
-PRINT N'  • coco@xnfldemo.com (ROL: USER - Co-Comisionado)';
-PRINT N'  • alice@xnfldemo.com (ROL: USER - Manager)';
-PRINT N'  • bob@xnfldemo.com (ROL: USER - Manager)';
-PRINT N'  • carol@xnfldemo.com (ROL: USER - Manager)';
+PRINT N'  • admin@xnfldemo.com (ROL: ADMIN - Comisionado de Prime League)';
+PRINT N'  • coco@xnfldemo.com (ROL: USER - Manager de Prime League)';
+PRINT N'  • alice@xnfldemo.com (ROL: USER - Manager de ambas ligas)';
+PRINT N'  • bob@xnfldemo.com (ROL: USER - Comisionado de Rookies League)';
+PRINT N'  • carol@xnfldemo.com (ROL: USER - Manager de Prime League)';
 PRINT N'  • brand@xnfldemo.com (ROL: BRAND_MANAGER - Gestor de Marca)';
 PRINT N'';
 PRINT N'🏈 Ligas disponibles:';
-PRINT N'  • XNFL Prime League (Estado: Activa, 4 equipos)';
-PRINT N'  • Rookies League (Estado: Pre-Draft, 2 equipos)';
+PRINT N'  • XNFL Prime League (Estado: Activa, 4 equipos - Comisionado: Admin)';
+PRINT N'  • Rookies League (Estado: Pre-Draft, 2 equipos - Comisionado: Bob)';
 PRINT N'';
 PRINT N'🔐 Roles del Sistema:';
 PRINT N'  • ADMIN: Control total, gestión de usuarios y equipos NFL';

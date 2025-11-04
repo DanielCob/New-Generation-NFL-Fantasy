@@ -42,7 +42,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.NflDetail
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener temporada actual");
-                return null;
+                throw;
             }
         }
 
@@ -101,7 +101,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.NflDetail
                     "SQL error al crear temporada: Actor={ActorUserId}",
                     actorUserId
                 );
-                return null;
+                throw;
             }
             catch (Exception ex)
             {
@@ -110,7 +110,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.NflDetail
                     "Error al crear temporada: Actor={ActorUserId}",
                     actorUserId
                 );
-                return null;
+                throw;
             }
         }
 
@@ -171,7 +171,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.NflDetail
                     "SQL error al actualizar temporada {SeasonId}",
                     seasonId
                 );
-                return null;
+                throw;
             }
             catch (Exception ex)
             {
@@ -180,7 +180,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.NflDetail
                     "Error al actualizar temporada {SeasonId}",
                     seasonId
                 );
-                return null;
+                throw;
             }
         }
 
@@ -342,7 +342,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.NflDetail
                     "Error al obtener semanas de temporada {SeasonId}",
                     seasonId
                 );
-                return new List<SeasonWeekVM>();
+                throw;
             }
         }
 
@@ -368,7 +368,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.NflDetail
                     "Error al obtener temporada {SeasonId}",
                     seasonId
                 );
-                return null;
+                throw;
             }
         }
 

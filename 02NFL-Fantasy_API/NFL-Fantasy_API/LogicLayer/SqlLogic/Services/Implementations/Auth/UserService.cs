@@ -110,7 +110,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Auth
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener perfil de usuario {UserId}", userId);
-                return null;
+                throw;
             }
         }
 
@@ -132,7 +132,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Auth
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener header de usuario {UserId}", userId);
-                return null;
+                throw;
             }
         }
 
@@ -150,7 +150,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Auth
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener sesiones activas de usuario {UserId}", userId);
-                return new List<UserActiveSessionVM>();
+                throw;
             }
         }
 
@@ -168,7 +168,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Auth
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener perfil básico de usuario {UserId}", userId);
-                return null;
+                throw;
             }
         }
 
@@ -186,7 +186,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Auth
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener usuarios activos");
-                return new List<UserProfileBasicVM>();
+                throw;
             }
         }
 

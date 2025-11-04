@@ -52,7 +52,8 @@ namespace NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.Fantasy
                     PositionFormatID = reader.GetSafeInt32("PositionFormatID"),
                     FormatName = reader.GetSafeString("FormatName"),
                     PositionCode = reader.GetSafeString("PositionCode"),
-                    SlotCount = reader.GetSafeByte("SlotCount")
+                    SlotCount = reader.GetSafeByte("SlotCount"),
+                    PointsAllowed = reader.GetSafeBool("PointsAllowed")
                 },
                 whereClause: $"PositionFormatID = {positionFormatId}"
             );

@@ -58,6 +58,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Audit
         public async Task<ActionResult<ApiResponseDTO>> GetAuditLogs([FromQuery] AuditLogFilterDTO filter)
         {
             var logs = await _auditService.GetAuditLogsAsync(filter);
+            if (logs is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudieron obtener los logs de auditoría."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Logs de auditoría obtenidos exitosamente.",
@@ -84,6 +85,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Audit
 
             var userId = this.UserId();
             var history = await _auditService.GetUserAuditHistoryAsync(userId, top);
+            if (history is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo obtener el historial de auditoría del usuario actual."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Historial de auditoría obtenido exitosamente.",
@@ -114,6 +116,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Audit
             if (top > 500) top = 500;
 
             var history = await _auditService.GetUserAuditHistoryAsync(userId, top);
+            if (history is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo obtener el historial de auditoría del usuario especificado."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Historial de auditoría obtenido exitosamente.",
@@ -142,6 +145,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Audit
         public async Task<ActionResult<ApiResponseDTO>> GetAuditStats([FromQuery] AuditStatsRequestDTO request)
         {
             var stats = await _auditService.GetAuditStatsAsync(request.Days);
+            if (stats is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudieron obtener las estadísticas de auditoría."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Estadísticas de auditoría obtenidas exitosamente.",
@@ -181,6 +185,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Audit
             );
 
             var result = await _auditService.CleanupExpiredSessionsAsync(request.RetentionDays);
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo ejecutar la limpieza de sesiones."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Limpieza ejecutada exitosamente.",
@@ -213,6 +218,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.Audit
         public async Task<ActionResult<ApiResponseDTO>> GetSystemStats()
         {
             var stats = await _auditService.GetSystemStatsAsync();
+            if (stats is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudieron obtener las estadísticas del sistema."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Estadísticas del sistema obtenidas exitosamente.",

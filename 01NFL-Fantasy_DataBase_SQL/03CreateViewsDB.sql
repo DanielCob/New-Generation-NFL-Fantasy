@@ -48,7 +48,8 @@ SELECT
   pf.PositionFormatID,
   pf.Name          AS FormatName,
   ps.PositionCode,
-  ps.SlotCount
+  ps.SlotCount,
+  ps.PointsAllowed
 FROM ref.PositionFormat pf
 JOIN ref.PositionSlot   ps ON ps.PositionFormatID = pf.PositionFormatID;
 GO
@@ -545,7 +546,6 @@ SELECT
   lm.LeagueID,
   lm.UserID,
   lm.RoleCode AS LeagueRoleCode,
-  lm.IsPrimaryCommissioner,
   lm.JoinedAt,
   lm.LeftAt,
   u.Name AS UserName,
@@ -658,12 +658,11 @@ SELECT
   l.TeamSlots,
   (l.TeamSlots - (SELECT COUNT(*) FROM league.Team t WHERE t.LeagueID = lm.LeagueID)) AS AvailableSlots,
   lm.RoleCode,
-  lm.IsPrimaryCommissioner,
   lm.JoinedAt,
   l.CreatedAt   AS LeagueCreatedAt
 FROM league.LeagueMember lm
 JOIN league.League l ON l.LeagueID = lm.LeagueID
-WHERE lm.RoleCode IN (N'COMMISSIONER', N'CO_COMMISSIONER');
+WHERE lm.RoleCode = N'COMMISSIONER';
 GO
 
 GRANT SELECT ON dbo.vw_UserCommissionedLeagues TO app_executor;
@@ -784,7 +783,7 @@ SELECT
     WHEN 2 THEN N'Bloqueado'
     ELSE N'Inactivo'
   END AS AccountStatusDisplay,
-  u.FailedLoginCount,
+  CAST(u.FailedLoginCount AS INT) AS FailedLoginCount,
   u.LockedUntil,
   u.CreatedAt,
   u.UpdatedAt,
@@ -805,12 +804,11 @@ GO
 -- ============================================================================
 CREATE OR ALTER VIEW dbo.vw_UserLeagueRoles
 AS
--- Roles administrativos explícitos (COMMISSIONER, CO_COMMISSIONER, SPECTATOR)
+-- Roles administrativos explícitos (COMMISSIONER, SPECTATOR)
 SELECT 
   lm.LeagueID,
   lm.UserID,
   lm.RoleCode AS RoleName,
-  lm.IsPrimaryCommissioner,
   1 AS IsExplicit,  -- Viene de LeagueMember
   0 AS IsDerived,   -- No es derivado
   lm.JoinedAt,
@@ -827,7 +825,6 @@ SELECT
   t.LeagueID,
   t.OwnerUserID AS UserID,
   N'MANAGER' AS RoleName,
-  0 AS IsPrimaryCommissioner,
   0 AS IsExplicit,  -- No viene de LeagueMember
   1 AS IsDerived,   -- Es derivado de tener equipo
   t.CreatedAt AS JoinedAt,
@@ -853,16 +850,14 @@ WITH UserRoles AS (
     LeagueID,
     UserID,
     RoleName,
-    IsPrimaryCommissioner,
     UserName,
     UserEmail,
     -- Asignar prioridad para el rol "principal"
     CASE RoleName
       WHEN N'COMMISSIONER' THEN 1
-      WHEN N'CO_COMMISSIONER' THEN 2
-      WHEN N'MANAGER' THEN 3
-      WHEN N'SPECTATOR' THEN 4
-      ELSE 5
+      WHEN N'MANAGER' THEN 2
+      WHEN N'SPECTATOR' THEN 3
+      ELSE 4
     END AS RolePriority
   FROM dbo.vw_UserLeagueRoles
 ),
@@ -874,10 +869,9 @@ AggregatedRoles AS (
     STRING_AGG(RoleName, N', ') WITHIN GROUP (ORDER BY 
       CASE RoleName
         WHEN N'COMMISSIONER' THEN 1
-        WHEN N'CO_COMMISSIONER' THEN 2
-        WHEN N'MANAGER' THEN 3
-        WHEN N'SPECTATOR' THEN 4
-        ELSE 5
+        WHEN N'MANAGER' THEN 2
+        WHEN N'SPECTATOR' THEN 3
+        ELSE 4
       END
     ) AS AllRoles
   FROM UserRoles
@@ -888,7 +882,6 @@ RankedRoles AS (
     ur.LeagueID,
     ur.UserID,
     ur.RoleName,
-    ur.IsPrimaryCommissioner,
     ur.UserName,
     ur.UserEmail,
     ar.AllRoles,
@@ -901,7 +894,6 @@ SELECT
   UserID,
   RoleName AS PrimaryRole,
   AllRoles,
-  IsPrimaryCommissioner,
   UserName,
   UserEmail
 FROM RankedRoles

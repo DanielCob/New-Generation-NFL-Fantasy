@@ -246,6 +246,7 @@ BEGIN
     PositionFormatID INT NOT NULL,
     PositionCode NVARCHAR(20) NOT NULL,
     SlotCount TINYINT NOT NULL,
+    PointsAllowed BIT NOT NULL CONSTRAINT DF_PositionSlot_PointsAllowed DEFAULT(1),
     CONSTRAINT PK_PositionSlot PRIMARY KEY(PositionFormatID, PositionCode)
   );
 END
@@ -455,7 +456,6 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_League_Season' AND objec
   CREATE NONCLUSTERED INDEX IX_League_Season ON league.League(SeasonID);
 GO
 
-
 -- Miembros asociados a una liga
 IF OBJECT_ID('league.LeagueMember','U') IS NULL
 BEGIN
@@ -463,13 +463,9 @@ BEGIN
     LeagueID INT NOT NULL,
     UserID INT NOT NULL,
     RoleCode NVARCHAR(20) NOT NULL,
-    IsPrimaryCommissioner BIT NOT NULL CONSTRAINT DF_LeagueMember_PrimaryComm DEFAULT(0),
     JoinedAt DATETIME2(0) NOT NULL CONSTRAINT DF_LeagueMember_JoinedAt DEFAULT(SYSUTCDATETIME()),
     LeftAt DATETIME2(0) NULL,
-    CONSTRAINT PK_LeagueMember PRIMARY KEY(LeagueID, UserID),
-    CONSTRAINT CK_LeagueMember_PrimaryConsistency CHECK(
-      CASE WHEN RoleCode <> 'COMMISSIONER' AND IsPrimaryCommissioner = 1 THEN 0 ELSE 1 END = 1
-    )
+    CONSTRAINT PK_LeagueMember PRIMARY KEY(LeagueID, UserID)
   );
 END
 GO
@@ -484,8 +480,8 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_LeagueMember_Role')
   ALTER TABLE league.LeagueMember ADD CONSTRAINT FK_LeagueMember_Role FOREIGN KEY(RoleCode) REFERENCES ref.LeagueRole(RoleCode) ON DELETE NO ACTION;
 GO
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='UQ_LeagueMember_PrimaryComm' AND object_id=OBJECT_ID('league.LeagueMember'))
-  CREATE UNIQUE INDEX UQ_LeagueMember_PrimaryComm ON league.LeagueMember(LeagueID) WHERE IsPrimaryCommissioner = 1;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='UQ_LeagueMember_UniqueCommissioner' AND object_id=OBJECT_ID('league.LeagueMember'))
+  CREATE UNIQUE INDEX UQ_LeagueMember_UniqueCommissioner ON league.LeagueMember(LeagueID) WHERE RoleCode = 'COMMISSIONER';
 GO
 
 

@@ -71,6 +71,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.NflDetails
                 sourceIp,
                 userAgent
             );
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo crear el equipo NFL."));
 
             if (result.Success)
             {
@@ -110,6 +111,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.NflDetails
         public async Task<ActionResult<ApiResponseDTO>> ListNFLTeams([FromQuery] ListNFLTeamsRequestDTO request)
         {
             var result = await _nflTeamService.ListNFLTeamsAsync(request);
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudieron obtener los equipos NFL."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Equipos NFL obtenidos exitosamente.",
@@ -183,6 +185,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.NflDetails
                 sourceIp,
                 userAgent
             );
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo actualizar el equipo NFL."));
 
             if (result.Success)
             {
@@ -225,6 +228,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.NflDetails
                 sourceIp,
                 userAgent
             );
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo desactivar el equipo NFL."));
 
             if (result.Success)
             {
@@ -265,6 +269,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.NflDetails
                 sourceIp,
                 userAgent
             );
+            if (result is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo reactivar el equipo NFL."));
 
             if (result.Success)
             {
@@ -293,6 +298,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Controllers.NflDetails
         public async Task<ActionResult<ApiResponseDTO>> GetActiveNFLTeams()
         {
             var teams = await _nflTeamService.GetActiveNFLTeamsAsync();
+            if (teams is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudieron obtener los equipos NFL activos."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
                 "Equipos NFL activos obtenidos exitosamente.",

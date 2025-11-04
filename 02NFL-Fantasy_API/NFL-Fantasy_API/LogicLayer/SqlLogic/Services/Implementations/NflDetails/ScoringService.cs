@@ -41,7 +41,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.NflDetail
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al listar esquemas de puntuación");
-                return new List<ScoringSchemaVM>();
+                throw;
             }
         }
 
@@ -63,7 +63,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.NflDetail
                     "Error al obtener reglas del esquema {ScoringSchemaId}",
                     scoringSchemaId
                 );
-                return new List<ScoringSchemaRuleVM>();
+                throw;
             }
         }
 
@@ -85,7 +85,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.NflDetail
                     "Error al obtener esquema {ScoringSchemaId}",
                     scoringSchemaId
                 );
-                return null;
+                throw;
             }
         }
 
@@ -102,7 +102,7 @@ namespace NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.NflDetail
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al obtener esquema por defecto");
-                return null;
+                throw;
             }
         }
 

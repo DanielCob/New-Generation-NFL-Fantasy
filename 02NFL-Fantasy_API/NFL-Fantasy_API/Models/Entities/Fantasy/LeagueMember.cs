@@ -21,8 +21,6 @@ namespace NFL_Fantasy_API.Models.Entities.Fantasy
         [MaxLength(20)]
         public string RoleCode { get; set; } = string.Empty;
 
-        public bool IsPrimaryCommissioner { get; set; } = false;
-
         public DateTime JoinedAt { get; set; } = DateTime.UtcNow;
 
         public DateTime? LeftAt { get; set; }

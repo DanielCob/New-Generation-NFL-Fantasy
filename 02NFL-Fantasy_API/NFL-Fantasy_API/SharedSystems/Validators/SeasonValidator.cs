@@ -1,5 +1,4 @@
-﻿// SharedSystems/Validators/SeasonValidator.cs
-using NFL_Fantasy_API.Models.DTOs.NflDetails;
+﻿using NFL_Fantasy_API.Models.DTOs.NflDetails;
 
 namespace NFL_Fantasy_API.SharedSystems.Validators
 {

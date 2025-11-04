@@ -531,13 +531,13 @@ BEGIN
   FROM auth.UserAccount u
   WHERE u.UserID = @UserID;
 
-  -- 2) Ligas donde soy comisionado (principal o co-comisionado)
+  -- 2) Ligas donde soy comisionado
   SELECT
     lm.LeagueID, l.Name AS LeagueName, l.Status, l.TeamSlots, l.CreatedAt,
-    lm.RoleCode, lm.IsPrimaryCommissioner, lm.JoinedAt
+    lm.RoleCode, lm.JoinedAt
   FROM league.LeagueMember lm
   JOIN league.League l ON l.LeagueID = lm.LeagueID
-  WHERE lm.UserID = @UserID AND lm.RoleCode IN (N'COMMISSIONER', N'CO_COMMISSIONER')
+  WHERE lm.UserID = @UserID AND lm.RoleCode = N'COMMISSIONER'
   ORDER BY l.CreatedAt DESC;
 
   -- 3) Mis equipos por liga
@@ -696,7 +696,7 @@ BEGIN
     @TotalRecords AS TotalRecords,
     @PageNumber AS CurrentPage,
     @PageSize AS PageSize,
-    CEILING(CAST(@TotalRecords AS FLOAT) / @PageSize) AS TotalPages
+    (@TotalRecords + @PageSize - 1) / @PageSize AS TotalPages
   FROM auth.UserAccount u
   JOIN auth.SystemRole sr ON sr.RoleCode = u.SystemRoleCode
   WHERE (@FilterRole IS NULL OR u.SystemRoleCode = @FilterRole)
@@ -761,6 +761,7 @@ GO
 
 -- ============================================================================
 -- sp_CreateLeague - VERSIÓN ACTUALIZADA
+-- @InitialTeamName ahora es OBLIGATORIO
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_CreateLeague
   @CreatorUserID        INT,
@@ -768,7 +769,7 @@ CREATE OR ALTER PROCEDURE app.sp_CreateLeague
   @Description          NVARCHAR(500) = NULL,
   @TeamSlots            TINYINT,
   @LeaguePassword       NVARCHAR(50),
-  @InitialTeamName      NVARCHAR(50) = NULL,
+  @InitialTeamName      NVARCHAR(50),
   @PlayoffTeams         TINYINT = 4,
   @AllowDecimals        BIT = 1,
   @PositionFormatID     INT = NULL,
@@ -780,11 +781,15 @@ BEGIN
   SET NOCOUNT ON;
 
   -------------------------------------------------------------------
-  -- Normalización: tratar vacío/espacios como NULL para el team name
+  -- Validación: @InitialTeamName es obligatorio
   -------------------------------------------------------------------
-  SET @InitialTeamName = NULLIF(LTRIM(RTRIM(@InitialTeamName)), N'');
+  IF @InitialTeamName IS NULL OR LTRIM(RTRIM(@InitialTeamName)) = N''
+    THROW 50039, 'Nombre de equipo inicial es obligatorio.', 1;
 
-  -- Validaciones (mantener las existentes, ajustando InitialTeamName)
+  -- Normalización después de validar que no es vacío
+  SET @InitialTeamName = LTRIM(RTRIM(@InitialTeamName));
+
+  -- Validaciones existentes
   IF @Name IS NULL OR LEN(@Name) < 1 OR LEN(@Name) > 100
     THROW 50040, 'Nombre de liga inválido (1-100).', 1;
 
@@ -794,8 +799,8 @@ BEGIN
   IF @PlayoffTeams NOT IN (4,6)
     THROW 50042, 'PlayoffTeams inválido (4 o 6).', 1;
 
-  -- Antes era obligatorio; ahora solo valida si viene y no supere 50
-  IF @InitialTeamName IS NOT NULL AND LEN(@InitialTeamName) > 50
+  -- Validar longitud del nombre de equipo (ahora siempre se valida)
+  IF LEN(@InitialTeamName) > 50
     THROW 50043, 'Nombre de equipo inválido: no debe superar 50 caracteres.', 1;
 
   IF @LeaguePassword IS NULL OR LEN(@LeaguePassword) < 8 OR LEN(@LeaguePassword) > 12
@@ -835,12 +840,11 @@ BEGIN
   DECLARE @Hash VARBINARY(64) = HASHBYTES('SHA2_256', @PwdBytes + @Salt);
 
   DECLARE @LeagueID INT;
-  DECLARE @AuditDetails NVARCHAR(400);
 
   BEGIN TRY
     BEGIN TRAN;
 
-      -- Desactivar ligas activas del mismo creador en la temporada (opcional según tu política)
+      -- Desactivar ligas activas del mismo creador en la temporada
       UPDATE league.League
          SET Status = 2,  -- Inactive
              UpdatedAt = SYSUTCDATETIME()
@@ -876,26 +880,17 @@ BEGIN
       SET @LeagueID = SCOPE_IDENTITY();
 
       -- Miembro: comisionado principal
-      INSERT INTO league.LeagueMember(LeagueID, UserID, RoleCode, IsPrimaryCommissioner)
-      VALUES(@LeagueID, @CreatorUserID, N'COMMISSIONER', 1);
+      INSERT INTO league.LeagueMember(LeagueID, UserID, RoleCode)
+      VALUES(@LeagueID, @CreatorUserID, N'COMMISSIONER');
 
-      -- Crear equipo SOLO si se proporcionó nombre
-      IF @InitialTeamName IS NOT NULL
-      BEGIN
-        INSERT INTO league.Team(LeagueID, OwnerUserID, TeamName)
-        VALUES(@LeagueID, @CreatorUserID, @InitialTeamName);
+      -- Crear equipo inicial (SIEMPRE, ya que @InitialTeamName es obligatorio)
+      INSERT INTO league.Team(LeagueID, OwnerUserID, TeamName)
+      VALUES(@LeagueID, @CreatorUserID, @InitialTeamName);
 
-        SET @AuditDetails = N'Liga creada en Pre-Draft con equipo inicial del comisionado';
-      END
-      ELSE
-      BEGIN
-        SET @AuditDetails = N'Liga creada en Pre-Draft sin equipo inicial';
-      END
-
-      -- Auditoría con IP y UserAgent
+      -- Auditoría
       INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
       VALUES(@CreatorUserID, N'LEAGUE', CAST(@LeagueID AS NVARCHAR(50)), N'CREATE',
-             @AuditDetails, @SourceIp, @UserAgent);
+             N'Liga creada en Pre-Draft con equipo inicial del comisionado', @SourceIp, @UserAgent);
 
     COMMIT;
 
@@ -934,9 +929,9 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM league.LeagueMember
     WHERE LeagueID = @LeagueID AND UserID = @ActorUserID
-      AND RoleCode = N'COMMISSIONER' AND IsPrimaryCommissioner = 1
+      AND RoleCode = N'COMMISSIONER'
   )
-    THROW 50060, 'Sólo el comisionado principal puede cambiar el estado de la liga.', 1;
+    THROW 50060, 'Sólo el comisionado puede cambiar el estado de la liga.', 1;
 
   DECLARE @OldStatus TINYINT;
   SELECT @OldStatus = Status FROM league.League WHERE LeagueID = @LeagueID;
@@ -1004,9 +999,9 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM league.LeagueMember
     WHERE LeagueID = @LeagueID AND UserID = @ActorUserID
-      AND RoleCode = N'COMMISSIONER' AND IsPrimaryCommissioner = 1
+      AND RoleCode = N'COMMISSIONER'
   )
-    THROW 50070, 'Sólo el comisionado principal puede editar la configuración.', 1;
+    THROW 50070, 'Sólo el comisionado puede editar la configuración.', 1;
 
   DECLARE
     @SeasonID INT, @Status TINYINT,
@@ -1843,7 +1838,7 @@ BEGIN
     @TotalRecords AS TotalRecords,
     @PageNumber AS CurrentPage,
     @PageSize AS PageSize,
-    CEILING(CAST(@TotalRecords AS FLOAT) / @PageSize) AS TotalPages
+    (@TotalRecords + @PageSize - 1) / @PageSize AS TotalPages
   FROM ref.NFLTeam
   WHERE (@SearchTerm IS NULL OR (TeamName LIKE N'%' + @SearchTerm + N'%' OR City LIKE N'%' + @SearchTerm + N'%'))
     AND (@FilterCity IS NULL OR City = @FilterCity)
@@ -1909,8 +1904,10 @@ BEGIN
     p.PlayerID,
     p.FirstName,
     p.LastName,
+    CONCAT(p.FirstName, ' ', p.LastName) AS FullName,
     p.Position,
-    p.InjuryStatus
+    p.InjuryStatus,
+    p.IsActive
   FROM league.Player p
   WHERE p.NFLTeamID = @NFLTeamID
     AND p.IsActive = 1
@@ -2127,10 +2124,17 @@ BEGIN
     p.LastName;
 
   -- 3) Distribución de jugadores por forma de adquisición (para el gráfico)
+  DECLARE @TotalPlayers INT =
+  (
+    SELECT COUNT(*) FROM league.TeamRoster
+    WHERE TeamID = @TeamID AND IsActive = 1
+  );
+
   SELECT
     tr.AcquisitionType,
     COUNT(*) AS PlayerCount,
-    CAST(ROUND(COUNT(*) * 100.0 / NULLIF((SELECT COUNT(*) FROM league.TeamRoster WHERE TeamID = @TeamID AND IsActive = 1), 0), 2) AS DECIMAL(5,2)) AS Percentage
+    @TotalPlayers AS TotalPlayers,  -- ← agregado para alinear con tu DTO
+    CAST(ROUND(COUNT(*) * 100.0 / NULLIF(@TotalPlayers, 0), 2) AS DECIMAL(5,2)) AS Percentage
   FROM league.TeamRoster tr
   WHERE tr.TeamID = @TeamID
     AND tr.IsActive = 1
@@ -2321,33 +2325,31 @@ AS
 BEGIN
   SET NOCOUNT ON;
 
-  -- Roles del usuario en esta liga
+  -- Rol explícito del usuario en esta liga
   SELECT 
-    RoleName,
-    IsExplicit,
-    IsDerived,
-    IsPrimaryCommissioner,
-    JoinedAt
-  FROM dbo.vw_UserLeagueRoles
-  WHERE UserID = @UserID 
-    AND LeagueID = @LeagueID
-  ORDER BY 
-    CASE RoleName
-      WHEN N'COMMISSIONER' THEN 1
-      WHEN N'CO_COMMISSIONER' THEN 2
-      WHEN N'MANAGER' THEN 3
-      WHEN N'SPECTATOR' THEN 4
-      ELSE 5
-    END;
+    lm.RoleCode,
+    lm.JoinedAt,
+    lm.LeftAt,
+    CASE 
+      WHEN lm.RoleCode = N'COMMISSIONER' THEN N'Comisionado'
+      WHEN lm.RoleCode = N'SPECTATOR' THEN N'Espectador'
+      ELSE lm.RoleCode
+    END AS RoleDisplay
+  FROM league.LeagueMember lm
+  WHERE lm.UserID = @UserID 
+    AND lm.LeagueID = @LeagueID;
 
-  -- Resumen
+  -- Equipo del usuario en la liga (rol implícito de MANAGER)
   SELECT 
-    PrimaryRole,
-    AllRoles,
-    IsPrimaryCommissioner
-  FROM dbo.vw_UserLeagueRoleSummary
-  WHERE UserID = @UserID 
-    AND LeagueID = @LeagueID;
+    t.TeamID,
+    t.TeamName,
+    t.IsActive,
+    'MANAGER' AS ImplicitRole,
+    N'Manager de Equipo' AS RoleDisplay
+  FROM league.Team t
+  WHERE t.OwnerUserID = @UserID
+    AND t.LeagueID = @LeagueID
+    AND t.IsActive = 1;
 END
 GO
 
@@ -2357,6 +2359,7 @@ GO
 -- ============================================================================
 -- sp_SearchLeagues
 -- Busca ligas disponibles para unirse (con slots disponibles y en Pre-Draft)
+-- REQUIERE mínimo 3 caracteres en @SearchTerm para mostrar resultados
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_SearchLeagues
   @SearchTerm     NVARCHAR(100) = NULL,
@@ -2368,6 +2371,35 @@ CREATE OR ALTER PROCEDURE app.sp_SearchLeagues
 AS
 BEGIN
   SET NOCOUNT ON;
+
+  -- ⚠️ NUEVA VALIDACIÓN: Requiere al menos 3 caracteres en @SearchTerm
+  -- Si es NULL o tiene menos de 3 caracteres, no retornar nada
+  IF @SearchTerm IS NULL OR LEN(LTRIM(RTRIM(@SearchTerm))) < 3
+  BEGIN
+    -- Retornar resultado vacío con estructura correcta
+    SELECT
+      NULL AS LeagueID,
+      NULL AS Name,
+      NULL AS Description,
+      NULL AS TeamSlots,
+      NULL AS TeamsCount,
+      NULL AS AvailableSlots,
+      NULL AS PlayoffTeams,
+      NULL AS AllowDecimals,
+      NULL AS SeasonLabel,
+      NULL AS SeasonYear,
+      NULL AS CreatedByName,
+      NULL AS CreatedAt,
+      0 AS TotalRecords,
+      @PageNumber AS CurrentPage,
+      @PageSize AS PageSize,
+      0 AS TotalPages
+    WHERE 1 = 0;  -- Esto garantiza que no se retornen filas
+    RETURN;
+  END
+
+  -- Limpiar @SearchTerm de espacios
+  SET @SearchTerm = LTRIM(RTRIM(@SearchTerm));
 
   -- Validar paginación
   IF @PageNumber < 1 SET @PageNumber = 1;
@@ -2384,9 +2416,9 @@ BEGIN
   SELECT @TotalRecords = COUNT(*)
   FROM league.League l
   WHERE l.SeasonID = @SeasonID
-    AND l.Status = 0  -- Solo ligas en Pre-Draft
+    AND l.Status = 0  -- Solo ligas en Pre-Draft (excluye Status = 5 Finalizadas)
     AND (l.TeamSlots - (SELECT COUNT(*) FROM league.Team t WHERE t.LeagueID = l.LeagueID)) > 0  -- Tiene slots disponibles
-    AND (@SearchTerm IS NULL OR l.Name LIKE N'%' + @SearchTerm + N'%' OR l.Description LIKE N'%' + @SearchTerm + N'%')
+    AND (l.Name LIKE N'%' + @SearchTerm + N'%' OR l.Description LIKE N'%' + @SearchTerm + N'%')  -- Ahora @SearchTerm siempre tiene valor
     AND (@MinSlots IS NULL OR l.TeamSlots >= @MinSlots)
     AND (@MaxSlots IS NULL OR l.TeamSlots <= @MaxSlots);
 
@@ -2407,14 +2439,14 @@ BEGIN
     @TotalRecords AS TotalRecords,
     @PageNumber AS CurrentPage,
     @PageSize AS PageSize,
-    CEILING(CAST(@TotalRecords AS FLOAT) / @PageSize) AS TotalPages
+    (@TotalRecords + @PageSize - 1) / @PageSize AS TotalPages
   FROM league.League l
   JOIN league.Season s ON s.SeasonID = l.SeasonID
   JOIN auth.UserAccount u ON u.UserID = l.CreatedByUserID
   WHERE l.SeasonID = @SeasonID
-    AND l.Status = 0  -- Solo Pre-Draft
+    AND l.Status = 0  -- Solo Pre-Draft (automáticamente excluye Status = 5)
     AND (l.TeamSlots - (SELECT COUNT(*) FROM league.Team t WHERE t.LeagueID = l.LeagueID)) > 0
-    AND (@SearchTerm IS NULL OR l.Name LIKE N'%' + @SearchTerm + N'%' OR l.Description LIKE N'%' + @SearchTerm + N'%')
+    AND (l.Name LIKE N'%' + @SearchTerm + N'%' OR l.Description LIKE N'%' + @SearchTerm + N'%')
     AND (@MinSlots IS NULL OR l.TeamSlots >= @MinSlots)
     AND (@MaxSlots IS NULL OR l.TeamSlots <= @MaxSlots)
   ORDER BY l.CreatedAt DESC
@@ -2427,7 +2459,7 @@ GRANT EXECUTE ON OBJECT::app.sp_SearchLeagues TO app_executor;
 GO
 
 -- ============================================================================
--- sp_JoinLeague (FIX)
+-- sp_JoinLeague
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_JoinLeague
   @UserID           INT,
@@ -2505,7 +2537,6 @@ BEGIN
         AND l.Status = 1
         AND lm.UserID = @UserID
         AND lm.RoleCode = N'COMMISSIONER'
-        AND lm.IsPrimaryCommissioner = 1
     )
       THROW 50308, 'Ya tienes una liga activa como comisionado. Debes desactivarla antes de unirte a otra.', 1;
 
@@ -2518,10 +2549,6 @@ BEGIN
       VALUES(@LeagueID, @UserID, @TeamName);
 
       SET @TeamID = SCOPE_IDENTITY();
-
-      -- IMPORTANTE:
-      -- No insertamos MANAGER en LeagueMember; es un rol derivado por tener equipo activo.
-      -- (Si quisieras forzarlo explícitamente, aquí iría el INSERT a LeagueMember.)
 
       -- Auditoría
       INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
@@ -2571,15 +2598,14 @@ AS
 BEGIN
   SET NOCOUNT ON;
   BEGIN TRY
-    -- Validar que el actor es comisionado principal de la liga
+    -- Validar que el actor es comisionado de la liga
     IF NOT EXISTS (
       SELECT 1 FROM league.LeagueMember
       WHERE LeagueID = @LeagueID 
         AND UserID = @ActorUserID
-        AND RoleCode = N'COMMISSIONER' 
-        AND IsPrimaryCommissioner = 1
+        AND RoleCode = N'COMMISSIONER'
     )
-      THROW 50320, 'Solo el comisionado principal puede remover equipos de la liga.', 1;
+      THROW 50320, 'Solo el comisionado puede remover equipos de la liga.', 1;
 
     -- Validar que la liga está en Pre-Draft
     DECLARE @Status TINYINT;
@@ -2654,186 +2680,6 @@ GRANT EXECUTE ON OBJECT::app.sp_RemoveTeamFromLeague TO app_executor;
 GO
 
 -- ============================================================================
--- sp_AssignCoCommissioner
--- Permite al comisionado principal delegar permisos a otro miembro
--- haciendo a ese miembro co-comisionado
--- ============================================================================
-CREATE OR ALTER PROCEDURE app.sp_AssignCoCommissioner
-  @ActorUserID      INT,
-  @LeagueID         INT,
-  @TargetUserID     INT,
-  @SourceIp         NVARCHAR(45) = NULL,
-  @UserAgent        NVARCHAR(300) = NULL
-AS
-BEGIN
-  SET NOCOUNT ON;
-  BEGIN TRY
-    -- Validar que el actor es comisionado principal de la liga
-    IF NOT EXISTS (
-      SELECT 1 FROM league.LeagueMember
-      WHERE LeagueID = @LeagueID 
-        AND UserID = @ActorUserID
-        AND RoleCode = N'COMMISSIONER' 
-        AND IsPrimaryCommissioner = 1
-    )
-      THROW 50330, 'Solo el comisionado principal puede asignar co-comisionados.', 1;
-
-    -- Validar que la liga está en Pre-Draft o Active
-    DECLARE @Status TINYINT;
-    SELECT @Status = Status FROM league.League WHERE LeagueID = @LeagueID;
-
-    IF @Status IS NULL
-      THROW 50331, 'Liga no existe.', 1;
-
-    IF @Status NOT IN (0, 1)  -- Pre-Draft o Active
-      THROW 50332, 'Solo puedes asignar co-comisionados en ligas Pre-Draft o Active.', 1;
-
-    -- Validar que el target user es diferente al actor
-    IF @TargetUserID = @ActorUserID
-      THROW 50333, 'No puedes asignarte a ti mismo como co-comisionado.', 1;
-
-    -- Validar que el target user tiene un equipo en la liga (es miembro)
-    IF NOT EXISTS (
-      SELECT 1 FROM league.Team 
-      WHERE LeagueID = @LeagueID 
-        AND OwnerUserID = @TargetUserID 
-        AND IsActive = 1
-    )
-      THROW 50334, 'El usuario debe tener un equipo en la liga para ser co-comisionado.', 1;
-
-    -- Validar que el target user no es ya comisionado o co-comisionado
-    IF EXISTS (
-      SELECT 1 FROM league.LeagueMember
-      WHERE LeagueID = @LeagueID 
-        AND UserID = @TargetUserID
-        AND RoleCode IN (N'COMMISSIONER', N'CO_COMMISSIONER')
-        AND LeftAt IS NULL
-    )
-      THROW 50335, 'El usuario ya es comisionado o co-comisionado de esta liga.', 1;
-
-    DECLARE @TargetUserName NVARCHAR(50);
-    SELECT @TargetUserName = Name FROM auth.UserAccount WHERE UserID = @TargetUserID;
-
-    BEGIN TRAN;
-
-      -- Si el usuario ya tiene un registro en LeagueMember (por ejemplo, si fue SPECTATOR antes),
-      -- actualizar su rol a CO_COMMISSIONER
-      IF EXISTS (
-        SELECT 1 FROM league.LeagueMember
-        WHERE LeagueID = @LeagueID AND UserID = @TargetUserID
-      )
-      BEGIN
-        UPDATE league.LeagueMember
-           SET RoleCode = N'CO_COMMISSIONER',
-               IsPrimaryCommissioner = 0,
-               LeftAt = NULL
-         WHERE LeagueID = @LeagueID AND UserID = @TargetUserID;
-      END
-      ELSE
-      BEGIN
-        -- Si no tiene registro, crear uno nuevo
-        INSERT INTO league.LeagueMember(LeagueID, UserID, RoleCode, IsPrimaryCommissioner)
-        VALUES(@LeagueID, @TargetUserID, N'CO_COMMISSIONER', 0);
-      END
-
-      -- Auditoría
-      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
-      VALUES(@ActorUserID, N'LEAGUE', CAST(@LeagueID AS NVARCHAR(50)), N'ASSIGN_CO_COMMISSIONER',
-             CONCAT(N'Usuario "', @TargetUserName, N'" asignado como co-comisionado'), 
-             @SourceIp, @UserAgent);
-
-    COMMIT;
-
-    SELECT 
-      N'Co-comisionado asignado exitosamente.' AS Message,
-      @TargetUserID AS UserID,
-      @TargetUserName AS UserName,
-      N'CO_COMMISSIONER' AS NewRole;
-  END TRY
-  BEGIN CATCH
-    IF @@TRANCOUNT > 0 ROLLBACK;
-    THROW;
-  END CATCH
-END
-GO
-
-GRANT EXECUTE ON OBJECT::app.sp_AssignCoCommissioner TO app_executor;
-GO
-
--- ============================================================================
--- sp_RemoveCoCommissioner
--- Permite al comisionado principal remover el rol de co-comisionado
--- El usuario vuelve a tener solo el rol MANAGER (derivado de tener equipo)
--- ============================================================================
-CREATE OR ALTER PROCEDURE app.sp_RemoveCoCommissioner
-  @ActorUserID      INT,
-  @LeagueID         INT,
-  @TargetUserID     INT,
-  @SourceIp         NVARCHAR(45) = NULL,
-  @UserAgent        NVARCHAR(300) = NULL
-AS
-BEGIN
-  SET NOCOUNT ON;
-  BEGIN TRY
-    -- Validar que el actor es comisionado principal de la liga
-    IF NOT EXISTS (
-      SELECT 1 FROM league.LeagueMember
-      WHERE LeagueID = @LeagueID 
-        AND UserID = @ActorUserID
-        AND RoleCode = N'COMMISSIONER' 
-        AND IsPrimaryCommissioner = 1
-    )
-      THROW 50340, 'Solo el comisionado principal puede remover co-comisionados.', 1;
-
-    -- Validar que el target user es co-comisionado
-    IF NOT EXISTS (
-      SELECT 1 FROM league.LeagueMember
-      WHERE LeagueID = @LeagueID 
-        AND UserID = @TargetUserID
-        AND RoleCode = N'CO_COMMISSIONER'
-        AND LeftAt IS NULL
-    )
-      THROW 50341, 'El usuario no es co-comisionado de esta liga.', 1;
-
-    DECLARE @TargetUserName NVARCHAR(50);
-    SELECT @TargetUserName = Name FROM auth.UserAccount WHERE UserID = @TargetUserID;
-
-    BEGIN TRAN;
-
-      -- Marcar como "Left" el rol de co-comisionado
-      UPDATE league.LeagueMember
-         SET LeftAt = SYSUTCDATETIME()
-       WHERE LeagueID = @LeagueID 
-         AND UserID = @TargetUserID
-         AND RoleCode = N'CO_COMMISSIONER';
-
-      -- El usuario ahora solo tendrá el rol MANAGER (derivado de tener equipo)
-      -- No necesitamos hacer nada más, la vista vw_UserLeagueRoles se encargará
-
-      -- Auditoría
-      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
-      VALUES(@ActorUserID, N'LEAGUE', CAST(@LeagueID AS NVARCHAR(50)), N'REMOVE_CO_COMMISSIONER',
-             CONCAT(N'Rol de co-comisionado removido de "', @TargetUserName, N'"'), 
-             @SourceIp, @UserAgent);
-
-    COMMIT;
-
-    SELECT 
-      N'Co-comisionado removido exitosamente.' AS Message,
-      @TargetUserID AS UserID,
-      @TargetUserName AS UserName;
-  END TRY
-  BEGIN CATCH
-    IF @@TRANCOUNT > 0 ROLLBACK;
-    THROW;
-  END CATCH
-END
-GO
-
-GRANT EXECUTE ON OBJECT::app.sp_RemoveCoCommissioner TO app_executor;
-GO
-
--- ============================================================================
 -- sp_LeaveLeague
 -- Permite a un usuario salir voluntariamente de una liga (solo en Pre-Draft)
 -- ============================================================================
@@ -2847,16 +2693,15 @@ BEGIN
   SET NOCOUNT ON;
 
   BEGIN TRY
-    -- 0) Validar que el usuario NO es el comisionado principal
+    -- 0) Validar que el usuario NO es el comisionado
     IF EXISTS (
       SELECT 1
       FROM league.LeagueMember
       WHERE LeagueID = @LeagueID
         AND UserID   = @UserID
         AND RoleCode = N'COMMISSIONER'
-        AND IsPrimaryCommissioner = 1
     )
-      THROW 50350, 'El comisionado principal no puede salir de la liga. Debe transferir el comisionado primero o eliminar la liga.', 1;
+      THROW 50350, 'El comisionado no puede salir de la liga. Debe transferir el comisionado primero o eliminar la liga.', 1;
 
     -- 1) Validar estado de la liga = Pre-Draft (Status = 0)
     DECLARE @Status TINYINT;
@@ -2935,15 +2780,14 @@ AS
 BEGIN
   SET NOCOUNT ON;
   BEGIN TRY
-    -- Validar que el actor es comisionado principal de la liga
+    -- Validar que el actor es comisionado de la liga
     IF NOT EXISTS (
       SELECT 1 FROM league.LeagueMember
       WHERE LeagueID = @LeagueID 
         AND UserID = @ActorUserID
-        AND RoleCode = N'COMMISSIONER' 
-        AND IsPrimaryCommissioner = 1
+        AND RoleCode = N'COMMISSIONER'
     )
-      THROW 50360, 'Solo el comisionado principal puede transferir el comisionado.', 1;
+      THROW 50360, 'Solo el comisionado puede transferir el comisionado.', 1;
 
     -- Validar que no se está transfiriendo a sí mismo
     IF @NewCommissionerID = @ActorUserID
@@ -2963,10 +2807,10 @@ BEGIN
 
     BEGIN TRAN;
 
-      -- El actor pasa a ser co-comisionado
-      UPDATE league.LeagueMember
-         SET RoleCode = N'CO_COMMISSIONER',
-             IsPrimaryCommissioner = 0
+      -- IMPORTANTE: El actor PIERDE el rol de comisionado completamente
+      -- Como solo puede ser comisionado, al transferir ya no tiene rol explícito
+      -- (solo tendrá el rol implícito de MANAGER por tener equipo)
+      DELETE FROM league.LeagueMember
        WHERE LeagueID = @LeagueID 
          AND UserID = @ActorUserID;
 
@@ -2978,15 +2822,14 @@ BEGIN
       BEGIN
         UPDATE league.LeagueMember
            SET RoleCode = N'COMMISSIONER',
-               IsPrimaryCommissioner = 1,
                LeftAt = NULL
          WHERE LeagueID = @LeagueID AND UserID = @NewCommissionerID;
       END
       ELSE
       BEGIN
         -- Si no tiene registro, crearlo
-        INSERT INTO league.LeagueMember(LeagueID, UserID, RoleCode, IsPrimaryCommissioner)
-        VALUES(@LeagueID, @NewCommissionerID, N'COMMISSIONER', 1);
+        INSERT INTO league.LeagueMember(LeagueID, UserID, RoleCode)
+        VALUES(@LeagueID, @NewCommissionerID, N'COMMISSIONER');
       END
 
       -- Auditoría
@@ -3007,55 +2850,6 @@ BEGIN
     THROW;
   END CATCH
 END
-GO
-
-GRANT EXECUTE ON OBJECT::app.sp_TransferCommissioner TO app_executor;
-GO
-
--- ============================================================================
--- sp_GetLeaguePassword
--- Permite al comisionado principal obtener la contraseña de la liga
--- (para compartirla con otros usuarios que quieran unirse)
--- ============================================================================
-CREATE OR ALTER PROCEDURE app.sp_GetLeaguePassword
-  @ActorUserID   INT,
-  @LeagueID      INT
-AS
-BEGIN
-  SET NOCOUNT ON;
-
-  -- Validar que el actor es comisionado principal de la liga
-  IF NOT EXISTS (
-    SELECT 1 FROM league.LeagueMember
-    WHERE LeagueID = @LeagueID 
-      AND UserID = @ActorUserID
-      AND RoleCode = N'COMMISSIONER' 
-      AND IsPrimaryCommissioner = 1
-  )
-  BEGIN
-    -- No revelar si la liga existe o no para seguridad
-    SELECT NULL AS LeaguePassword, N'No tienes permiso para ver la contraseña de esta liga.' AS Message;
-    RETURN;
-  END
-
-  -- NOTA: Por razones de seguridad, NO retornamos la contraseña en texto plano
-  -- porque está hasheada. En su lugar, retornamos información sobre la liga
-  -- y el comisionado debe compartir la contraseña que usó al crear la liga
-
-  SELECT 
-    l.LeagueID,
-    l.Name AS LeagueName,
-    l.Status,
-    l.TeamSlots,
-    (SELECT COUNT(*) FROM league.Team t WHERE t.LeagueID = l.LeagueID AND t.IsActive = 1) AS TeamsCount,
-    l.TeamSlots - (SELECT COUNT(*) FROM league.Team t WHERE t.LeagueID = l.LeagueID AND t.IsActive = 1) AS AvailableSlots,
-    N'La contraseña de la liga no puede recuperarse. Debes recordar la contraseña que usaste al crear la liga.' AS Message
-  FROM league.League l
-  WHERE l.LeagueID = @LeagueID;
-END
-GO
-
-GRANT EXECUTE ON OBJECT::app.sp_GetLeaguePassword TO app_executor;
 GO
 
 -- ============================================================================
@@ -3098,14 +2892,8 @@ GRANT EXECUTE ON OBJECT::app.sp_ValidateLeaguePassword TO app_executor;
 GO
 
 /* ============================================================
-   SP #1: CREAR TEMPORADA (genera weeks y puede marcar como actual)
-   Reglas clave:
-    - Nombre 1..100 (o hasta el ancho real de league.Season.Label)
-    - WeekCount 1..22
-    - StartDate >= hoy (UTC), EndDate >= StartDate
-    - Sin traslape con otras temporadas
-    - @MarkAsCurrent=1 desmarca cualquier otra IsCurrent=1
-    - Genera semanas consecutivas: 7 días c/u y la última cierra en EndDate
+   SP: CREAR TEMPORADA (genera weeks y puede marcar como actual)
+   NUEVO: Finaliza automáticamente ligas de temporadas anteriores
    ============================================================ */
 CREATE OR ALTER PROCEDURE app.sp_CreateSeason
   @Name           NVARCHAR(100),
@@ -3155,13 +2943,63 @@ BEGIN
     THROW 50407, 'Rango insuficiente para la cantidad de semanas solicitada.', 1;
 
   DECLARE @SeasonID INT;
+  DECLARE @PreviousSeasonID INT = NULL;
+  DECLARE @AffectedLeagues INT = 0;
 
   BEGIN TRAN;
 
-    -- Asegurar unicidad de IsCurrent
+    -- Si se marca como actual, finalizar ligas de temporadas anteriores
     IF @MarkAsCurrent = 1
+    BEGIN
+      -- Obtener la temporada que será reemplazada
+      SELECT @PreviousSeasonID = SeasonID 
+      FROM league.Season 
+      WHERE IsCurrent = 1;
+
+      -- Desmarcar la temporada actual
       UPDATE league.Season SET IsCurrent = 0 WHERE IsCurrent = 1;
 
+      -- Finalizar todas las ligas de temporadas anteriores
+      -- Status 5 = Finalizada por cambio de temporada
+      DECLARE @LeaguesToFinalize TABLE (LeagueID INT, OldStatus TINYINT, LeagueName NVARCHAR(100));
+
+      INSERT INTO @LeaguesToFinalize (LeagueID, OldStatus, LeagueName)
+      SELECT l.LeagueID, l.Status, l.Name
+      FROM league.League l
+      JOIN league.Season s ON s.SeasonID = l.SeasonID
+      WHERE s.IsCurrent = 0  -- Todas las temporadas no actuales
+        AND l.Status NOT IN (5);  -- No actualizar las que ya están finalizadas
+
+      -- Actualizar el estado de las ligas
+      UPDATE l
+      SET Status = 5,  -- Finalizada por cambio de temporada
+          UpdatedAt = SYSUTCDATETIME()
+      FROM league.League l
+      INNER JOIN @LeaguesToFinalize ltf ON ltf.LeagueID = l.LeagueID;
+
+      SET @AffectedLeagues = @@ROWCOUNT;
+
+      -- Registrar en LeagueStatusHistory
+      INSERT INTO league.LeagueStatusHistory(LeagueID, OldStatus, NewStatus, ChangedByUserID, Reason)
+      SELECT 
+        ltf.LeagueID, 
+        ltf.OldStatus, 
+        5,  -- Nuevo estado
+        @ActorUserID,
+        N'Liga finalizada automáticamente por cambio de temporada'
+      FROM @LeaguesToFinalize ltf;
+
+      -- Auditoría global
+      IF @AffectedLeagues > 0
+      BEGIN
+        INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+        VALUES(@ActorUserID, N'LEAGUE', N'SYSTEM', N'AUTO_FINALIZE_LEAGUES',
+               CONCAT(N'Se finalizaron automáticamente ', @AffectedLeagues, N' ligas de temporadas anteriores al crear nueva temporada actual'),
+               @SourceIp, @UserAgent);
+      END
+    END
+
+    -- Crear la nueva temporada
     INSERT INTO league.Season(Label, [Year], StartDate, EndDate, IsCurrent, CreatedAt)
     VALUES(@Name, YEAR(@StartDate), @StartDate, @EndDate, @MarkAsCurrent, SYSUTCDATETIME());
 
@@ -3186,16 +3024,21 @@ BEGIN
       SET @wStart = DATEADD(DAY, 7, @wStart);
     END
 
-    -- auditoría
+    -- auditoría de creación de temporada
     INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
     VALUES(@ActorUserID, N'SEASON', CAST(@SeasonID AS NVARCHAR(50)), N'SEASON_CREATE',
            CONCAT(N'Creó temporada "', @Name, N'" (', CONVERT(NVARCHAR(10), @StartDate, 120), N' → ', CONVERT(NVARCHAR(10), @EndDate, 120),
-                  N', semanas=', @WeekCount, N', actual=', @MarkAsCurrent, N')'),
+                  N', semanas=', @WeekCount, N', actual=', @MarkAsCurrent, N', ligas finalizadas=', @AffectedLeagues, N')'),
            @SourceIp, @UserAgent);
 
   COMMIT;
 
-  SELECT s.* FROM league.Season s WHERE s.SeasonID = @SeasonID;
+  -- Resultado
+  SELECT 
+    s.*,
+    @AffectedLeagues AS LeaguesFinalized
+  FROM league.Season s 
+  WHERE s.SeasonID = @SeasonID;
 END
 GO
 
@@ -3203,12 +3046,8 @@ GRANT EXECUTE ON OBJECT::app.sp_CreateSeason TO app_executor;
 GO
 
 /* ============================================================
-   SP #2: DESACTIVAR LA TEMPORADA ACTUAL (IsCurrent -> 0)
-   Reglas:
-    - Solo permite desactivar si la temporada está marcada como actual
-    - EndDate <= hoy (ya finalizó)
-    - Requiere confirmación explícita
-    - Resultado: no habrá temporada actual tras ejecutar
+   SP: DESACTIVAR LA TEMPORADA ACTUAL (IsCurrent -> 0)
+   NUEVO: Finaliza todas las ligas de la temporada que se desactiva
    ============================================================ */
 CREATE OR ALTER PROCEDURE app.sp_DeactivateSeason
   @SeasonID    INT,
@@ -3219,6 +3058,7 @@ CREATE OR ALTER PROCEDURE app.sp_DeactivateSeason
 AS
 BEGIN
   SET NOCOUNT ON;
+  SET XACT_ABORT ON;
 
   DECLARE @Exists INT, @IsCurrent BIT, @EndDate DATE, @Label NVARCHAR(100);
   SELECT
@@ -3242,15 +3082,65 @@ BEGIN
   IF @Confirm <> 1
     THROW 50423, 'Se requiere confirmación explícita para desactivar la temporada actual.', 1;
 
-  UPDATE league.Season
-     SET IsCurrent = 0
-   WHERE SeasonID  = @SeasonID;
+  DECLARE @AffectedLeagues INT = 0;
 
-  INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
-  VALUES(@ActorUserID, N'SEASON', CAST(@SeasonID AS NVARCHAR(50)), N'SEASON_DEACTIVATE',
-         CONCAT(N'Desactivó la temporada actual "', @Label, N'".'), @SourceIp, @UserAgent);
+  BEGIN TRAN;
 
-  SELECT N'Temporada actual desactivada (ya no hay temporada activa).' AS Message;
+    -- Finalizar todas las ligas de esta temporada
+    -- Status 5 = Finalizada por cambio de temporada
+    DECLARE @LeaguesToFinalize TABLE (LeagueID INT, OldStatus TINYINT, LeagueName NVARCHAR(100));
+
+    INSERT INTO @LeaguesToFinalize (LeagueID, OldStatus, LeagueName)
+    SELECT l.LeagueID, l.Status, l.Name
+    FROM league.League l
+    WHERE l.SeasonID = @SeasonID
+      AND l.Status NOT IN (5);  -- No actualizar las que ya están finalizadas
+
+    -- Actualizar el estado de las ligas
+    UPDATE l
+    SET Status = 5,  -- Finalizada por cambio de temporada
+        UpdatedAt = SYSUTCDATETIME()
+    FROM league.League l
+    INNER JOIN @LeaguesToFinalize ltf ON ltf.LeagueID = l.LeagueID;
+
+    SET @AffectedLeagues = @@ROWCOUNT;
+
+    -- Registrar en LeagueStatusHistory
+    INSERT INTO league.LeagueStatusHistory(LeagueID, OldStatus, NewStatus, ChangedByUserID, Reason)
+    SELECT 
+      ltf.LeagueID, 
+      ltf.OldStatus, 
+      5,  -- Nuevo estado
+      @ActorUserID,
+      CONCAT(N'Liga finalizada automáticamente por desactivación de temporada "', @Label, N'"')
+    FROM @LeaguesToFinalize ltf;
+
+    -- Desactivar la temporada
+    UPDATE league.Season
+       SET IsCurrent = 0
+     WHERE SeasonID = @SeasonID;
+
+    -- Auditoría de finalización de ligas
+    IF @AffectedLeagues > 0
+    BEGIN
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+      VALUES(@ActorUserID, N'LEAGUE', N'SYSTEM', N'AUTO_FINALIZE_LEAGUES',
+             CONCAT(N'Se finalizaron automáticamente ', @AffectedLeagues, N' ligas al desactivar temporada "', @Label, N'"'),
+             @SourceIp, @UserAgent);
+    END
+
+    -- Auditoría de desactivación de temporada
+    INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+    VALUES(@ActorUserID, N'SEASON', CAST(@SeasonID AS NVARCHAR(50)), N'SEASON_DEACTIVATE',
+           CONCAT(N'Desactivó la temporada actual "', @Label, N'" y finalizó ', @AffectedLeagues, N' ligas'),
+           @SourceIp, @UserAgent);
+
+  COMMIT;
+
+  SELECT 
+    N'Temporada actual desactivada (ya no hay temporada activa).' AS Message,
+    @AffectedLeagues AS LeaguesFinalized,
+    @Label AS SeasonLabel;
 END
 GO
 
