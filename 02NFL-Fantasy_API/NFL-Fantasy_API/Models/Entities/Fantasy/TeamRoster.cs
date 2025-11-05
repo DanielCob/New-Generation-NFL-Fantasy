@@ -19,7 +19,7 @@ namespace NFL_Fantasy_API.Models.Entities.Fantasy
         public int TeamID { get; set; }
 
         [Required]
-        public int PlayerID { get; set; }
+        public int NFLPlayerID { get; set; }  // CORREGIDO
 
         [Required]
         [MaxLength(20)]
@@ -37,8 +37,8 @@ namespace NFL_Fantasy_API.Models.Entities.Fantasy
         [ForeignKey("TeamID")]
         public virtual Team? Team { get; set; }
 
-        [ForeignKey("PlayerID")]
-        public virtual Player? Player { get; set; }
+        [ForeignKey("NFLPlayerID")]  // CORREGIDO
+        public virtual NFLPlayer? NFLPlayer { get; set; }  // CORREGIDO
 
         [ForeignKey("AddedByUserID")]
         public virtual UserAccount? AddedBy { get; set; }

@@ -108,7 +108,7 @@ SELECT
   creator.Name AS CreatedByName,
   updater.Name AS UpdatedByName,
   -- Contar jugadores activos del equipo
-  (SELECT COUNT(*) FROM league.Player p WHERE p.NFLTeamID = nt.NFLTeamID AND p.IsActive = 1) AS ActivePlayersCount
+  (SELECT COUNT(*) FROM ref.NFLPlayer p WHERE p.NFLTeamID = nt.NFLTeamID AND p.IsActive = 1) AS ActivePlayersCount
 FROM ref.NFLTeam nt
 LEFT JOIN auth.UserAccount creator ON creator.UserID = nt.CreatedByUserID
 LEFT JOIN auth.UserAccount updater ON updater.UserID = nt.UpdatedByUserID;
@@ -173,7 +173,7 @@ GO
 CREATE OR ALTER VIEW dbo.vw_Players
 AS
 SELECT
-  p.PlayerID,
+  p.NFLPlayerID,
   p.FirstName,
   p.LastName,
   p.FullName,
@@ -191,9 +191,9 @@ SELECT
   -- Indicador si está en algún roster de fantasy
   CASE WHEN EXISTS (
     SELECT 1 FROM league.TeamRoster tr 
-    WHERE tr.PlayerID = p.PlayerID AND tr.IsActive = 1
+    WHERE tr.NFLPlayerID = p.NFLPlayerID AND tr.IsActive = 1
   ) THEN 1 ELSE 0 END AS IsOnFantasyRoster
-FROM league.Player p
+FROM ref.NFLPlayer p
 LEFT JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID;
 GO
 
@@ -207,7 +207,7 @@ GO
 CREATE OR ALTER VIEW dbo.vw_AvailablePlayers
 AS
 SELECT
-  p.PlayerID,
+  p.NFLPlayerID,
   p.FirstName,
   p.LastName,
   p.FullName,
@@ -217,13 +217,13 @@ SELECT
   nt.City AS NFLTeamCity,
   p.InjuryStatus,
   p.PhotoThumbnailUrl
-FROM league.Player p
+FROM ref.NFLPlayer p
 LEFT JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
 WHERE p.IsActive = 1
   AND NOT EXISTS (
     SELECT 1 
     FROM league.TeamRoster tr 
-    WHERE tr.PlayerID = p.PlayerID 
+    WHERE tr.NFLPlayerID = p.NFLPlayerID 
       AND tr.IsActive = 1
   );
 GO
@@ -241,7 +241,7 @@ SELECT
   nt.NFLTeamID,
   nt.TeamName,
   nt.City,
-  p.PlayerID,
+  p.NFLPlayerID,
   p.FirstName,
   p.LastName,
   p.FullName,
@@ -249,7 +249,7 @@ SELECT
   p.InjuryStatus,
   p.IsActive AS PlayerIsActive
 FROM ref.NFLTeam nt
-LEFT JOIN league.Player p ON p.NFLTeamID = nt.NFLTeamID
+LEFT JOIN ref.NFLPlayer p ON p.NFLTeamID = nt.NFLTeamID
 WHERE nt.IsActive = 1;
 GO
 
@@ -311,7 +311,7 @@ SELECT
   t.TeamName,
   t.LeagueID,
   l.Name AS LeagueName,
-  tr.PlayerID,
+  tr.NFLPlayerID,
   p.FirstName,
   p.LastName,
   p.FullName,
@@ -333,7 +333,7 @@ SELECT
 FROM league.TeamRoster tr
 JOIN league.Team t ON t.TeamID = tr.TeamID
 JOIN league.League l ON l.LeagueID = t.LeagueID
-JOIN league.Player p ON p.PlayerID = tr.PlayerID
+JOIN ref.NFLPlayer p ON p.NFLPlayerID = tr.NFLPlayerID
 LEFT JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
 LEFT JOIN auth.UserAccount adder ON adder.UserID = tr.AddedByUserID;
 GO
@@ -352,7 +352,7 @@ SELECT
   tr.TeamID,
   t.TeamName,
   t.LeagueID,
-  tr.PlayerID,
+  tr.NFLPlayerID,
   p.FirstName,
   p.LastName,
   p.FullName,
@@ -364,7 +364,7 @@ SELECT
   tr.AcquisitionDate
 FROM league.TeamRoster tr
 JOIN league.Team t ON t.TeamID = tr.TeamID
-JOIN league.Player p ON p.PlayerID = tr.PlayerID
+JOIN ref.NFLPlayer p ON p.NFLPlayerID = tr.NFLPlayerID
 LEFT JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
 WHERE tr.IsActive = 1;
 GO
@@ -382,7 +382,7 @@ SELECT
   tr.RosterID,
   tr.TeamID,
   t.TeamName,
-  tr.PlayerID,
+  tr.NFLPlayerID,
   p.FullName AS PlayerName,
   p.Position,
   nt.TeamName AS NFLTeamName,
@@ -403,7 +403,7 @@ SELECT
   END AS PositionOrder
 FROM league.TeamRoster tr
 JOIN league.Team t ON t.TeamID = tr.TeamID
-JOIN league.Player p ON p.PlayerID = tr.PlayerID
+JOIN ref.NFLPlayer p ON p.NFLPlayerID = tr.NFLPlayerID
 LEFT JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
 WHERE tr.IsActive = 1;
 GO
@@ -903,4 +903,228 @@ WHERE rn = 1;
 GO
 
 GRANT SELECT ON dbo.vw_UserLeagueRoleSummary TO app_executor;
+GO
+
+-- ============================================================================
+-- vw_NFLPlayers
+-- Vista básica de jugadores NFL con información de equipo
+-- ============================================================================
+CREATE OR ALTER VIEW dbo.vw_NFLPlayers
+AS
+SELECT
+  p.NFLPlayerID,
+  p.FirstName,
+  p.LastName,
+  p.FullName,
+  p.Position,
+  p.NFLTeamID,
+  nt.TeamName AS NFLTeamName,
+  nt.City AS NFLTeamCity,
+  nt.ThumbnailUrl AS NFLTeamLogo,
+  p.InjuryStatus,
+  p.InjuryDescription,
+  p.PhotoUrl,
+  p.PhotoThumbnailUrl,
+  p.IsActive,
+  p.CreatedAt,
+  p.UpdatedAt,
+  -- Indicador si está en algún roster de fantasy
+  CASE WHEN EXISTS (
+    SELECT 1 FROM league.TeamRoster tr 
+    WHERE tr.NFLPlayerID = p.NFLPlayerID AND tr.IsActive = 1
+  ) THEN 1 ELSE 0 END AS IsOnFantasyRoster,
+  -- Contar en cuántos rosters está
+  (SELECT COUNT(*) FROM league.TeamRoster tr WHERE tr.NFLPlayerID = p.NFLPlayerID AND tr.IsActive = 1) AS RosterCount
+FROM ref.NFLPlayer p
+JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID;
+GO
+
+GRANT SELECT ON dbo.vw_NFLPlayers TO app_executor;
+GO
+
+-- ============================================================================
+-- vw_NFLPlayerDetails
+-- Vista detallada de jugadores NFL con información completa de imágenes
+-- ============================================================================
+CREATE OR ALTER VIEW dbo.vw_NFLPlayerDetails
+AS
+SELECT
+  p.NFLPlayerID,
+  p.FirstName,
+  p.LastName,
+  p.FullName,
+  p.Position,
+  p.NFLTeamID,
+  nt.TeamName AS NFLTeamName,
+  nt.City AS NFLTeamCity,
+  p.InjuryStatus,
+  p.InjuryDescription,
+  p.PhotoUrl,
+  p.PhotoWidth,
+  p.PhotoHeight,
+  p.PhotoBytes,
+  p.PhotoThumbnailUrl,
+  p.ThumbnailWidth,
+  p.ThumbnailHeight,
+  p.ThumbnailBytes,
+  p.IsActive,
+  p.CreatedAt,
+  creator.Name AS CreatedByName,
+  creator.Email AS CreatedByEmail,
+  p.UpdatedAt,
+  updater.Name AS UpdatedByName,
+  updater.Email AS UpdatedByEmail
+FROM ref.NFLPlayer p
+JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
+LEFT JOIN auth.UserAccount creator ON creator.UserID = p.CreatedByUserID
+LEFT JOIN auth.UserAccount updater ON updater.UserID = p.UpdatedByUserID;
+GO
+
+GRANT SELECT ON dbo.vw_NFLPlayerDetails TO app_executor;
+GO
+
+-- ============================================================================
+-- vw_ActiveNFLPlayers
+-- Vista filtrada de jugadores NFL activos (para selección en formularios)
+-- ============================================================================
+CREATE OR ALTER VIEW dbo.vw_ActiveNFLPlayers
+AS
+SELECT
+  p.NFLPlayerID,
+  p.FirstName,
+  p.LastName,
+  p.FullName,
+  p.Position,
+  p.NFLTeamID,
+  nt.TeamName AS NFLTeamName,
+  nt.City AS NFLTeamCity,
+  p.PhotoThumbnailUrl,
+  p.InjuryStatus
+FROM ref.NFLPlayer p
+JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
+WHERE p.IsActive = 1;
+GO
+
+GRANT SELECT ON dbo.vw_ActiveNFLPlayers TO app_executor;
+GO
+
+-- ============================================================================
+-- vw_NFLPlayersByPosition
+-- Vista de jugadores NFL agrupados por posición con orden lógico
+-- ============================================================================
+CREATE OR ALTER VIEW dbo.vw_NFLPlayersByPosition
+AS
+SELECT
+  p.NFLPlayerID,
+  p.FirstName,
+  p.LastName,
+  p.FullName,
+  p.Position,
+  p.NFLTeamID,
+  nt.TeamName AS NFLTeamName,
+  nt.City AS NFLTeamCity,
+  p.InjuryStatus,
+  p.PhotoThumbnailUrl,
+  p.IsActive,
+  -- Orden lógico de posiciones
+  CASE p.Position
+    WHEN 'QB' THEN 1
+    WHEN 'RB' THEN 2
+    WHEN 'WR' THEN 3
+    WHEN 'TE' THEN 4
+    WHEN 'K' THEN 5
+    WHEN 'DEF' THEN 6
+    WHEN 'DL' THEN 7
+    WHEN 'LB' THEN 8
+    WHEN 'CB' THEN 9
+    WHEN 'S' THEN 10
+    ELSE 11
+  END AS PositionOrder,
+  -- Indicador si está en algún roster
+  CASE WHEN EXISTS (
+    SELECT 1 FROM league.TeamRoster tr 
+    WHERE tr.NFLPlayerID = p.NFLPlayerID AND tr.IsActive = 1
+  ) THEN 1 ELSE 0 END AS IsOnFantasyRoster
+FROM ref.NFLPlayer p
+JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID;
+GO
+
+GRANT SELECT ON dbo.vw_NFLPlayersByPosition TO app_executor;
+GO
+
+-- ============================================================================
+-- vw_NFLPlayerRosterHistory
+-- Vista del historial de rosters de un jugador NFL
+-- ============================================================================
+CREATE OR ALTER VIEW dbo.vw_NFLPlayerRosterHistory
+AS
+SELECT
+  p.NFLPlayerID,
+  p.FullName AS PlayerName,
+  p.Position,
+  tr.RosterID,
+  tr.TeamID,
+  t.TeamName,
+  t.LeagueID,
+  l.Name AS LeagueName,
+  s.Label AS SeasonLabel,
+  s.Year AS SeasonYear,
+  tr.AcquisitionType,
+  tr.AcquisitionDate,
+  tr.IsActive,
+  tr.DroppedDate,
+  u.Name AS ManagerName
+FROM ref.NFLPlayer p
+JOIN league.TeamRoster tr ON tr.NFLPlayerID = p.NFLPlayerID
+JOIN league.Team t ON t.TeamID = tr.TeamID
+JOIN league.League l ON l.LeagueID = t.LeagueID
+JOIN league.Season s ON s.SeasonID = l.SeasonID
+JOIN auth.UserAccount u ON u.UserID = t.OwnerUserID;
+GO
+
+GRANT SELECT ON dbo.vw_NFLPlayerRosterHistory TO app_executor;
+GO
+
+-- ============================================================================
+-- vw_NFLPlayerAvailability
+-- Vista de disponibilidad de jugadores por liga/temporada
+-- Útil para saber qué jugadores están disponibles en cada liga
+-- ============================================================================
+CREATE OR ALTER VIEW dbo.vw_NFLPlayerAvailability
+AS
+SELECT
+  p.NFLPlayerID,
+  p.FullName AS PlayerName,
+  p.Position,
+  p.NFLTeamID,
+  nt.TeamName AS NFLTeamName,
+  l.LeagueID,
+  l.Name AS LeagueName,
+  s.SeasonID,
+  s.Label AS SeasonLabel,
+  -- Está en roster de esta liga?
+  CASE WHEN EXISTS (
+    SELECT 1 
+    FROM league.TeamRoster tr
+    JOIN league.Team t ON t.TeamID = tr.TeamID
+    WHERE tr.NFLPlayerID = p.NFLPlayerID 
+      AND t.LeagueID = l.LeagueID
+      AND tr.IsActive = 1
+  ) THEN 0 ELSE 1 END AS IsAvailable,
+  -- En qué equipo está (si está en alguno)
+  (SELECT TOP 1 t.TeamName 
+   FROM league.TeamRoster tr
+   JOIN league.Team t ON t.TeamID = tr.TeamID
+   WHERE tr.NFLPlayerID = p.NFLPlayerID 
+     AND t.LeagueID = l.LeagueID
+     AND tr.IsActive = 1) AS CurrentTeamName
+FROM ref.NFLPlayer p
+JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
+CROSS JOIN league.League l
+JOIN league.Season s ON s.SeasonID = l.SeasonID
+WHERE p.IsActive = 1
+  AND l.Status IN (0, 1, 3, 4);  -- Solo ligas activas o en playoffs
+GO
+
+GRANT SELECT ON dbo.vw_NFLPlayerAvailability TO app_executor;
 GO

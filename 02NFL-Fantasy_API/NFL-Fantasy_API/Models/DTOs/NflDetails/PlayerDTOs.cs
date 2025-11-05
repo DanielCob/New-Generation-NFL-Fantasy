@@ -5,12 +5,12 @@
     /// </summary>
     public class PlayerBasicDTO
     {
-        public int PlayerID { get; set; }
+        public int NFLPlayerID { get; set; }  // CAMBIO: PlayerID → NFLPlayerID
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
         public string Position { get; set; } = string.Empty;
-        public int? NFLTeamID { get; set; }
+        public int NFLTeamID { get; set; }  // CAMBIO: int? → int (required)
         public string? NFLTeamName { get; set; }
         public string? InjuryStatus { get; set; }
         public string? PhotoThumbnailUrl { get; set; }
@@ -22,7 +22,7 @@
     /// </summary>
     public class AvailablePlayerDTO
     {
-        public int PlayerID { get; set; }
+        public int NFLPlayerID { get; set; }  // CAMBIO: PlayerID → NFLPlayerID
         public string FullName { get; set; } = string.Empty;
         public string Position { get; set; } = string.Empty;
         public string? NFLTeamName { get; set; }

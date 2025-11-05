@@ -227,11 +227,12 @@ namespace NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.NflDetails
                 {
                     details.ActivePlayers.Add(new PlayerBasicDTO
                     {
-                        PlayerID = reader.GetSafeInt32("PlayerID"),
+                        NFLPlayerID = reader.GetSafeInt32("NFLPlayerID"),  // CORREGIDO
                         FirstName = reader.GetSafeString("FirstName"),
                         LastName = reader.GetSafeString("LastName"),
                         FullName = reader.GetSafeString("FullName"),
                         Position = reader.GetSafeString("Position"),
+                        NFLTeamID = reader.GetSafeInt32("NFLTeamID"),  // AGREGADO (es required ahora)
                         InjuryStatus = reader.GetSafeNullableString("InjuryStatus"),
                         IsActive = reader.GetSafeBool("IsActive")
                     });

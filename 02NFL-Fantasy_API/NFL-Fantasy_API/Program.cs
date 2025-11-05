@@ -1,30 +1,32 @@
-using Microsoft.OpenApi.Models;
-using NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations;
-using NFL_Fantasy_API.SharedSystems.Middleware;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
+using Microsoft.OpenApi.Models;
 using Minio;
-using System.Diagnostics;
-using NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Interfaces;
+using NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations;
 using NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.Audit;
 using NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.Auth;
 using NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.Fantasy;
 using NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.NflDetails;
+using NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Interfaces;
 using NFL_Fantasy_API.DataAccessLayer.StorageDatabase.Implementations;
-using NFL_Fantasy_API.SharedSystems.StorageConfig;
-using NFL_Fantasy_API.SharedSystems.EmailConfig;
 using NFL_Fantasy_API.Helpers.Filters;
+using NFL_Fantasy_API.LogicLayer.EmailLogic.Services.Implementations.Email;
+using NFL_Fantasy_API.LogicLayer.EmailLogic.Services.Interfaces.Email;
+using NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Audit;
 using NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Auth;
 using NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Fantasy;
-using NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.Audit;
 using NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Implementations.NflDetails;
-using NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Implementations.Storage;
-using NFL_Fantasy_API.LogicLayer.EmailLogic.Services.Implementations.Email;
-using NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Interfaces.NflDetails;
+using NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Interfaces.Audit;
 using NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Interfaces.Auth;
 using NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Interfaces.Fantasy;
-using NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Interfaces.Audit;
+using NFL_Fantasy_API.LogicLayer.SqlLogic.Services.Interfaces.NflDetails;
+using NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Implementations.Storage;
 using NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Interfaces.Storage;
-using NFL_Fantasy_API.LogicLayer.EmailLogic.Services.Interfaces.Email;
+using NFL_Fantasy_API.SharedSystems.EmailConfig;
+using NFL_Fantasy_API.SharedSystems.Middleware;
+using NFL_Fantasy_API.SharedSystems.StorageConfig;
+using System.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -106,10 +108,17 @@ builder.Services.AddControllers(options =>
 // Configurar opciones desde appsettings.json usando Options Pattern
 // Estas configuraciones se inyectan como IOptions<T> en los servicios
 
-// SMTP Configuration para envío de emails
-builder.Services.Configure<SmtpSettings>(
-    builder.Configuration.GetSection("Smtp")
-);
+// SMTP Configuration para envío de emails (validado al iniciar)
+builder.Services.AddOptions<SmtpSettings>()
+    .Bind(builder.Configuration.GetSection("Smtp"))
+    .Validate(s =>
+        !string.IsNullOrWhiteSpace(s.Host) &&
+        s.Port > 0 && s.Port <= 65535 &&
+        !string.IsNullOrWhiteSpace(s.User) &&
+        !string.IsNullOrWhiteSpace(s.Password) &&
+        !string.IsNullOrWhiteSpace(s.FromAddress),
+        "Configuración SMTP inválida. Revisa Host, Port, User, Password y FromAddress.")
+    .ValidateOnStart(); // <-- fuerza validación al Build()
 
 // MinIO Configuration para almacenamiento de imágenes
 builder.Services.Configure<MinIOSettings>(
@@ -142,7 +151,7 @@ builder.Services.AddScoped<TeamDataAccess>();
 
 // NFL Data
 builder.Services.AddScoped<NFLTeamDataAccess>();
-builder.Services.AddScoped<PlayerDataAccess>();
+builder.Services.AddScoped<NFLPlayerDataAccess>();
 builder.Services.AddScoped<ScoringDataAccess>();
 
 // System & Configuration
@@ -170,7 +179,7 @@ builder.Services.AddScoped<ITeamService, TeamService>();
 
 // NFL Data & Configuration
 builder.Services.AddScoped<INFLTeamService, NFLTeamService>();
-builder.Services.AddScoped<IPlayerService, PlayerService>();
+builder.Services.AddScoped<INFLPlayerService, NFLPlayerService>();
 builder.Services.AddScoped<IScoringService, ScoringService>();
 builder.Services.AddScoped<ISeasonService, SeasonService>();
 
@@ -186,7 +195,7 @@ builder.Services.AddScoped<IAuditService, AuditService>();
 // Ubicación: SharedSystems/Email/
 // Implementación actual: SMTP (compatible con SendGrid, Gmail, Office365)
 
-builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
+builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 
 // NOTA: SmtpSettings ya configurado en sección "Configuration Options"
 
@@ -255,6 +264,7 @@ builder.Services.AddSwaggerGen(options =>
                       "- Feature 3.1: Creacion y administracion de equipos fantasy (branding, roster, distribucion)\n\n" +
                       "- Feature 10.1: Gestion de Equipos NFL (CRUD completo con validaciones)\n\n" +
                       "- Feature 10.5: Temporadas y Vigencia: Modelar vigencia por temporada\n\n" +
+                      "- Feature 10.2: Gestion de Jugadores NFL (CRUD completo con validaciones)\n\n" +
                       "- Storage: Manejo de imágenes con MinIO\n\n" +
                       "**Autenticacion:**\n" +
                       "La mayoria de endpoints requieren autenticacion Bearer token.\n" +
@@ -305,6 +315,23 @@ builder.Services.AddHttpsRedirection(options =>
 {
     options.HttpsPort = 443; // Puerto HTTPS por defecto
 });
+
+#endregion
+
+#region Authentication Middleware Registration
+
+// ================================================
+// AUTHENTICATION (usa tu SessionAuthenticationHandler)
+// ================================================
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = "Session";
+    options.DefaultChallengeScheme = "Session";
+    options.DefaultForbidScheme = "Session";
+})
+.AddScheme<AuthenticationSchemeOptions, SessionAuthenticationHandler>("Session", _ => { });
+
+builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, JsonAuthorizationMiddlewareResultHandler>();
 
 #endregion
 
@@ -365,15 +392,18 @@ app.UseCors("AllowAllOrigins"); // En produccion, usar "ProductionCors"
 // 3. Routing
 app.UseRouting();
 
-// 4. AUTHENTICATION MIDDLEWARE PERSONALIZADO
+// 4. Authentication (NECESARIO para [Authorize]/Policies)
+app.UseAuthentication();
+
+// 5. AUTHENTICATION MIDDLEWARE PERSONALIZADO
 // Este middleware valida el Bearer token y agrega UserID al contexto
 // DEBE ir DESPUES de UseRouting y ANTES de UseAuthorization
 app.UseAuthenticationMiddleware();
 
-// 5. Authorization (si usaras [Authorize] attributes)
+// 6. Authorization (si usaras [Authorize] attributes)
 app.UseAuthorization();
 
-// 6. Map Controllers
+// 7. Map Controllers
 app.MapControllers();
 
 #endregion

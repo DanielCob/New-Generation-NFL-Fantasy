@@ -56,8 +56,8 @@ namespace NFL_Fantasy_API.LogicLayer.EmailLogic.Services.Implementations.Email
             _settings = settings.Value;
             _logger = logger;
 
-            // Validar configuración al inicializar
-            ValidateConfiguration();
+            // Validación ya se hizo con AddOptions().ValidateOnStart() en Program.cs
+            _logger.LogInformation("SMTP listo: {Host}:{Port}", _settings.Host, _settings.Port);
         }
 
         /// <inheritdoc />
@@ -153,52 +153,6 @@ namespace NFL_Fantasy_API.LogicLayer.EmailLogic.Services.Implementations.Email
                 );
                 throw;
             }
-        }
-
-        /// <summary>
-        /// Valida que la configuración SMTP sea correcta al inicializar el servicio.
-        /// </summary>
-        private void ValidateConfiguration()
-        {
-            var errors = new List<string>();
-
-            if (string.IsNullOrWhiteSpace(_settings.Host))
-            {
-                errors.Add("Host SMTP no configurado.");
-            }
-
-            if (_settings.Port <= 0 || _settings.Port > 65535)
-            {
-                errors.Add($"Puerto SMTP inválido: {_settings.Port}");
-            }
-
-            if (string.IsNullOrWhiteSpace(_settings.User))
-            {
-                errors.Add("Usuario SMTP no configurado.");
-            }
-
-            if (string.IsNullOrWhiteSpace(_settings.Password))
-            {
-                errors.Add("Password SMTP no configurado.");
-            }
-
-            if (string.IsNullOrWhiteSpace(_settings.FromAddress))
-            {
-                errors.Add("FromAddress no configurado.");
-            }
-
-            if (errors.Any())
-            {
-                var errorMessage = string.Join(" ", errors);
-                _logger.LogError("Configuración SMTP inválida: {Errors}", errorMessage);
-                throw new InvalidOperationException($"Configuración SMTP inválida: {errorMessage}");
-            }
-
-            _logger.LogInformation(
-                "Configuración SMTP validada correctamente: {Host}:{Port}",
-                _settings.Host,
-                _settings.Port
-            );
         }
     }
 }

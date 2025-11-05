@@ -67,7 +67,7 @@ namespace NFL_Fantasy_API.Models.DTOs.Fantasy
     public class RosterPlayerDTO
     {
         public long RosterID { get; set; }
-        public int PlayerID { get; set; }
+        public int NFLPlayerID { get; set; }
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;

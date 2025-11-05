@@ -1957,14 +1957,14 @@ BEGIN
 
   -- Jugadores actuales del equipo
   SELECT
-    p.PlayerID,
+    p.NFLPlayerID,
     p.FirstName,
     p.LastName,
-    CONCAT(p.FirstName, ' ', p.LastName) AS FullName,
+    p.FullName,
     p.Position,
     p.InjuryStatus,
     p.IsActive
-  FROM league.Player p
+  FROM ref.NFLPlayer p
   WHERE p.NFLTeamID = @NFLTeamID
     AND p.IsActive = 1
   ORDER BY p.Position, p.LastName;
@@ -2146,7 +2146,7 @@ BEGIN
   -- 2) Jugadores en el roster (con filtros opcionales)
   SELECT
     tr.RosterID,
-    p.PlayerID,
+    p.NFLPlayerID,
     p.FirstName,
     p.LastName,
     p.FullName,
@@ -2161,7 +2161,7 @@ BEGIN
     tr.AcquisitionDate,
     tr.IsActive AS IsOnRoster
   FROM league.TeamRoster tr
-  JOIN league.Player p ON p.PlayerID = tr.PlayerID
+  JOIN ref.NFLPlayer p ON p.NFLPlayerID = tr.NFLPlayerID
   LEFT JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
   WHERE tr.TeamID = @TeamID
     AND tr.IsActive = 1
@@ -2250,7 +2250,7 @@ GO
 CREATE OR ALTER PROCEDURE app.sp_AddPlayerToRoster
   @ActorUserID      INT,
   @TeamID           INT,
-  @PlayerID         INT,
+  @NFLPlayerID      INT,
   @AcquisitionType  NVARCHAR(20),  -- 'Draft','Trade','FreeAgent','Waiver'
   @SourceIp         NVARCHAR(45) = NULL,
   @UserAgent        NVARCHAR(300) = NULL
@@ -2272,7 +2272,7 @@ BEGIN
       THROW 50151, 'Equipo no existe.', 1;
 
     -- Validar que el jugador existe y está activo
-    IF NOT EXISTS (SELECT 1 FROM league.Player WHERE PlayerID = @PlayerID AND IsActive = 1)
+    IF NOT EXISTS (SELECT 1 FROM ref.NFLPlayer WHERE NFLPlayerID = @NFLPlayerID AND IsActive = 1)
       THROW 50152, 'Jugador no existe o no está activo.', 1;
 
     -- Validar que el jugador no está ya en otro equipo de la misma liga
@@ -2280,7 +2280,7 @@ BEGIN
       SELECT 1
       FROM league.TeamRoster tr
       JOIN league.Team t ON t.TeamID = tr.TeamID
-      WHERE tr.PlayerID = @PlayerID
+      WHERE tr.NFLPlayerID = @NFLPlayerID
         AND tr.IsActive = 1
         AND t.LeagueID = @LeagueID
         AND tr.TeamID <> @TeamID
@@ -2290,14 +2290,14 @@ BEGIN
     -- Validar que no está duplicado en el mismo equipo
     IF EXISTS (
       SELECT 1 FROM league.TeamRoster
-      WHERE TeamID = @TeamID AND PlayerID = @PlayerID AND IsActive = 1
+      WHERE TeamID = @TeamID AND NFLPlayerID = @NFLPlayerID AND IsActive = 1
     )
       THROW 50154, 'El jugador ya está en el roster de este equipo.', 1;
 
     BEGIN TRAN;
 
-      INSERT INTO league.TeamRoster(TeamID, PlayerID, AcquisitionType, AddedByUserID)
-      VALUES(@TeamID, @PlayerID, @AcquisitionType, @ActorUserID);
+      INSERT INTO league.TeamRoster(TeamID, NFLPlayerID, AcquisitionType, AddedByUserID)
+      VALUES(@TeamID, @NFLPlayerID, @AcquisitionType, @ActorUserID);
 
       DECLARE @RosterID BIGINT = SCOPE_IDENTITY();
 
@@ -2336,8 +2336,8 @@ BEGIN
   SET NOCOUNT ON;
   BEGIN TRY
     -- Validar que el roster entry existe
-    DECLARE @TeamID INT, @PlayerID INT;
-    SELECT @TeamID = TeamID, @PlayerID = PlayerID
+    DECLARE @TeamID INT, @NFLPlayerID INT;  -- ✅ CORREGIDO
+    SELECT @TeamID = TeamID, @NFLPlayerID = NFLPlayerID  -- ✅ CORREGIDO
     FROM league.TeamRoster
     WHERE RosterID = @RosterID AND IsActive = 1;
 
@@ -3411,6 +3411,599 @@ END
 GO
 
 GRANT EXECUTE ON OBJECT::app.sp_UpdateSeason TO app_executor;
+GO
+
+
+-- ============================================================================
+-- sp_CreateNFLPlayer
+-- Solo ADMIN puede crear jugadores NFL
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_CreateNFLPlayer
+  @ActorUserID        INT,
+  @FirstName          NVARCHAR(50),
+  @LastName           NVARCHAR(50),
+  @Position           NVARCHAR(20),
+  @NFLTeamID          INT,
+  @InjuryStatus       NVARCHAR(50) = NULL,
+  @InjuryDescription  NVARCHAR(300) = NULL,
+  @PhotoUrl           NVARCHAR(400) = NULL,
+  @PhotoWidth         SMALLINT = NULL,
+  @PhotoHeight        SMALLINT = NULL,
+  @PhotoBytes         INT = NULL,
+  @PhotoThumbnailUrl  NVARCHAR(400) = NULL,
+  @ThumbnailWidth     SMALLINT = NULL,
+  @ThumbnailHeight    SMALLINT = NULL,
+  @ThumbnailBytes     INT = NULL,
+  @SourceIp           NVARCHAR(45) = NULL,
+  @UserAgent          NVARCHAR(300) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+  BEGIN TRY
+    -- Validar que el actor es ADMIN
+    DECLARE @ActorRole NVARCHAR(20);
+    SELECT @ActorRole = SystemRoleCode FROM auth.UserAccount WHERE UserID = @ActorUserID;
+
+    IF @ActorRole IS NULL
+      THROW 50500, 'Usuario actor no existe.', 1;
+
+    IF @ActorRole <> N'ADMIN'
+      THROW 50501, 'Solo un ADMIN puede crear jugadores NFL.', 1;
+
+    -- Validaciones de campos requeridos
+    IF @FirstName IS NULL OR LEN(@FirstName) < 1 OR LEN(@FirstName) > 50
+      THROW 50502, 'Nombre inválido: debe tener entre 1 y 50 caracteres.', 1;
+
+    IF @LastName IS NULL OR LEN(@LastName) < 1 OR LEN(@LastName) > 50
+      THROW 50503, 'Apellido inválido: debe tener entre 1 y 50 caracteres.', 1;
+
+    IF @Position IS NULL OR LEN(@Position) < 1 OR LEN(@Position) > 20
+      THROW 50504, 'Posición inválida: debe tener entre 1 y 20 caracteres.', 1;
+
+    IF @NFLTeamID IS NULL
+      THROW 50505, 'Equipo NFL es requerido.', 1;
+
+    -- Validar que el equipo NFL existe y está activo
+    IF NOT EXISTS (SELECT 1 FROM ref.NFLTeam WHERE NFLTeamID = @NFLTeamID AND IsActive = 1)
+      THROW 50506, 'El equipo NFL no existe o no está activo.', 1;
+
+    -- Validar unicidad (FirstName, LastName, NFLTeamID)
+    IF EXISTS (
+      SELECT 1 FROM ref.NFLPlayer 
+      WHERE FirstName = @FirstName 
+        AND LastName = @LastName 
+        AND NFLTeamID = @NFLTeamID
+    )
+      THROW 50507, 'Ya existe un jugador con ese nombre en el mismo equipo NFL.', 1;
+
+    -- Validaciones de imagen
+    IF @PhotoBytes IS NOT NULL AND @PhotoBytes > 5242880
+      THROW 50508, 'Imagen supera 5MB.', 1;
+    IF @PhotoWidth IS NOT NULL AND (@PhotoWidth < 300 OR @PhotoWidth > 1024)
+      THROW 50509, 'Ancho de imagen fuera de rango (300-1024).', 1;
+    IF @PhotoHeight IS NOT NULL AND (@PhotoHeight < 300 OR @PhotoHeight > 1024)
+      THROW 50510, 'Alto de imagen fuera de rango (300-1024).', 1;
+
+    -- Validaciones de thumbnail
+    IF @ThumbnailBytes IS NOT NULL AND @ThumbnailBytes > 5242880
+      THROW 50511, 'Thumbnail supera 5MB.', 1;
+    IF @ThumbnailWidth IS NOT NULL AND (@ThumbnailWidth < 300 OR @ThumbnailWidth > 1024)
+      THROW 50512, 'Ancho de thumbnail fuera de rango (300-1024).', 1;
+    IF @ThumbnailHeight IS NOT NULL AND (@ThumbnailHeight < 300 OR @ThumbnailHeight > 1024)
+      THROW 50513, 'Alto de thumbnail fuera de rango (300-1024).', 1;
+
+    DECLARE @NFLPlayerID INT;
+
+    BEGIN TRAN;
+
+      INSERT INTO ref.NFLPlayer(
+        FirstName, LastName, Position, NFLTeamID,
+        InjuryStatus, InjuryDescription,
+        PhotoUrl, PhotoWidth, PhotoHeight, PhotoBytes,
+        PhotoThumbnailUrl, ThumbnailWidth, ThumbnailHeight, ThumbnailBytes,
+        IsActive, CreatedByUserID
+      )
+      VALUES(
+        @FirstName, @LastName, @Position, @NFLTeamID,
+        @InjuryStatus, @InjuryDescription,
+        @PhotoUrl, @PhotoWidth, @PhotoHeight, @PhotoBytes,
+        @PhotoThumbnailUrl, @ThumbnailWidth, @ThumbnailHeight, @ThumbnailBytes,
+        1, @ActorUserID
+      );
+
+      SET @NFLPlayerID = SCOPE_IDENTITY();
+
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+      VALUES(@ActorUserID, N'NFL_PLAYER', CAST(@NFLPlayerID AS NVARCHAR(50)), N'CREATE',
+             CONCAT(N'Jugador NFL creado: ', @FirstName, N' ', @LastName, N' (', @Position, N')'), 
+             @SourceIp, @UserAgent);
+
+    COMMIT;
+
+    SELECT 
+      @NFLPlayerID AS NFLPlayerID,
+      CONCAT(@FirstName, N' ', @LastName) AS FullName,
+      @Position AS Position,
+      N'Jugador NFL creado exitosamente.' AS Message;
+  END TRY
+  BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK;
+    THROW;
+  END CATCH
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_CreateNFLPlayer TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_UpdateNFLPlayer
+-- Solo ADMIN puede actualizar jugadores NFL
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_UpdateNFLPlayer
+  @ActorUserID        INT,
+  @NFLPlayerID        INT,
+  @FirstName          NVARCHAR(50) = NULL,
+  @LastName           NVARCHAR(50) = NULL,
+  @Position           NVARCHAR(20) = NULL,
+  @NFLTeamID          INT = NULL,
+  @InjuryStatus       NVARCHAR(50) = NULL,
+  @InjuryDescription  NVARCHAR(300) = NULL,
+  @PhotoUrl           NVARCHAR(400) = NULL,
+  @PhotoWidth         SMALLINT = NULL,
+  @PhotoHeight        SMALLINT = NULL,
+  @PhotoBytes         INT = NULL,
+  @PhotoThumbnailUrl  NVARCHAR(400) = NULL,
+  @ThumbnailWidth     SMALLINT = NULL,
+  @ThumbnailHeight    SMALLINT = NULL,
+  @ThumbnailBytes     INT = NULL,
+  @SourceIp           NVARCHAR(45) = NULL,
+  @UserAgent          NVARCHAR(300) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+  BEGIN TRY
+    -- Validar que el actor es ADMIN
+    DECLARE @ActorRole NVARCHAR(20);
+    SELECT @ActorRole = SystemRoleCode FROM auth.UserAccount WHERE UserID = @ActorUserID;
+
+    IF @ActorRole IS NULL
+      THROW 50520, 'Usuario actor no existe.', 1;
+
+    IF @ActorRole <> N'ADMIN'
+      THROW 50521, 'Solo un ADMIN puede actualizar jugadores NFL.', 1;
+
+    -- Validaciones
+    IF @FirstName IS NOT NULL AND (LEN(@FirstName) < 1 OR LEN(@FirstName) > 50)
+      THROW 50522, 'Nombre inválido (1-50).', 1;
+
+    IF @LastName IS NOT NULL AND (LEN(@LastName) < 1 OR LEN(@LastName) > 50)
+      THROW 50523, 'Apellido inválido (1-50).', 1;
+
+    IF @Position IS NOT NULL AND (LEN(@Position) < 1 OR LEN(@Position) > 20)
+      THROW 50524, 'Posición inválida (1-20).', 1;
+
+    -- Validar que el jugador existe
+    DECLARE
+      @OldFirstName NVARCHAR(50),
+      @OldLastName NVARCHAR(50),
+      @OldPosition NVARCHAR(20),
+      @OldNFLTeamID INT,
+      @OldInjuryStatus NVARCHAR(50),
+      @OldInjuryDesc NVARCHAR(300),
+      @OldPhotoUrl NVARCHAR(400),
+      @OldPhotoW SMALLINT, @OldPhotoH SMALLINT, @OldPhotoB INT,
+      @OldThumbUrl NVARCHAR(400),
+      @OldThumbW SMALLINT, @OldThumbH SMALLINT, @OldThumbB INT;
+
+    SELECT
+      @OldFirstName = FirstName,
+      @OldLastName = LastName,
+      @OldPosition = Position,
+      @OldNFLTeamID = NFLTeamID,
+      @OldInjuryStatus = InjuryStatus,
+      @OldInjuryDesc = InjuryDescription,
+      @OldPhotoUrl = PhotoUrl,
+      @OldPhotoW = PhotoWidth, @OldPhotoH = PhotoHeight, @OldPhotoB = PhotoBytes,
+      @OldThumbUrl = PhotoThumbnailUrl,
+      @OldThumbW = ThumbnailWidth, @OldThumbH = ThumbnailHeight, @OldThumbB = ThumbnailBytes
+    FROM ref.NFLPlayer
+    WHERE NFLPlayerID = @NFLPlayerID;
+
+    IF @OldFirstName IS NULL
+      THROW 50525, 'Jugador NFL no existe.', 1;
+
+    -- Validar equipo NFL si se está cambiando
+    IF @NFLTeamID IS NOT NULL
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM ref.NFLTeam WHERE NFLTeamID = @NFLTeamID AND IsActive = 1)
+        THROW 50526, 'El equipo NFL no existe o no está activo.', 1;
+    END
+
+    -- Validar unicidad si cambian nombre o equipo
+    DECLARE @NewFirstName NVARCHAR(50) = COALESCE(@FirstName, @OldFirstName);
+    DECLARE @NewLastName NVARCHAR(50) = COALESCE(@LastName, @OldLastName);
+    DECLARE @NewNFLTeamID INT = COALESCE(@NFLTeamID, @OldNFLTeamID);
+
+    IF (@NewFirstName <> @OldFirstName OR @NewLastName <> @OldLastName OR @NewNFLTeamID <> @OldNFLTeamID)
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM ref.NFLPlayer 
+        WHERE FirstName = @NewFirstName 
+          AND LastName = @NewLastName 
+          AND NFLTeamID = @NewNFLTeamID
+          AND NFLPlayerID <> @NFLPlayerID
+      )
+        THROW 50527, 'Ya existe otro jugador con ese nombre en el mismo equipo NFL.', 1;
+    END
+
+    -- Validaciones de imagen
+    IF @PhotoBytes IS NOT NULL AND @PhotoBytes > 5242880
+      THROW 50528, 'Imagen supera 5MB.', 1;
+    IF @PhotoWidth IS NOT NULL AND (@PhotoWidth < 300 OR @PhotoWidth > 1024)
+      THROW 50529, 'Ancho de imagen fuera de rango (300-1024).', 1;
+    IF @PhotoHeight IS NOT NULL AND (@PhotoHeight < 300 OR @PhotoHeight > 1024)
+      THROW 50530, 'Alto de imagen fuera de rango (300-1024).', 1;
+
+    -- Validaciones de thumbnail
+    IF @ThumbnailBytes IS NOT NULL AND @ThumbnailBytes > 5242880
+      THROW 50531, 'Thumbnail supera 5MB.', 1;
+    IF @ThumbnailWidth IS NOT NULL AND (@ThumbnailWidth < 300 OR @ThumbnailWidth > 1024)
+      THROW 50532, 'Ancho de thumbnail fuera de rango (300-1024).', 1;
+    IF @ThumbnailHeight IS NOT NULL AND (@ThumbnailHeight < 300 OR @ThumbnailHeight > 1024)
+      THROW 50533, 'Alto de thumbnail fuera de rango (300-1024).', 1;
+
+    BEGIN TRAN;
+
+      UPDATE ref.NFLPlayer
+         SET FirstName = COALESCE(@FirstName, FirstName),
+             LastName = COALESCE(@LastName, LastName),
+             Position = COALESCE(@Position, Position),
+             NFLTeamID = COALESCE(@NFLTeamID, NFLTeamID),
+             InjuryStatus = CASE WHEN @InjuryStatus IS NULL THEN InjuryStatus ELSE @InjuryStatus END,
+             InjuryDescription = CASE WHEN @InjuryDescription IS NULL THEN InjuryDescription ELSE @InjuryDescription END,
+             PhotoUrl = CASE WHEN @PhotoUrl IS NULL THEN PhotoUrl ELSE @PhotoUrl END,
+             PhotoWidth = CASE WHEN @PhotoWidth IS NULL THEN PhotoWidth ELSE @PhotoWidth END,
+             PhotoHeight = CASE WHEN @PhotoHeight IS NULL THEN PhotoHeight ELSE @PhotoHeight END,
+             PhotoBytes = CASE WHEN @PhotoBytes IS NULL THEN PhotoBytes ELSE @PhotoBytes END,
+             PhotoThumbnailUrl = CASE WHEN @PhotoThumbnailUrl IS NULL THEN PhotoThumbnailUrl ELSE @PhotoThumbnailUrl END,
+             ThumbnailWidth = CASE WHEN @ThumbnailWidth IS NULL THEN ThumbnailWidth ELSE @ThumbnailWidth END,
+             ThumbnailHeight = CASE WHEN @ThumbnailHeight IS NULL THEN ThumbnailHeight ELSE @ThumbnailHeight END,
+             ThumbnailBytes = CASE WHEN @ThumbnailBytes IS NULL THEN ThumbnailBytes ELSE @ThumbnailBytes END,
+             UpdatedByUserID = @ActorUserID,
+             UpdatedAt = SYSUTCDATETIME()
+       WHERE NFLPlayerID = @NFLPlayerID;
+
+      -- Log de cambios
+      IF @FirstName IS NOT NULL AND @FirstName <> @OldFirstName
+        INSERT INTO ref.NFLPlayerChangeLog(NFLPlayerID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent)
+        VALUES(@NFLPlayerID, @ActorUserID, N'FirstName', @OldFirstName, @FirstName, @SourceIp, @UserAgent);
+
+      IF @LastName IS NOT NULL AND @LastName <> @OldLastName
+        INSERT INTO ref.NFLPlayerChangeLog(NFLPlayerID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent)
+        VALUES(@NFLPlayerID, @ActorUserID, N'LastName', @OldLastName, @LastName, @SourceIp, @UserAgent);
+
+      IF @Position IS NOT NULL AND @Position <> @OldPosition
+        INSERT INTO ref.NFLPlayerChangeLog(NFLPlayerID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent)
+        VALUES(@NFLPlayerID, @ActorUserID, N'Position', @OldPosition, @Position, @SourceIp, @UserAgent);
+
+      IF @NFLTeamID IS NOT NULL AND @NFLTeamID <> @OldNFLTeamID
+        INSERT INTO ref.NFLPlayerChangeLog(NFLPlayerID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent)
+        VALUES(@NFLPlayerID, @ActorUserID, N'NFLTeamID', CAST(@OldNFLTeamID AS NVARCHAR(50)), CAST(@NFLTeamID AS NVARCHAR(50)), @SourceIp, @UserAgent);
+
+      IF @InjuryStatus IS NOT NULL AND ISNULL(@InjuryStatus, '') <> ISNULL(@OldInjuryStatus, '')
+        INSERT INTO ref.NFLPlayerChangeLog(NFLPlayerID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent)
+        VALUES(@NFLPlayerID, @ActorUserID, N'InjuryStatus', @OldInjuryStatus, @InjuryStatus, @SourceIp, @UserAgent);
+
+      IF @PhotoUrl IS NOT NULL AND @PhotoUrl <> @OldPhotoUrl
+        INSERT INTO ref.NFLPlayerChangeLog(NFLPlayerID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent)
+        VALUES(@NFLPlayerID, @ActorUserID, N'PhotoUrl', @OldPhotoUrl, @PhotoUrl, @SourceIp, @UserAgent);
+
+      IF @PhotoThumbnailUrl IS NOT NULL AND @PhotoThumbnailUrl <> @OldThumbUrl
+        INSERT INTO ref.NFLPlayerChangeLog(NFLPlayerID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent)
+        VALUES(@NFLPlayerID, @ActorUserID, N'PhotoThumbnailUrl', @OldThumbUrl, @PhotoThumbnailUrl, @SourceIp, @UserAgent);
+
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+      VALUES(@ActorUserID, N'NFL_PLAYER', CAST(@NFLPlayerID AS NVARCHAR(50)), N'UPDATE',
+             N'Jugador NFL actualizado', @SourceIp, @UserAgent);
+
+    COMMIT;
+
+    SELECT N'Jugador NFL actualizado exitosamente.' AS Message;
+  END TRY
+  BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK;
+    THROW;
+  END CATCH
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_UpdateNFLPlayer TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_DeactivateNFLPlayer
+-- Solo ADMIN puede desactivar jugadores NFL
+-- NO permite desactivar si está en roster activo de equipos en temporada actual
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_DeactivateNFLPlayer
+  @ActorUserID   INT,
+  @NFLPlayerID   INT,
+  @SourceIp      NVARCHAR(45) = NULL,
+  @UserAgent     NVARCHAR(300) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+  BEGIN TRY
+    -- Validar que el actor es ADMIN
+    DECLARE @ActorRole NVARCHAR(20);
+    SELECT @ActorRole = SystemRoleCode FROM auth.UserAccount WHERE UserID = @ActorUserID;
+
+    IF @ActorRole IS NULL
+      THROW 50540, 'Usuario actor no existe.', 1;
+
+    IF @ActorRole <> N'ADMIN'
+      THROW 50541, 'Solo un ADMIN puede desactivar jugadores NFL.', 1;
+
+    DECLARE @PlayerName NVARCHAR(101);
+    SELECT @PlayerName = CONCAT(FirstName, N' ', LastName) 
+    FROM ref.NFLPlayer 
+    WHERE NFLPlayerID = @NFLPlayerID;
+
+    IF @PlayerName IS NULL
+      THROW 50542, 'Jugador NFL no existe.', 1;
+
+    -- Obtener la temporada actual
+    DECLARE @CurrentSeasonID INT;
+    SELECT @CurrentSeasonID = SeasonID FROM league.Season WHERE IsCurrent = 1;
+
+    -- Validar que no está en roster activo de equipos de la temporada actual
+    IF EXISTS (
+      SELECT 1 
+      FROM league.TeamRoster tr
+      JOIN league.Team t ON t.TeamID = tr.TeamID
+      JOIN league.League l ON l.LeagueID = t.LeagueID
+      WHERE tr.NFLPlayerID = @NFLPlayerID
+        AND tr.IsActive = 1
+        AND t.IsActive = 1
+        AND l.SeasonID = @CurrentSeasonID
+        AND l.Status IN (0, 1, 3, 4)  -- Pre-Draft, Active, Playoffs, Postseason
+    )
+      THROW 50543, 'No se puede desactivar: el jugador está en roster activo de equipos en la temporada actual.', 1;
+
+    BEGIN TRAN;
+
+      UPDATE ref.NFLPlayer
+         SET IsActive = 0,
+             UpdatedByUserID = @ActorUserID,
+             UpdatedAt = SYSUTCDATETIME()
+       WHERE NFLPlayerID = @NFLPlayerID;
+
+      INSERT INTO ref.NFLPlayerChangeLog(NFLPlayerID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent)
+      VALUES(@NFLPlayerID, @ActorUserID, N'IsActive', N'1', N'0', @SourceIp, @UserAgent);
+
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+      VALUES(@ActorUserID, N'NFL_PLAYER', CAST(@NFLPlayerID AS NVARCHAR(50)), N'DEACTIVATE',
+             CONCAT(N'Jugador desactivado: ', @PlayerName), @SourceIp, @UserAgent);
+
+    COMMIT;
+
+    SELECT N'Jugador NFL desactivado exitosamente.' AS Message;
+  END TRY
+  BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK;
+    THROW;
+  END CATCH
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_DeactivateNFLPlayer TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_ReactivateNFLPlayer
+-- Solo ADMIN puede reactivar jugadores NFL
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_ReactivateNFLPlayer
+  @ActorUserID   INT,
+  @NFLPlayerID   INT,
+  @SourceIp      NVARCHAR(45) = NULL,
+  @UserAgent     NVARCHAR(300) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+  BEGIN TRY
+    -- Validar que el actor es ADMIN
+    DECLARE @ActorRole NVARCHAR(20);
+    SELECT @ActorRole = SystemRoleCode FROM auth.UserAccount WHERE UserID = @ActorUserID;
+
+    IF @ActorRole IS NULL
+      THROW 50550, 'Usuario actor no existe.', 1;
+
+    IF @ActorRole <> N'ADMIN'
+      THROW 50551, 'Solo un ADMIN puede reactivar jugadores NFL.', 1;
+
+    DECLARE @PlayerName NVARCHAR(101);
+    SELECT @PlayerName = CONCAT(FirstName, N' ', LastName) 
+    FROM ref.NFLPlayer 
+    WHERE NFLPlayerID = @NFLPlayerID;
+
+    IF @PlayerName IS NULL
+      THROW 50552, 'Jugador NFL no existe.', 1;
+
+    BEGIN TRAN;
+
+      UPDATE ref.NFLPlayer
+         SET IsActive = 1,
+             UpdatedByUserID = @ActorUserID,
+             UpdatedAt = SYSUTCDATETIME()
+       WHERE NFLPlayerID = @NFLPlayerID;
+
+      INSERT INTO ref.NFLPlayerChangeLog(NFLPlayerID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent)
+      VALUES(@NFLPlayerID, @ActorUserID, N'IsActive', N'0', N'1', @SourceIp, @UserAgent);
+
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+      VALUES(@ActorUserID, N'NFL_PLAYER', CAST(@NFLPlayerID AS NVARCHAR(50)), N'REACTIVATE',
+             CONCAT(N'Jugador reactivado: ', @PlayerName), @SourceIp, @UserAgent);
+
+    COMMIT;
+
+    SELECT N'Jugador NFL reactivado exitosamente.' AS Message;
+  END TRY
+  BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK;
+    THROW;
+  END CATCH
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_ReactivateNFLPlayer TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_ListNFLPlayers
+-- Lista jugadores NFL con paginación, búsqueda y filtros
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_ListNFLPlayers
+  @PageNumber       INT = 1,
+  @PageSize         INT = 50,
+  @SearchTerm       NVARCHAR(100) = NULL,
+  @FilterPosition   NVARCHAR(20) = NULL,
+  @FilterNFLTeamID  INT = NULL,
+  @FilterIsActive   BIT = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  -- Validar paginación
+  IF @PageNumber < 1 SET @PageNumber = 1;
+  IF @PageSize < 1 OR @PageSize > 100 SET @PageSize = 50;
+
+  DECLARE @Offset INT = (@PageNumber - 1) * @PageSize;
+
+  -- Total de registros
+  DECLARE @TotalRecords INT;
+  SELECT @TotalRecords = COUNT(*)
+  FROM ref.NFLPlayer p
+  WHERE (@SearchTerm IS NULL OR (p.FirstName LIKE N'%' + @SearchTerm + N'%' OR p.LastName LIKE N'%' + @SearchTerm + N'%' OR p.FullName LIKE N'%' + @SearchTerm + N'%'))
+    AND (@FilterPosition IS NULL OR p.Position = @FilterPosition)
+    AND (@FilterNFLTeamID IS NULL OR p.NFLTeamID = @FilterNFLTeamID)
+    AND (@FilterIsActive IS NULL OR p.IsActive = @FilterIsActive);
+
+  -- Resultados paginados
+  SELECT
+    p.NFLPlayerID,
+    p.FirstName,
+    p.LastName,
+    p.FullName,
+    p.Position,
+    p.NFLTeamID,
+    nt.TeamName AS NFLTeamName,
+    nt.City AS NFLTeamCity,
+    p.InjuryStatus,
+    p.InjuryDescription,
+    p.PhotoUrl,
+    p.PhotoThumbnailUrl,
+    p.IsActive,
+    p.CreatedAt,
+    p.UpdatedAt,
+    @TotalRecords AS TotalRecords,
+    @PageNumber AS CurrentPage,
+    @PageSize AS PageSize,
+    (@TotalRecords + @PageSize - 1) / @PageSize AS TotalPages
+  FROM ref.NFLPlayer p
+  JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
+  WHERE (@SearchTerm IS NULL OR (p.FirstName LIKE N'%' + @SearchTerm + N'%' OR p.LastName LIKE N'%' + @SearchTerm + N'%' OR p.FullName LIKE N'%' + @SearchTerm + N'%'))
+    AND (@FilterPosition IS NULL OR p.Position = @FilterPosition)
+    AND (@FilterNFLTeamID IS NULL OR p.NFLTeamID = @FilterNFLTeamID)
+    AND (@FilterIsActive IS NULL OR p.IsActive = @FilterIsActive)
+  ORDER BY p.LastName, p.FirstName
+  OFFSET @Offset ROWS
+  FETCH NEXT @PageSize ROWS ONLY;
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_ListNFLPlayers TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_GetNFLPlayerDetails
+-- Obtiene detalles completos de un jugador NFL
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_GetNFLPlayerDetails
+  @NFLPlayerID INT
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  -- Información del jugador
+  SELECT
+    p.NFLPlayerID,
+    p.FirstName,
+    p.LastName,
+    p.FullName,
+    p.Position,
+    p.NFLTeamID,
+    nt.TeamName AS NFLTeamName,
+    nt.City AS NFLTeamCity,
+    p.InjuryStatus,
+    p.InjuryDescription,
+    p.PhotoUrl,
+    p.PhotoWidth,
+    p.PhotoHeight,
+    p.PhotoBytes,
+    p.PhotoThumbnailUrl,
+    p.ThumbnailWidth,
+    p.ThumbnailHeight,
+    p.ThumbnailBytes,
+    p.IsActive,
+    p.CreatedAt,
+    creator.Name AS CreatedByName,
+    p.UpdatedAt,
+    updater.Name AS UpdatedByName
+  FROM ref.NFLPlayer p
+  JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
+  LEFT JOIN auth.UserAccount creator ON creator.UserID = p.CreatedByUserID
+  LEFT JOIN auth.UserAccount updater ON updater.UserID = p.UpdatedByUserID
+  WHERE p.NFLPlayerID = @NFLPlayerID;
+
+  -- Historial de cambios (últimos 20)
+  SELECT TOP 20
+    c.ChangeID,
+    c.FieldName,
+    c.OldValue,
+    c.NewValue,
+    c.ChangedAt,
+    u.Name AS ChangedByName,
+    c.SourceIp
+  FROM ref.NFLPlayerChangeLog c
+  JOIN auth.UserAccount u ON u.UserID = c.ChangedByUserID
+  WHERE c.NFLPlayerID = @NFLPlayerID
+  ORDER BY c.ChangedAt DESC;
+
+  -- Equipos fantasy actuales que tienen este jugador
+  SELECT
+    t.TeamID,
+    t.TeamName,
+    l.Name AS LeagueName,
+    l.LeagueID,
+    s.Label AS SeasonLabel,
+    tr.AcquisitionType,
+    tr.AcquisitionDate,
+    u.Name AS ManagerName
+  FROM league.TeamRoster tr
+  JOIN league.Team t ON t.TeamID = tr.TeamID
+  JOIN league.League l ON l.LeagueID = t.LeagueID
+  JOIN league.Season s ON s.SeasonID = l.SeasonID
+  JOIN auth.UserAccount u ON u.UserID = t.OwnerUserID
+  WHERE tr.NFLPlayerID = @NFLPlayerID
+    AND tr.IsActive = 1
+    AND t.IsActive = 1
+  ORDER BY s.Year DESC, l.Name;
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_GetNFLPlayerDetails TO app_executor;
 GO
 
 GRANT EXECUTE ON SCHEMA::app TO app_executor;

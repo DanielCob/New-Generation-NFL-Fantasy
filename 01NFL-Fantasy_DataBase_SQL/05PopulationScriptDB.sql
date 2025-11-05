@@ -623,13 +623,13 @@ INSERT INTO @Players VALUES
   (N'Eagles', N'Defense', N'DEF', @Eagles_ID, N'Healthy'),
   (N'Chiefs', N'Defense', N'DEF', @Chiefs_ID, N'Healthy');
 
--- Insertar jugadores
-MERGE league.Player AS T
+-- Insertar jugadores en ref.NFLPlayer (CAMBIO APLICADO)
+MERGE ref.NFLPlayer AS T
 USING @Players AS S
 ON (T.FirstName = S.FirstName AND T.LastName = S.LastName AND T.NFLTeamID = S.NFLTeamID)
 WHEN NOT MATCHED BY TARGET THEN
-  INSERT(FirstName, LastName, Position, NFLTeamID, InjuryStatus, IsActive)
-  VALUES(S.FirstName, S.LastName, S.Position, S.NFLTeamID, S.InjuryStatus, 1);
+  INSERT(FirstName, LastName, Position, NFLTeamID, InjuryStatus, IsActive, CreatedByUserID, UpdatedByUserID)
+  VALUES(S.FirstName, S.LastName, S.Position, S.NFLTeamID, S.InjuryStatus, 1, NULL, NULL);
 
 DECLARE @PlayerCount INT = @@ROWCOUNT;
 PRINT N'✓ ' + CAST(@PlayerCount AS NVARCHAR(10)) + N' jugadores NFL insertados/actualizados';
@@ -855,20 +855,20 @@ INSERT INTO @RosterAssignments VALUES
   (@Team_Eagles, N'Dallas', N'Goedert', N'Draft'),
   (@Team_Eagles, N'Eagles', N'Defense', N'Draft');
 
--- Insertar asignaciones de roster
-INSERT INTO league.TeamRoster(TeamID, PlayerID, AcquisitionType, AddedByUserID, IsActive)
+-- Insertar asignaciones de roster (CAMBIOS APLICADOS)
+INSERT INTO league.TeamRoster(TeamID, NFLPlayerID, AcquisitionType, AddedByUserID, IsActive)
 SELECT 
   ra.TeamID,
-  p.PlayerID,
+  p.NFLPlayerID,  -- CORREGIDO
   ra.AcquisitionType,
   t.OwnerUserID,
   1
 FROM @RosterAssignments ra
-JOIN league.Player p ON p.FirstName = ra.PlayerFirstName AND p.LastName = ra.PlayerLastName
+JOIN ref.NFLPlayer p ON p.FirstName = ra.PlayerFirstName AND p.LastName = ra.PlayerLastName  -- CORREGIDO
 JOIN league.Team t ON t.TeamID = ra.TeamID
 WHERE NOT EXISTS (
   SELECT 1 FROM league.TeamRoster tr
-  WHERE tr.TeamID = ra.TeamID AND tr.PlayerID = p.PlayerID
+  WHERE tr.TeamID = ra.TeamID AND tr.NFLPlayerID = p.NFLPlayerID  -- CORREGIDO
 );
 
 DECLARE @RosterCount INT = @@ROWCOUNT;
@@ -900,7 +900,7 @@ SELECT @cnt_schemas = COUNT(*) FROM scoring.ScoringSchema;
 SELECT @cnt_rules = COUNT(*) FROM scoring.ScoringRule;
 SELECT @cnt_seasons = COUNT(*) FROM league.Season;
 SELECT @cnt_users = COUNT(*) FROM auth.UserAccount;
-SELECT @cnt_players = COUNT(*) FROM league.Player;
+SELECT @cnt_players = COUNT(*) FROM ref.NFLPlayer;  -- CORREGIDO
 SELECT @cnt_leagues = COUNT(*) FROM league.League;
 SELECT @cnt_teams = COUNT(*) FROM league.Team;
 SELECT @cnt_games = COUNT(*) FROM league.NFLGame;

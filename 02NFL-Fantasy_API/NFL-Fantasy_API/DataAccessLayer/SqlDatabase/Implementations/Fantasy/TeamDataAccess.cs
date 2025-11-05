@@ -132,7 +132,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.SqlDatabase.Implementations.Fantasy
                     myTeam.Roster.Add(new RosterPlayerDTO
                     {
                         RosterID = reader.GetSafeInt64("RosterID"),
-                        PlayerID = reader.GetSafeInt32("PlayerID"),
+                        NFLPlayerID = reader.GetSafeInt32("NFLPlayerID"),
                         FirstName = reader.GetSafeString("FirstName"),
                         LastName = reader.GetSafeString("LastName"),
                         FullName = reader.GetSafeString("FullName"),

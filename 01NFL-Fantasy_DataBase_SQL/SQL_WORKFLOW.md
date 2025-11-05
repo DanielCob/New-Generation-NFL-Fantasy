@@ -1,419 +1,283 @@
-# SQL Workflow — Four-File Canonical Model (SQL Server)
+# SQL Workflow — Five-File Canonical Model
 
-> **Purpose**
-> We **never** run ad-hoc SQL on live databases. Every schema/object/data change flows through **four canonical scripts**, designed to be **idempotent**, **re-runnable**, and **reviewable** in PRs. This keeps order-of-compile safe, preserves security, and avoids `GO`/batch pitfalls.
+**Never run ad-hoc SQL.** All changes flow through these 5 files in order:
 
----
-
-## The Four Canonical Files (ownership & responsibilities)
-
-1. **`01CreateTablesDB.sql` — Database, Security, Schemas, Tables & Constraints**
-
-   * Creates **database**, **schemas** (`auth`, `league`, `ref`, `scoring`, `audit`, and `app`), **roles/permissions** (e.g., `app_executor`), **tables**, **PKs**, **FKs**, **CHECK/UNIQUE** constraints, and **indexes** (including filtered unique indexes).
-   * **No** procedures or views here. Keep it **pure DDL** + grants that belong to tables/schemas.
-
-2. **`02CreateSPsDB.sql` — Application Stored Procedures (and optional UDF helpers)**
-
-   * All **application APIs** live here under the **`app`** schema (e.g., `app.sp_RegisterUser`, `app.sp_Login`, `app.sp_CreateLeague`, …).
-   * Use `CREATE OR ALTER`. Handle **transactions**, **TRY/CATCH**, **validation**, and **auditing**.
-   * If we ever add UDFs, place them **at the top** of this file (guarded) so any dependent SP compiles after.
-
-3. **`03CreateViewsDB.sql` — Read-only Views (front-end surfaces)**
-
-   * Views that power the UI (e.g., `dbo.vw_CurrentSeason`, `dbo.vw_PositionFormats`, `dbo.vw_UserTeams`, …).
-   * Use `CREATE OR ALTER`. **Grant `SELECT`** on views to `app_executor`. Do **not** grant tables to the app role.
-
-4. **`04PopulationScriptDB.sql` — Seed / Reference / Demo Data**
-
-   * Idempotent **upserts** (e.g., `MERGE` or `IF NOT EXISTS`), no schema DDL.
-   * Prefer seeding **through SPs** to enforce business rules (e.g., create users/leagues via `app.*`).
-   * Include **verification queries** at the end. Avoid cross-`GO` variables.
-
-> **Execution order (clean environment)**
-> `01CreateTablesDB.sql` → `02CreateSPsDB.sql` → `03CreateViewsDB.sql` → `04PopulationScriptDB.sql`.
+```
+01CreateTablesDB.sql → 02CreateFunctionsDB.sql → 03CreateSPsDB.sql → 04CreateViewsDB.sql → 05PopulationScriptDB.sql
+```
 
 ---
 
-## Non-Negotiable Principles
+## The Five Files
 
-* **Idempotency**
+### 1. `01CreateTablesDB.sql` — Database, Schemas, Tables, Constraints, Indexes
 
-  * `IF NOT EXISTS` for **tables/indexes/constraints**.
-  * `CREATE OR ALTER` for **procedures/views/(optional) functions**.
-  * Deterministic **names** for constraints & indexes (so re-runs are safe).
+**Contains:**
+- `CREATE DATABASE` + options
+- Schemas: `auth`, `league`, `ref`, `scoring`, `audit`, `app`
+- Role: `app_executor`
+- All tables with computed columns
+- PKs, FKs, UQs, CKs (named explicitly)
+- Indexes (including filtered unique)
+- Schema-level grants
 
-* **Batch safety (`GO`)**
-
-  * Variables **do not** cross `GO`. Re-select by **stable keys** (natural or unique).
-  * Keep each transaction **within one batch**.
-
-* **Security first**
-
-  * App uses **least-privilege** role (e.g., `app_executor`).
-  * **EXECUTE** on `app` schema; **SELECT** on **views only**; **no direct table DML** to app role.
-  * Keep **schema/role grants** where they belong: table/schema grants in **01**, SP/view grants in **02/03** right after object creation.
-
-* **Backward-compatible changes**
-
-  * Prefer additive changes. For renames: **two-phase** (add → backfill → switch consumers → drop later).
-
-* **Single source of truth**
-
-  * All changes live in these four files. PRs modify them—**no side scripts**.
-
----
-
-## Standard File Layouts & Markers
-
-### 1) `01CreateTablesDB.sql`  *(DDL only)*
-
+**Pattern:**
 ```sql
-/* ============================================================
-   01CreateTablesDB.sql
-   DB, Security, Schemas, Tables, Constraints, Indexes (DDL only)
-   Re-runnable. Do not remove teammates' sections.
-   ============================================================ */
-
--- 0) Database & Options
-IF DB_ID(N'YourDB') IS NULL CREATE DATABASE YourDB;
+IF DB_ID(N'XNFLFantasyDB') IS NULL CREATE DATABASE XNFLFantasyDB;
 GO
-ALTER DATABASE YourDB SET RECOVERY SIMPLE;
-GO
-USE YourDB;
+USE XNFLFantasyDB;
 GO
 
--- 1) Schemas (auth, league, ref, scoring, audit, app)
-IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name=N'auth')   EXEC('CREATE SCHEMA auth AUTHORIZATION dbo;');
-IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name=N'league') EXEC('CREATE SCHEMA league AUTHORIZATION dbo;');
-IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name=N'ref')    EXEC('CREATE SCHEMA ref AUTHORIZATION dbo;');
-IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name=N'scoring')EXEC('CREATE SCHEMA scoring AUTHORIZATION dbo;');
-IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name=N'audit')  EXEC('CREATE SCHEMA audit AUTHORIZATION dbo;');
-IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name=N'app')    EXEC('CREATE SCHEMA app AUTHORIZATION dbo;');
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name=N'auth')
+  EXEC('CREATE SCHEMA auth AUTHORIZATION dbo;');
 GO
 
--- 2) Roles & Base Grants (least-privilege)
 IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name=N'app_executor')
-    CREATE ROLE app_executor AUTHORIZATION dbo;
-GO
--- App gets EXEC on app schema later (02). Views grants live in 03.
-
--- 3) Reference Tables (guarded)
---    Example: ref.LeagueRole, ref.PositionFormat, scoring.ScoringSchema...
---    Use explicit PK/UK/CK names; deterministic index names.
-
--- 4) Core Domain Tables (guarded)
---    Example: auth.UserAccount, auth.Session, league.Season, league.League, etc.
-
--- 5) Constraints & FKs (guarded, name them explicitly)
---    Example:
--- IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name=N'FK_Session_User')
---   ALTER TABLE auth.Session ADD CONSTRAINT FK_Session_User
---   FOREIGN KEY(UserID) REFERENCES auth.UserAccount(UserID) ON DELETE CASCADE;
-
--- 6) Indexes (including filtered uniques)
---    Example: unique current season, single primary commissioner, etc.
-```
-
-**Naming conventions (required):**
-
-| Object             | Pattern (example)                     |
-| ------------------ | ------------------------------------- |
-| PK                 | `PK_<Table>`                          |
-| FK                 | `FK_<ChildTable>_<ParentTable>_<Col>` |
-| Unique constraint  | `UQ_<Table>_<Col or Meaning>`         |
-| Check constraint   | `CK_<Table>_<Meaning>`                |
-| Default constraint | `DF_<Table>_<Col>`                    |
-| Index              | `IX_<Table>_<ColOrPurpose>`           |
-| View               | `dbo.vw_<Subject>`                    |
-| Procedure          | `app.sp_<VerbNoun>`                   |
-
----
-
-### 2) `02CreateSPsDB.sql`  *(application API)*
-
-```sql
-/* ============================================================
-   02CreateSPsDB.sql
-   Application Stored Procedures (and optional UDF helpers)
-   Re-runnable with CREATE OR ALTER
-   ============================================================ */
-
-USE YourDB;
+  CREATE ROLE app_executor AUTHORIZATION dbo;
 GO
 
--- (Optional) UDF helpers (place BEFORE any SP that depends on them)
--- CREATE OR ALTER FUNCTION dbo.fn_Something(...) RETURNS ... AS BEGIN ... END
--- GO
+IF OBJECT_ID('auth.UserAccount','U') IS NULL
+CREATE TABLE auth.UserAccount (
+  UserID INT IDENTITY(1,1),
+  Email NVARCHAR(255) NOT NULL,
+  -- ...
+  CONSTRAINT PK_UserAccount PRIMARY KEY(UserID)
+);
+GO
 
--- Grants: ensure app schema exists (created in 01). Grant EXEC per object.
--- CREATE OR ALTER PROCEDURE app.sp_RegisterUser ... AS BEGIN ... END
--- GO
--- GRANT EXECUTE ON OBJECT::app.sp_RegisterUser TO app_executor;
--- GO
-
--- Transaction & error pattern (required):
--- BEGIN TRY BEGIN TRAN ... COMMIT; END TRY
--- BEGIN CATCH IF @@TRANCOUNT > 0 ROLLBACK; THROW; END CATCH
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'UQ_UserAccount_Email')
+  ALTER TABLE auth.UserAccount ADD CONSTRAINT UQ_UserAccount_Email UNIQUE(Email);
+GO
 ```
 
-**What lives here**
-
-* **Auth & Session** SPs (register, login, validate/refresh, logout/all, password reset).
-* **League lifecycle** SPs (create league, set status, edit config).
-* **Read endpoints** that return shaped result sets (e.g., summaries) when they require logic/validation beyond a view.
-
-**Granting**
-Grant right after each object definition:
-
+**Grant schemas:**
 ```sql
-GRANT EXECUTE ON OBJECT::app.sp_MyProc TO app_executor;
+GRANT EXECUTE ON SCHEMA::app TO app_executor;
+GO
 ```
 
 ---
 
-### 3) `03CreateViewsDB.sql`  *(read surfaces)*
+### 2. `02CreateFunctionsDB.sql` — Scalar & Table-Valued Functions
 
+**Contains:**
+- Helper functions used by SPs/Views
+- Use `CREATE OR ALTER`
+
+**Pattern:**
 ```sql
-/* ============================================================
-   03CreateViewsDB.sql
-   Read-only Views for the Front-end
-   Re-runnable with CREATE OR ALTER
-   ============================================================ */
-
-USE YourDB;
+CREATE OR ALTER FUNCTION dbo.fn_HashPassword(@Password NVARCHAR(255))
+RETURNS NVARCHAR(255)
+AS
+BEGIN
+  RETURN CONVERT(NVARCHAR(255), HASHBYTES('SHA2_256', @Password), 2);
+END
 GO
 
--- Examples (minimal, UI-focused projections; no side effects):
--- CREATE OR ALTER VIEW dbo.vw_CurrentSeason AS SELECT ... FROM league.Season WHERE IsCurrent=1;
--- GO
--- GRANT SELECT ON dbo.vw_CurrentSeason TO app_executor;
--- GO
-
--- Keep one GRANT per view; no table grants to app role.
+GRANT EXECUTE ON OBJECT::dbo.fn_HashPassword TO app_executor;
+GO
 ```
-
-**Guidelines**
-
-* Views should be **stable contracts** for the UI and **contain no business logic** that belongs in SPs.
-* Prefer **narrow, purposeful** views (e.g., `vw_UserActiveSessions`, `vw_PositionFormatSlots`, `vw_LeagueSummary`).
 
 ---
 
-### 4) `04PopulationScriptDB.sql`  *(seed & verification)*
+### 3. `03CreateSPsDB.sql` — Application Stored Procedures
 
+**Contains:**
+- All business logic under `app` schema
+- Use `CREATE OR ALTER`
+- Always wrap in `BEGIN TRY/CATCH` + `BEGIN TRAN/COMMIT`
+- Always audit significant actions to `audit.*` tables
+- Grant EXECUTE immediately after each SP
+
+**Required pattern:**
 ```sql
-/* ============================================================
-   04PopulationScriptDB.sql
-   Seed / Reference / Demo Data (idempotent; no DDL)
-   ============================================================ */
+CREATE OR ALTER PROCEDURE app.sp_RegisterUser
+  @Name NVARCHAR(100),
+  @Email NVARCHAR(255),
+  @Password NVARCHAR(255),
+  @SourceIp NVARCHAR(45) = NULL,
+  @UserAgent NVARCHAR(300) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+  BEGIN TRY
+    -- Validation
+    IF @Email IS NULL OR @Email = N''
+      THROW 50001, 'Email is required', 1;
 
-USE YourDB;
+    BEGIN TRAN;
+      -- Business logic
+      INSERT INTO auth.UserAccount(Name, Email, PasswordHash)
+      VALUES(@Name, @Email, dbo.fn_HashPassword(@Password));
+
+      -- Audit
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, ActionCode, SourceIp, UserAgent)
+      VALUES(SCOPE_IDENTITY(), N'USER', N'REGISTER', @SourceIp, @UserAgent);
+    COMMIT;
+
+    SELECT N'User registered successfully' AS Message;
+  END TRY
+  BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK;
+    THROW;
+  END CATCH
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_RegisterUser TO app_executor;
+GO
+```
+
+---
+
+### 4. `04CreateViewsDB.sql` — Read-Only Views
+
+**Contains:**
+- UI-focused projections
+- Use `CREATE OR ALTER`
+- Grant SELECT immediately after each view
+- **Never grant SELECT on tables to app_executor**
+
+**Pattern:**
+```sql
+CREATE OR ALTER VIEW dbo.vw_CurrentSeason
+AS
+SELECT SeasonID, Label, Year, StartDate, EndDate, IsCurrent, CreatedAt
+FROM league.Season
+WHERE IsCurrent = 1;
+GO
+
+GRANT SELECT ON dbo.vw_CurrentSeason TO app_executor;
+GO
+```
+
+---
+
+### 5. `05PopulationScriptDB.sql` — Seed & Demo Data
+
+**Contains:**
+- Reference data (roles, formats, schemas)
+- Demo users/leagues
+- Verification queries at the end
+
+**Rules:**
+- Use `MERGE` or `IF NOT EXISTS`
+- **Never use variables across `GO`** — re-select by stable keys
+- Prefer calling SPs for complex data (enforces validation)
+- No DDL here
+
+**Pattern:**
+```sql
+USE XNFLFantasyDB;
 GO
 SET NOCOUNT ON;
 
--- A) Catalogs & reference (MERGE or IF NOT EXISTS)
--- MERGE ref.LeagueRole AS T USING (...) AS S(...) ON (...) WHEN MATCHED ... WHEN NOT MATCHED ...
-
--- B) Business templates (e.g., scoring schemas & rules)
-
--- C) Seasons (ensure single current via filtered unique index in 01)
-
--- D) Demo users/leagues through SPs (enforces validation)
---   INSERT INTO @tmp EXEC app.sp_RegisterUser ...;
---   EXEC app.sp_CreateLeague ...;
-
--- E) Verification queries (read-only, safe to re-run)
---   SELECT TOP 5 * FROM dbo.vw_LeagueDirectory ORDER BY CreatedAt DESC;
-```
-
-**Population rules**
-
-* **Never** rely on variables across `GO`.
-* Use **stable natural keys** for lookups between batches.
-* Prefer **calling SPs** to respect validations and security.
-
----
-
-## How to Make Changes (by editing the four files)
-
-### A) Add a new **table**
-
-1. **`01CreateTablesDB.sql`**
-
-   * Add guarded `CREATE TABLE` with **explicit** PK/UK/CK and deterministic names.
-   * Add **FKs** and **indexes** (guarded).
-   * Do **not** add SPs/views here.
-
-2. **`02CreateSPsDB.sql`**
-
-   * Add SPs to mutate/read the table as needed; wrap in TRY/CATCH + TRAN; grant EXEC.
-
-3. **`03CreateViewsDB.sql`**
-
-   * If the table should be exposed read-only, add a **view** and `GRANT SELECT` to `app_executor`.
-
-4. **`04PopulationScriptDB.sql`**
-
-   * Seed reference rows via **MERGE/IF NOT EXISTS**; prefer **SPs** for demo data.
-
-### B) Modify a **table** safely
-
-* **Add a column**
-
-  ```sql
-  IF COL_LENGTH('schema.Table','NewCol') IS NULL
-    ALTER TABLE schema.Table ADD NewCol NVARCHAR(100) NULL;
-  ```
-
-  If `NOT NULL` is required, **backfill** in `04` first, then `ALTER` to `NOT NULL`.
-
-* **Two-phase rename**
-
-  1. Add `NewCol` → 2) backfill & switch SPs/views to `NewCol` → 3) drop `OldCol` in a later PR.
-
-* **Change FK behavior**
-  Guarded drop/add:
-
-  ```sql
-  IF EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name=N'FK_Child_Parent_Col')
-    ALTER TABLE child DROP CONSTRAINT FK_Child_Parent_Col;
-  IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name=N'FK_Child_Parent_Col')
-    ALTER TABLE child ADD CONSTRAINT FK_Child_Parent_Col FOREIGN KEY(Col) REFERENCES parent(Col) ON DELETE CASCADE;
-  ```
-
-* Update dependent **SPs/views** accordingly (in **02/03**).
-
-### C) Add/Edit/Delete a **stored procedure**
-
-* Do it in **`02CreateSPsDB.sql`** with `CREATE OR ALTER`.
-* Apply **grant** immediately after:
-
-  ```sql
-  GRANT EXECUTE ON OBJECT::app.sp_Name TO app_executor;
-  ```
-* Deleting:
-
-  ```sql
-  IF OBJECT_ID('app.sp_Old','P') IS NOT NULL DROP PROCEDURE app.sp_Old;
-  ```
-
-### D) Add/Edit/Delete a **view**
-
-* Do it in **`03CreateViewsDB.sql`** with `CREATE OR ALTER`.
-* Grant:
-
-  ```sql
-  GRANT SELECT ON dbo.vw_MyView TO app_executor;
-  ```
-
-### E) Update **seed data**
-
-* Only in **`04PopulationScriptDB.sql`** with idempotent patterns.
-* Keep **verification queries** at the end.
-
----
-
-## `GO` Usage — Safe vs Risky
-
-| Pattern                                                          | Safe? | Notes                                                        |
-| ---------------------------------------------------------------- | :---: | ------------------------------------------------------------ |
-| Re-running `CREATE OR ALTER` objects across multiple `GO` blocks |   ✅   | Server stores latest definition                              |
-| Using variables across `GO`                                      |   ❌   | Variables reset; re-select via stable keys                   |
-| Temp tables across `GO`                                          |   ⚠️  | Don’t rely on connection persistence in deployment tools     |
-| Transactions across `GO`                                         |   ❌   | `GO` ends batch; keep each transaction inside a single batch |
-| `SCOPE_IDENTITY()` across `GO`                                   |   ❌   | Re-select by unique key in next batch                        |
-
----
-
-## Security Model (keep)
-
-* **Role-based access**
-
-  * `app_executor` exists in **01**.
-  * **02** grants `EXECUTE` on **`app`** procedures.
-  * **03** grants `SELECT` on **views** only.
-  * **No table grants** to the app role.
-
-* **Schema separation**
-
-  * Procedures under `app` (easy grant/revoke).
-  * Domain tables under `auth`, `league`, `ref`, `scoring`, `audit`.
-
-* **Auditing**
-
-  * SPs should write to `audit.*` tables for significant actions.
-
-* **Sensitive data**
-
-  * Hash/salt secrets **inside SPs**; never inline secrets in scripts.
-
----
-
-## Dependency Inspection (before breaking changes)
-
-```sql
-SELECT OBJECT_SCHEMA_NAME(referencing_id) AS SchemaName,
-       OBJECT_NAME(referencing_id)       AS ObjectName,
-       o.type_desc
-FROM sys.sql_expression_dependencies d
-JOIN sys.objects o ON o.object_id = d.referencing_id
-WHERE d.referenced_id = OBJECT_ID('schema.ObjectName');
-```
-
----
-
-## PR / Change Checklist
-
-* [ ] Placed changes in the **correct file** (01 DDL, 02 SPs, 03 Views, 04 Data).
-* [ ] **Idempotent** guards present (`IF NOT EXISTS`, `CREATE OR ALTER`).
-* [ ] No reliance on variables across `GO` in **04**.
-* [ ] **Grants** updated (EXEC on SPs in 02; SELECT on views in 03; no table grants to app).
-* [ ] Deterministic **constraint/index names** added for new objects.
-* [ ] Backward-compatible path considered (two-phase rename/backfill as needed).
-* [ ] **Verification queries** present in 04 for new seeds.
-* [ ] **Dependency check** run before drops/renames.
-* [ ] Full smoke test on empty DB in order: **01 → 02 → 03 → 04**.
-
----
-
-## Worked Example (end-to-end pattern)
-
-> **Goal:** Introduce a new read surface for “user teams”.
-
-1. **01**: *(no change — data already lives in `league.Team`)*
-2. **02**: *(no change — read is simple)*
-3. **03**:
-
-```sql
-CREATE OR ALTER VIEW dbo.vw_UserTeams AS
-SELECT
-  t.OwnerUserID  AS UserID,
-  t.TeamID,
-  t.LeagueID,
-  l.Name       AS LeagueName,
-  t.TeamName,
-  t.CreatedAt  AS TeamCreatedAt,
-  l.Status     AS LeagueStatus
-FROM league.Team t
-JOIN league.League l ON l.LeagueID = t.LeagueID;
+-- Reference data
+MERGE auth.SystemRole AS T
+USING (VALUES
+  (N'ADMIN', N'Administrator'),
+  (N'USER', N'Regular User')
+) AS S(RoleCode, Display)
+ON T.RoleCode = S.RoleCode
+WHEN NOT MATCHED THEN INSERT(RoleCode, Display) VALUES(S.RoleCode, S.Display);
 GO
-GRANT SELECT ON dbo.vw_UserTeams TO app_executor;
+
+-- Demo users (through SP)
+DECLARE @tmp TABLE(UserID INT, Message NVARCHAR(200));
+IF NOT EXISTS (SELECT 1 FROM auth.UserAccount WHERE Email=N'admin@demo.com')
+BEGIN
+  INSERT INTO @tmp EXEC app.sp_RegisterUser
+    @Name=N'Admin', @Email=N'admin@demo.com', @Password=N'Pass123';
+END
+GO
+
+-- Verification
+SELECT COUNT(*) AS TotalUsers FROM auth.UserAccount;
 GO
 ```
 
-4. **04**: *(optional)* add a verification query:
+---
 
+## Naming Conventions (Mandatory)
+
+| Object    | Pattern                           | Example                        |
+|-----------|-----------------------------------|--------------------------------|
+| PK        | `PK_TableName`                    | `PK_UserAccount`               |
+| FK        | `FK_Child_Parent`                 | `FK_Session_UserAccount`       |
+| UQ        | `UQ_TableName_Column`             | `UQ_UserAccount_Email`         |
+| CK        | `CK_TableName_Meaning`            | `CK_UserAccount_StatusValid`   |
+| IX        | `IX_TableName_Column`             | `IX_Session_ExpiresAt`         |
+| View      | `dbo.vw_SubjectName`              | `dbo.vw_UserTeams`             |
+| SP        | `app.sp_VerbNoun`                 | `app.sp_CreateLeague`          |
+| Function  | `dbo.fn_FunctionName`             | `dbo.fn_HashPassword`          |
+
+---
+
+## Making Changes
+
+### Add a table
+1. **01**: Add guarded `CREATE TABLE` + constraints + indexes
+2. **03**: Add SPs to interact with it
+3. **04**: Add view if needed for read-only access
+4. **05**: Seed reference data if applicable
+
+### Add/modify a column
 ```sql
-SELECT TOP 5 * FROM dbo.vw_UserTeams ORDER BY TeamCreatedAt DESC;
+-- Add nullable first
+IF COL_LENGTH('auth.UserAccount','NewCol') IS NULL
+  ALTER TABLE auth.UserAccount ADD NewCol NVARCHAR(100) NULL;
+GO
+
+-- Backfill in 05, then make NOT NULL in next PR
+```
+
+### Add/modify SP/Function/View
+- Edit in **02/03/04** with `CREATE OR ALTER`
+- Grant immediately after
+
+### Delete SP/Function/View
+```sql
+IF OBJECT_ID('app.sp_OldProc','P') IS NOT NULL
+  DROP PROCEDURE app.sp_OldProc;
+GO
 ```
 
 ---
 
-## Final Notes
+## Security Model
 
-* These **four files are the only sources of truth** for DB creation/evolution.
-* Keep objects **guarded, named, and re-runnable**.
-* Maintain **strict boundaries**: 01 (DDL) → 02 (SPs) → 03 (Views) → 04 (Data).
-* Favor SPs for business rules & auditing; Views for clean UI shapes; Seeds for predictable demos/tests.
+- **`app_executor`** has:
+  - `EXECUTE` on `app` schema (granted in 01)
+  - `EXECUTE` on individual functions (granted in 02)
+  - `SELECT` on views only (granted in 04)
+  - **NO access to tables**
 
-Following this structure lets us evolve the database safely, keep the API contract predictable, and make deployments repeatable across environments.
+- All SPs audit to `audit.*` tables
+- Passwords hashed via functions, never stored plain
+
+---
+
+## `GO` Rules
+
+| Pattern                          | Safe? | Notes                                    |
+|----------------------------------|:-----:|------------------------------------------|
+| `CREATE OR ALTER` across `GO`    | ✅     | Server stores latest definition          |
+| Variables across `GO`            | ❌     | Variables reset — re-select by key       |
+| Transactions across `GO`         | ❌     | Keep each transaction in single batch    |
+| `SCOPE_IDENTITY()` across `GO`   | ❌     | Re-select by unique key in next batch    |
+
+---
+
+## PR Checklist
+
+- [ ] Changes in correct file (01=DDL, 02=Functions, 03=SPs, 04=Views, 05=Data)
+- [ ] Idempotent guards (`IF NOT EXISTS`, `CREATE OR ALTER`)
+- [ ] Named constraints/indexes explicitly
+- [ ] Grants added immediately after objects
+- [ ] No variables across `GO` in 05
+- [ ] SPs have `TRY/CATCH` + transactions + auditing
+- [ ] Smoke test: run all 5 files in order on empty DB
+
+---
+
+**That's it.** Follow the 5-file structure, use guards, grant immediately, never cross `GO` with variables.
