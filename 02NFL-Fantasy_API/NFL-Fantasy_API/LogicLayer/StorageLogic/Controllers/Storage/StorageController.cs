@@ -2,8 +2,8 @@
 using Microsoft.AspNetCore.Mvc;
 using NFL_Fantasy_API.Models.DTOs.Images;
 using NFL_Fantasy_API.Models.DTOs;
-using NFL_Fantasy_API.Helpers.Extensions;
 using NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Interfaces.Storage;
+using NFL_Fantasy_API.SharedSystems.Security.Extensions;
 
 namespace NFL_Fantasy_API.LogicLayer.StorageLogic.Controllers.Storage
 {

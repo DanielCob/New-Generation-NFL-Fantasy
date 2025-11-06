@@ -1,5 +1,4 @@
-﻿// SharedSystems/Validators/PaginationValidator.cs
-namespace NFL_Fantasy_API.SharedSystems.Validators
+﻿namespace NFL_Fantasy_API.SharedSystems.Validators
 {
     /// <summary>
     /// Validador centralizado de parámetros de paginación.
