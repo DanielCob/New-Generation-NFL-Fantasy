@@ -1,5 +1,3 @@
-<!-- create.component.html - ACTUALIZAR EL CAMPO InitialTeamName -->
-
 <mat-card class="wrap">
   <h1 class="title">
     <mat-icon>add_circle</mat-icon>
@@ -23,16 +21,30 @@
       </mat-form-field>
 
       <div class="row">
-        <mat-form-field appearance="outline">
+        <!-- Team Slots Dropdown -->
+        <mat-form-field appearance="outline" class="flex-1">
           <mat-label>Team slots *</mat-label>
-          <input matInput type="number" min="2" max="20" formControlName="TeamSlots">
-          <mat-error *ngIf="form.controls.TeamSlots.invalid">2–20</mat-error>
+          <mat-select formControlName="TeamSlots">
+            <mat-option *ngFor="let option of teamSlotsOptions" [value]="option.value">
+              {{ option.label }} - {{ option.description }}
+            </mat-option>
+          </mat-select>
+          <mat-error *ngIf="form.controls.TeamSlots.invalid">Required</mat-error>
         </mat-form-field>
 
-        <mat-form-field appearance="outline">
+        <!-- Playoff Teams Dropdown (dinámico) -->
+        <!-- ✅ CORRECCIÓN: Usar availablePlayoffTeams() con paréntesis -->
+        <mat-form-field appearance="outline" class="flex-1">
           <mat-label>Playoff teams *</mat-label>
-          <input matInput type="number" min="2" [max]="teamSlots" formControlName="PlayoffTeams">
-          <mat-error *ngIf="form.controls.PlayoffTeams.invalid">≥2 y ≤ team slots</mat-error>
+          <mat-select formControlName="PlayoffTeams">
+            <mat-option *ngFor="let option of availablePlayoffTeams()" [value]="option.value">
+              {{ option.label }} - {{ option.description }}
+            </mat-option>
+          </mat-select>
+          <mat-error *ngIf="form.controls.PlayoffTeams.invalid">Required</mat-error>
+          <mat-hint *ngIf="availablePlayoffTeams().length > 0">
+            {{ availablePlayoffTeams().length }} option(s) available
+          </mat-hint>
         </mat-form-field>
       </div>
 
@@ -57,11 +69,12 @@
         </mat-select>
       </mat-form-field>
 
+      <!-- ✅ Your Team Name OBLIGATORIO -->
       <mat-form-field appearance="outline" class="w100">
-        <mat-label>Your Team Name (optional)</mat-label>
-        <input matInput formControlName="InitialTeamName" maxlength="40" placeholder="Leave empty to set later">
+        <mat-label>Your Team Name *</mat-label>
+        <input matInput formControlName="InitialTeamName" maxlength="40" placeholder="Enter your team name">
         <mat-hint align="end">{{ form.value.InitialTeamName?.length || 0 }}/40</mat-hint>
-        <mat-hint>You can join with a team later if you leave this empty</mat-hint>
+        <mat-error *ngIf="form.controls.InitialTeamName.hasError('required')">Team name is required</mat-error>
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="w100">
@@ -71,7 +84,10 @@
           <mat-icon>{{ hidePwd ? 'visibility' : 'visibility_off' }}</mat-icon>
         </button>
         <mat-error *ngIf="form.controls.LeaguePassword.hasError('required')">Required</mat-error>
-        <mat-error *ngIf="form.controls.LeaguePassword.hasError('minlength')">Min 4 chars</mat-error>
+        <mat-error *ngIf="form.controls.LeaguePassword.hasError('minlength')">Min 8 characters</mat-error>
+        <mat-error *ngIf="form.controls.LeaguePassword.hasError('pattern')">
+          Must include uppercase, lowercase and number
+        </mat-error>
       </mat-form-field>
     </div>
 

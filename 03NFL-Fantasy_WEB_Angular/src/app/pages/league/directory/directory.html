@@ -2,32 +2,44 @@
   <h3><mat-icon>public</mat-icon> League Directory</h3>
 
   <mat-form-field *ngIf="showFilter" appearance="outline" class="filter">
-    <mat-label>Filter</mat-label>
-    <input matInput placeholder="Search by name, id, season…" (input)="filter.set($any($event.target).value)">
+    <mat-label>Buscar ligas</mat-label>
+    <input matInput 
+           placeholder="Ingresa al menos 3 caracteres (nombre, ID público...)" 
+           (input)="filter.set($any($event.target).value)"
+           [disabled]="loading()">
     <button mat-icon-button matSuffix aria-label="Clear" *ngIf="filter()" (click)="filter.set('')">
       <mat-icon>close</mat-icon>
     </button>
   </mat-form-field>
 
-  <button mat-stroked-button (click)="load()">
-    <mat-icon>refresh</mat-icon> Refresh
+  <button mat-stroked-button (click)="load()" [disabled]="loading() || filter().trim().length < 3">
+    <mat-icon>search</mat-icon> Buscar
   </button>
+</div>
+
+<!-- ✅ Mensaje inicial -->
+<div class="state muted" *ngIf="!hasSearched() && !loading() && !error()">
+  <mat-icon>search</mat-icon> 
+  <div>
+    <p>Ingresa al menos 3 caracteres y presiona "Buscar" para encontrar ligas.</p>
+    <p><small>Puedes buscar por nombre de liga, descripción o ID público.</small></p>
+  </div>
 </div>
 
 <div class="state" *ngIf="loading()">
   <mat-progress-spinner mode="indeterminate" diameter="32"></mat-progress-spinner>
-  <span>Loading…</span>
+  <span>Buscando ligas…</span>
 </div>
 
 <div class="state error" *ngIf="!loading() && error()">
   <mat-icon>error</mat-icon> {{ error() }}
 </div>
 
-<table mat-table [dataSource]="filteredRows()" class="mat-elevation-z1" *ngIf="!loading() && !error()">
+<table mat-table [dataSource]="filteredRows()" class="mat-elevation-z1" *ngIf="!loading() && !error() && filteredRows().length > 0">
 
-  <ng-container matColumnDef="LeagueID">
-    <th mat-header-cell *matHeaderCellDef>ID</th>
-    <td mat-cell *matCellDef="let r">{{ r.LeagueID }}</td>
+  <ng-container matColumnDef="LeaguePublicID">
+    <th mat-header-cell *matHeaderCellDef>Public ID</th>
+    <td mat-cell *matCellDef="let r">{{ r.LeaguePublicID }}</td>
   </ng-container>
 
   <ng-container matColumnDef="Name">
@@ -70,6 +82,6 @@
   <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
 </table>
 
-<div class="muted" *ngIf="!loading() && !error() && !filteredRows().length">
-  <mat-icon>inbox</mat-icon> No leagues found.
+<div class="muted" *ngIf="hasSearched() && !loading() && !error() && filteredRows().length === 0">
+  <mat-icon>inbox</mat-icon> No se encontraron ligas con ese criterio de búsqueda.
 </div>
