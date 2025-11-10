@@ -1,0 +1,4 @@
+.wrapper { padding: 16px; }
+.error-block { background: #fdecea; border: 1px solid #f5c2c0; color: #8a1c16; padding: 8px 12px; border-radius: 4px; }
+h1 { display:flex; align-items:center; gap:8px; }
+mat-card-title { display:flex; align-items:center; gap:8px; }

@@ -26,5 +26,16 @@
       </div>
       <button mat-raised-button color="primary">Open</button>
     </mat-card>
+
+    <mat-card class="action-card batch" (click)="goTo('batch')">
+      <div class="card-content">
+        <mat-icon class="icon">upload_file</mat-icon>
+        <div class="text">
+          <h2>Batch Upload</h2>
+          <p>Carga masiva desde CSV/JSON con validaciones y reporte.</p>
+        </div>
+      </div>
+      <button mat-raised-button color="primary">Batch</button>
+    </mat-card>
   </div>
 </div>

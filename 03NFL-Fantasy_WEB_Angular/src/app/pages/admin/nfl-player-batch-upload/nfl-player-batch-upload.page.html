@@ -1,0 +1,93 @@
+<div class="wrapper">
+  <h1><mat-icon>upload_file</mat-icon>&nbsp;Batch upload NFL Players</h1>
+
+  <!-- Players Source -->
+  <mat-card>
+    <mat-card-header>
+      <mat-card-title><mat-icon>description</mat-icon><span>Fuente de datos</span></mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <input type="file" accept=".csv,.json" (change)="onFileSelected($event)" />
+      <div *ngIf="fileName()" style="margin-top:8px">Archivo: <strong>{{ fileName() }}</strong></div>
+      <div style="margin-top:8px">
+        <button mat-raised-button color="primary" (click)="validateAll()" [disabled]="!parsed().length">Revalidar</button>
+        <button mat-raised-button color="accent" (click)="uploadAll()" [disabled]="!canUpload()">Cargar lote</button>
+        <button mat-stroked-button color="primary" (click)="downloadProcessedJson()" [disabled]="!report()">Descargar reporte</button>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Players Validation -->
+  <mat-card style="margin-top:16px" *ngIf="parsed().length">
+    <mat-card-header>
+      <mat-card-title><mat-icon>rule</mat-icon><span>Validación</span></mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <div *ngIf="errors().length" class="error-block">
+        <h3>Errores ({{ errors().length }})</h3>
+        <ul><li *ngFor="let e of errors()">{{ e }}</li></ul>
+      </div>
+      <div *ngIf="existingConflicts().length" class="error-block">
+        <h3>Conflictos existentes ({{ existingConflicts().length }})</h3>
+        <ul><li *ngFor="let c of existingConflicts()">{{ c }}</li></ul>
+      </div>
+      <div *ngIf="!errors().length && !existingConflicts().length">
+        <h3>Jugadores listos ({{ valid().length }})</h3>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Players Preview -->
+  <mat-card style="margin-top:16px" *ngIf="valid().length">
+    <mat-card-header>
+      <mat-card-title><mat-icon>preview</mat-icon><span>Previsualización</span></mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <table mat-table [dataSource]="valid()" class="mat-elevation-z2" style="width:100%">
+        <ng-container matColumnDef="row">
+          <th mat-header-cell *matHeaderCellDef>#</th>
+          <td mat-cell *matCellDef="let v">{{ v.row }}</td>
+        </ng-container>
+        <ng-container matColumnDef="name">
+          <th mat-header-cell *matHeaderCellDef>Nombre</th>
+          <td mat-cell *matCellDef="let v">{{ v.firstName }} {{ v.lastName }}</td>
+        </ng-container>
+        <ng-container matColumnDef="pos">
+          <th mat-header-cell *matHeaderCellDef>Posición</th>
+          <td mat-cell *matCellDef="let v">{{ v.position }}</td>
+        </ng-container>
+        <ng-container matColumnDef="team">
+          <th mat-header-cell *matHeaderCellDef>Equipo</th>
+          <td mat-cell *matCellDef="let v">{{ v.nflTeamID }}</td>
+        </ng-container>
+        <ng-container matColumnDef="image">
+          <th mat-header-cell *matHeaderCellDef>Imagen</th>
+          <td mat-cell *matCellDef="let v"><img *ngIf="v.image" [src]="v.image" style="height:32px" /><span *ngIf="!v.image" style="color:#888">(sin)</span></td>
+        </ng-container>
+        <ng-container matColumnDef="thumb">
+          <th mat-header-cell *matHeaderCellDef>Thumbnail</th>
+          <td mat-cell *matCellDef="let v"><img *ngIf="v.thumbnail" [src]="v.thumbnail" style="height:32px" /><span *ngIf="!v.thumbnail" style="color:#888">(n/a)</span></td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="['row','name','pos','team','image','thumb']"></tr>
+        <tr mat-row *matRowDef="let row; columns: ['row','name','pos','team','image','thumb']"></tr>
+      </table>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Report -->
+  <mat-card style="margin-top:16px" *ngIf="report()">
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon>assessment</mat-icon>
+        <span>Reporte</span>
+      </mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <p>Creado: {{ report()!.created }} · Fallido: {{ report()!.failed }}</p>
+      <div *ngIf="report()!.errors.length">
+        <h3>Errores</h3>
+        <ul><li *ngFor="let e of report()!.errors">{{ e }}</li></ul>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>
