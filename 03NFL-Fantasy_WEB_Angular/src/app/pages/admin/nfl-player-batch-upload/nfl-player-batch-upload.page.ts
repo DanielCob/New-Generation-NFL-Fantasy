@@ -71,6 +71,11 @@ export class NFLPlayerBatchUploadPage {
     this.refreshTeams();
   }
 
+  getTeamName(teamId: number): string {
+    const team = this.teams().find(t => t.NFLTeamID === teamId);
+    return team?.TeamName || `ID ${teamId}`;
+  }
+
   refreshTeams(): void {
     this.teamsSvc.getActive().subscribe({
       next: (resp: any) => {
@@ -228,7 +233,8 @@ export class NFLPlayerBatchUploadPage {
       const dupKey = `${name.toLowerCase()}|${teamId ?? 'X'}`;
       if (localDupSet.has(dupKey)) {
         if (!localDupSeen.has(dupKey)) {
-          errors.push(`[Duplicado en archivo] ${name} - Equipo ${teamId}`);
+          const teamName = this.teams().find(t => t.NFLTeamID === teamId)?.TeamName || `ID ${teamId}`;
+          errors.push(`[Duplicado en archivo] ${name} - ${teamName}`);
           localDupSeen.add(dupKey);
         }
       } else {
@@ -278,7 +284,10 @@ export class NFLPlayerBatchUploadPage {
           const data = resp?.data ?? resp?.Data;
           const players: any[] = data?.Players ?? [];
           const exists = players.some(p => (p.FullName || (`${p.FirstName} ${p.LastName}`)).toLowerCase() === (v.firstName + ' ' + v.lastName).toLowerCase() && Number(p.NFLTeamID) === v.nflTeamID);
-          if (exists) conflicts.push(`[Ya existe] ${v.firstName} ${v.lastName} en equipo ${v.nflTeamID}`);
+          if (exists) {
+            const teamName = this.teams().find(t => t.NFLTeamID === v.nflTeamID)?.TeamName || `ID ${v.nflTeamID}`;
+            conflicts.push(`[Ya existe] ${v.firstName} ${v.lastName} en ${teamName}`);
+          }
         }
       } catch {
         // ignore individual check errors to avoid blocking

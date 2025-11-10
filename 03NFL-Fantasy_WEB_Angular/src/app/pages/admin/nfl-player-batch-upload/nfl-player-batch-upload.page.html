@@ -1,92 +1,202 @@
 <div class="wrapper">
-  <h1><mat-icon>upload_file</mat-icon>&nbsp;Batch upload NFL Players</h1>
+  <div class="header">
+    <mat-icon class="header-icon">cloud_upload</mat-icon>
+    <div class="header-text">
+      <h1>Carga Masiva de Jugadores NFL</h1>
+      <p class="subtitle">Importa múltiples jugadores desde un archivo CSV o JSON</p>
+    </div>
+  </div>
 
   <!-- Players Source -->
-  <mat-card>
+  <mat-card class="upload-card">
     <mat-card-header>
-      <mat-card-title><mat-icon>description</mat-icon><span>Fuente de datos</span></mat-card-title>
+      <mat-icon class="card-icon">description</mat-icon>
+      <mat-card-title>Selecciona tu archivo</mat-card-title>
+      <mat-card-subtitle>Formatos soportados: CSV, JSON</mat-card-subtitle>
     </mat-card-header>
     <mat-card-content>
-      <input type="file" accept=".csv,.json" (change)="onFileSelected($event)" />
-      <div *ngIf="fileName()" style="margin-top:8px">Archivo: <strong>{{ fileName() }}</strong></div>
-      <div style="margin-top:8px">
-        <button mat-raised-button color="primary" (click)="validateAll()" [disabled]="!parsed().length">Revalidar</button>
-        <button mat-raised-button color="accent" (click)="uploadAll()" [disabled]="!canUpload()">Cargar lote</button>
-        <button mat-stroked-button color="primary" (click)="downloadProcessedJson()" [disabled]="!report()">Descargar reporte</button>
+      <div class="file-input-wrapper">
+        <input 
+          type="file" 
+          accept=".csv,.json" 
+          (change)="onFileSelected($event)" 
+          id="fileInput"
+          class="file-input" />
+        <label for="fileInput" class="file-input-label">
+          <mat-icon>attach_file</mat-icon>
+          <span>{{ fileName() || 'Elegir archivo...' }}</span>
+        </label>
+      </div>
+      
+      <div class="actions" *ngIf="fileName()">
+        <button 
+          mat-raised-button 
+          color="primary" 
+          (click)="validateAll()" 
+          [disabled]="!parsed().length || checking()">
+          <mat-icon>checklist</mat-icon>
+          <span>{{ checking() ? 'Validando...' : 'Revalidar' }}</span>
+        </button>
+        <button 
+          mat-raised-button 
+          color="accent" 
+          (click)="uploadAll()" 
+          [disabled]="!canUpload()">
+          <mat-icon>upload</mat-icon>
+          <span>{{ uploading() ? 'Cargando...' : 'Cargar lote' }}</span>
+        </button>
+        <button 
+          mat-stroked-button 
+          color="primary" 
+          (click)="downloadProcessedJson()" 
+          [disabled]="!report()">
+          <mat-icon>download</mat-icon>
+          <span>Descargar reporte</span>
+        </button>
       </div>
     </mat-card-content>
   </mat-card>
 
   <!-- Players Validation -->
-  <mat-card style="margin-top:16px" *ngIf="parsed().length">
+  <mat-card class="validation-card" *ngIf="parsed().length">
     <mat-card-header>
-      <mat-card-title><mat-icon>rule</mat-icon><span>Validación</span></mat-card-title>
+      <mat-icon class="card-icon">{{ errors().length || existingConflicts().length ? 'error' : 'check_circle' }}</mat-icon>
+      <mat-card-title>Estado de Validación</mat-card-title>
+      <mat-card-subtitle>{{ parsed().length }} registro(s) procesado(s)</mat-card-subtitle>
     </mat-card-header>
     <mat-card-content>
       <div *ngIf="errors().length" class="error-block">
-        <h3>Errores ({{ errors().length }})</h3>
-        <ul><li *ngFor="let e of errors()">{{ e }}</li></ul>
+        <div class="error-header">
+          <mat-icon>error_outline</mat-icon>
+          <h3>Errores de validación ({{ errors().length }})</h3>
+        </div>
+        <ul class="error-list">
+          <li *ngFor="let e of errors()">{{ e }}</li>
+        </ul>
       </div>
-      <div *ngIf="existingConflicts().length" class="error-block">
-        <h3>Conflictos existentes ({{ existingConflicts().length }})</h3>
-        <ul><li *ngFor="let c of existingConflicts()">{{ c }}</li></ul>
+      
+      <div *ngIf="existingConflicts().length" class="warning-block">
+        <div class="warning-header">
+          <mat-icon>warning</mat-icon>
+          <h3>Conflictos con datos existentes ({{ existingConflicts().length }})</h3>
+        </div>
+        <ul class="warning-list">
+          <li *ngFor="let c of existingConflicts()">{{ c }}</li>
+        </ul>
       </div>
-      <div *ngIf="!errors().length && !existingConflicts().length">
-        <h3>Jugadores listos ({{ valid().length }})</h3>
+      
+      <div *ngIf="!errors().length && !existingConflicts().length" class="success-block">
+        <mat-icon>check_circle</mat-icon>
+        <h3>¡Todo listo! {{ valid().length }} jugador(es) válido(s)</h3>
+        <p>Los datos han sido validados correctamente y están listos para ser cargados.</p>
       </div>
     </mat-card-content>
   </mat-card>
 
   <!-- Players Preview -->
-  <mat-card style="margin-top:16px" *ngIf="valid().length">
+  <mat-card class="preview-card" *ngIf="valid().length">
     <mat-card-header>
-      <mat-card-title><mat-icon>preview</mat-icon><span>Previsualización</span></mat-card-title>
+      <mat-icon class="card-icon">visibility</mat-icon>
+      <mat-card-title>Previsualización de datos</mat-card-title>
+      <mat-card-subtitle>{{ valid().length }} jugador(es) listo(s) para cargar</mat-card-subtitle>
     </mat-card-header>
     <mat-card-content>
-      <table mat-table [dataSource]="valid()" class="mat-elevation-z2" style="width:100%">
-        <ng-container matColumnDef="row">
-          <th mat-header-cell *matHeaderCellDef>#</th>
-          <td mat-cell *matCellDef="let v">{{ v.row }}</td>
-        </ng-container>
-        <ng-container matColumnDef="name">
-          <th mat-header-cell *matHeaderCellDef>Nombre</th>
-          <td mat-cell *matCellDef="let v">{{ v.firstName }} {{ v.lastName }}</td>
-        </ng-container>
-        <ng-container matColumnDef="pos">
-          <th mat-header-cell *matHeaderCellDef>Posición</th>
-          <td mat-cell *matCellDef="let v">{{ v.position }}</td>
-        </ng-container>
-        <ng-container matColumnDef="team">
-          <th mat-header-cell *matHeaderCellDef>Equipo</th>
-          <td mat-cell *matCellDef="let v">{{ v.nflTeamID }}</td>
-        </ng-container>
-        <ng-container matColumnDef="image">
-          <th mat-header-cell *matHeaderCellDef>Imagen</th>
-          <td mat-cell *matCellDef="let v"><img *ngIf="v.image" [src]="v.image" style="height:32px" /><span *ngIf="!v.image" style="color:#888">(sin)</span></td>
-        </ng-container>
-        <ng-container matColumnDef="thumb">
-          <th mat-header-cell *matHeaderCellDef>Thumbnail</th>
-          <td mat-cell *matCellDef="let v"><img *ngIf="v.thumbnail" [src]="v.thumbnail" style="height:32px" /><span *ngIf="!v.thumbnail" style="color:#888">(n/a)</span></td>
-        </ng-container>
-        <tr mat-header-row *matHeaderRowDef="['row','name','pos','team','image','thumb']"></tr>
-        <tr mat-row *matRowDef="let row; columns: ['row','name','pos','team','image','thumb']"></tr>
-      </table>
+      <div class="table-container">
+        <table mat-table [dataSource]="valid()" class="player-table">
+          <ng-container matColumnDef="row">
+            <th mat-header-cell *matHeaderCellDef>#</th>
+            <td mat-cell *matCellDef="let v">{{ v.row }}</td>
+          </ng-container>
+          
+          <ng-container matColumnDef="image">
+            <th mat-header-cell *matHeaderCellDef>Foto</th>
+            <td mat-cell *matCellDef="let v">
+              <div class="image-cell">
+                <img *ngIf="v.image" [src]="v.image" class="player-image" />
+                <div *ngIf="!v.image" class="no-image">
+                  <mat-icon>person</mat-icon>
+                </div>
+              </div>
+            </td>
+          </ng-container>
+          
+          <ng-container matColumnDef="name">
+            <th mat-header-cell *matHeaderCellDef>Nombre completo</th>
+            <td mat-cell *matCellDef="let v">
+              <div class="name-cell">
+                <strong>{{ v.firstName }} {{ v.lastName }}</strong>
+              </div>
+            </td>
+          </ng-container>
+          
+          <ng-container matColumnDef="pos">
+            <th mat-header-cell *matHeaderCellDef>Posición</th>
+            <td mat-cell *matCellDef="let v">
+              <span class="position-badge position-{{ v.position }}">{{ v.position }}</span>
+            </td>
+          </ng-container>
+          
+          <ng-container matColumnDef="team">
+            <th mat-header-cell *matHeaderCellDef>Equipo NFL</th>
+            <td mat-cell *matCellDef="let v">
+              <div class="team-cell">
+                <mat-icon>sports_football</mat-icon>
+                <span>{{ getTeamName(v.nflTeamID) }}</span>
+              </div>
+            </td>
+          </ng-container>
+          
+          <ng-container matColumnDef="thumb">
+            <th mat-header-cell *matHeaderCellDef>Miniatura</th>
+            <td mat-cell *matCellDef="let v">
+              <div class="image-cell">
+                <img *ngIf="v.thumbnail" [src]="v.thumbnail" class="thumbnail-image" />
+                <span *ngIf="!v.thumbnail" class="no-thumbnail">N/A</span>
+              </div>
+            </td>
+          </ng-container>
+          
+          <tr mat-header-row *matHeaderRowDef="['row','image','name','pos','team','thumb']"></tr>
+          <tr mat-row *matRowDef="let row; columns: ['row','image','name','pos','team','thumb']"></tr>
+        </table>
+      </div>
     </mat-card-content>
   </mat-card>
 
   <!-- Report -->
-  <mat-card style="margin-top:16px" *ngIf="report()">
+  <mat-card class="report-card" *ngIf="report()">
     <mat-card-header>
-      <mat-card-title>
-        <mat-icon>assessment</mat-icon>
-        <span>Reporte</span>
-      </mat-card-title>
+      <mat-icon class="card-icon">{{ report()!.failed === 0 ? 'task_alt' : 'assignment_late' }}</mat-icon>
+      <mat-card-title>Reporte de Carga</mat-card-title>
+      <mat-card-subtitle>Proceso completado</mat-card-subtitle>
     </mat-card-header>
     <mat-card-content>
-      <p>Creado: {{ report()!.created }} · Fallido: {{ report()!.failed }}</p>
-      <div *ngIf="report()!.errors.length">
-        <h3>Errores</h3>
-        <ul><li *ngFor="let e of report()!.errors">{{ e }}</li></ul>
+      <div class="report-summary">
+        <div class="stat-card success">
+          <mat-icon>check_circle</mat-icon>
+          <div class="stat-content">
+            <span class="stat-number">{{ report()!.created }}</span>
+            <span class="stat-label">Jugadores creados</span>
+          </div>
+        </div>
+        
+        <div class="stat-card error" *ngIf="report()!.failed > 0">
+          <mat-icon>cancel</mat-icon>
+          <div class="stat-content">
+            <span class="stat-number">{{ report()!.failed }}</span>
+            <span class="stat-label">Fallos</span>
+          </div>
+        </div>
+      </div>
+      
+      <div *ngIf="report()!.errors.length" class="report-errors">
+        <h3>
+          <mat-icon>error_outline</mat-icon>
+          Detalle de errores
+        </h3>
+        <ul class="error-list">
+          <li *ngFor="let e of report()!.errors">{{ e }}</li>
+        </ul>
       </div>
     </mat-card-content>
   </mat-card>
