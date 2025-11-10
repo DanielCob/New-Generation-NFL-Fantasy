@@ -1,0 +1,30 @@
+<div class="wrapper">
+  <h1 class="title">
+    <mat-icon>sports_football</mat-icon>
+    Manage NFL Players
+  </h1>
+
+  <div class="cards">
+    <mat-card class="action-card create" (click)="goTo('create')">
+      <div class="card-content">
+        <mat-icon class="icon">person_add</mat-icon>
+        <div class="text">
+          <h2>Create NFL Player</h2>
+          <p>Registro manual de jugadores.</p>
+        </div>
+      </div>
+      <button mat-raised-button color="primary">Create</button>
+    </mat-card>
+
+    <mat-card class="action-card list" (click)="goTo('list')">
+      <div class="card-content">
+        <mat-icon class="icon">view_list</mat-icon>
+        <div class="text">
+          <h2>Players List</h2>
+          <p>Búsqueda, filtros, paginación y acciones.</p>
+        </div>
+      </div>
+      <button mat-raised-button color="primary">Open</button>
+    </mat-card>
+  </div>
+</div>

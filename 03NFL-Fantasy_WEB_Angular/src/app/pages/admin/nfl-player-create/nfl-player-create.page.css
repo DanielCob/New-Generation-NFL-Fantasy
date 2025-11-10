@@ -1,0 +1,7 @@
+.card { max-width: 980px; margin: 20px auto; padding: 22px; border-radius: 18px; }
+.header { display:flex; align-items:center; gap:10px; margin: 0 0 14px; }
+.form .grid { display:grid; gap:16px; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); }
+.placeholder { display:flex; align-items:center; gap:12px; margin-top: 16px; padding:12px 14px; border-radius:12px; background:#f6f6f8; }
+.ph-title { font-weight: 600; }
+.ph-sub { color:#666; font-size: 13px; }
+.actions { display:flex; align-items:center; gap:12px; margin-top: 14px; }
