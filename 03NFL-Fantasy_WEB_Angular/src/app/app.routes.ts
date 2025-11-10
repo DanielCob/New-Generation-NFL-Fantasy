@@ -204,6 +204,13 @@ export const routes: Routes = [
             .then(m => m.NFLPlayerCreatePage)
       },
       {
+        path: 'admin/nfl-player-batch-upload',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('./pages/admin/nfl-player-batch-upload/nfl-player-batch-upload.page')
+            .then(m => m.NFLPlayerBatchUploadPage)
+      },
+      {
         path: 'admin/nfl-player-edit/:id',
         canActivate: [adminGuard],
         loadComponent: () =>

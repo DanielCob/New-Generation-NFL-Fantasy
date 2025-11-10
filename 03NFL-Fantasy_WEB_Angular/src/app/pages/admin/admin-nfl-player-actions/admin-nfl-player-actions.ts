@@ -21,7 +21,7 @@ export class NFLPlayerActionsPage {
    * Redirige según la acción seleccionada
    * @param action 'create' | 'list' | 'edit'
    */
-  goTo(action: 'create' | 'list' | 'edit'): void {
+  goTo(action: 'create' | 'list' | 'edit' | 'batch'): void {
   let route = '';
   let queryParams: any = null;
 
@@ -32,6 +32,9 @@ export class NFLPlayerActionsPage {
 
     case 'list':
       route = '/admin/nfl-player-list';
+      break;
+    case 'batch':
+      route = '/admin/nfl-player-batch-upload';
       break;
   }
 
