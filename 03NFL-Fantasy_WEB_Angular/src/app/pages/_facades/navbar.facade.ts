@@ -1,9 +1,9 @@
-// pages/_facades/navbar.facade.ts
-import { Injectable, effect, signal, computed, inject } from '@angular/core';
+// src/app/pages/_facades/navbar.facade.ts
+import { Injectable, effect, signal, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { AuthService, AuthSession } from '../../core/services/auth-service';
 import { UserService } from '../../core/services/user-service';
-import { RoleService } from '../../core/services/authz/role.service';
-import { environment } from '../../../environments/environment';
+import { AuthzService } from '../../core/services/authz/authz.service';
 
 export type LeagueRow = { LeagueID: number; LeagueName: string; Status: number };
 
@@ -11,42 +11,35 @@ export type LeagueRow = { LeagueID: number; LeagueName: string; Status: number }
 export class NavbarFacade {
   private auth  = inject(AuthService);
   private users = inject(UserService);
-  private roles = inject(RoleService);
+  private authz = inject(AuthzService);
 
   readonly session        = signal<AuthSession | null>(this.auth.session);
   readonly leagues        = signal<LeagueRow[]>([]);
   readonly leaguesLoading = signal(false);
   readonly leaguesError   = signal<string | null>(null);
 
-  private _isAdmin = signal(false);
-  readonly isAdmin = computed(() => this._isAdmin() || environment.enableAdmin === true);
+  // Fuente única de verdad: admin viene del AuthzService (cacheado/compartido)
+  readonly isAdmin = toSignal(this.authz.isAdmin$, { initialValue: false });
 
   constructor() {
+    // Mantener sesión reactiva
     this.auth.session$.subscribe(s => this.session.set(s));
 
+    // Reaccionar al login/logout y cargar datos necesarios
     effect(() => {
       const s = this.session();
       if (s?.SessionID) {
-        this.refreshAdminFlag();
+        // Garantiza que el AuthzService tenga header fresco si hace falta
+        this.authz.refresh();
+
         if (!this.leaguesLoading() && this.leagues().length === 0 && !this.leaguesError()) {
           this.loadMyLeagues();
         }
       } else {
-        this._isAdmin.set(false);
         this.leagues.set([]);
         this.leaguesError.set(null);
         this.leaguesLoading.set(false);
       }
-    });
-  }
-
-  refreshAdminFlag(): void {
-    this.users.getHeader().subscribe({
-      next: (resp: any) => {
-        const role = this.roles.fromHeader(resp);
-        this._isAdmin.set(this.roles.isAdminRole(role, resp));
-      },
-      error: () => {}
     });
   }
 
@@ -56,9 +49,6 @@ export class NavbarFacade {
 
     this.users.getProfile().subscribe({
       next: (p: any) => {
-        const role = this.roles.fromHeader(p);
-        this._isAdmin.set(this.roles.isAdminRole(role, p));
-
         const rows: LeagueRow[] = (p?.CommissionedLeagues ?? []).map((x: any) => ({
           LeagueID: x.LeagueID, LeagueName: x.LeagueName, Status: x.Status
         }));
@@ -66,7 +56,6 @@ export class NavbarFacade {
         this.leaguesLoading.set(false);
       },
       error: () => {
-        this._isAdmin.set(false);
         this.leagues.set([]);
         this.leaguesLoading.set(false);
         this.leaguesError.set('No se pudieron cargar tus ligas');

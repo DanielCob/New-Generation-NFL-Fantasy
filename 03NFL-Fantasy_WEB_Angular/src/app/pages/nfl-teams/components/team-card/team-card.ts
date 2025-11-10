@@ -1,9 +1,12 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { NFLTeamListItem } from '../../../../core/models/nfl-team-model';
+import { AuthzService } from '../../../../core/services/authz/authz.service';
+
 @Component({
   selector: 'app-team-card',
   standalone: true,
@@ -12,7 +15,13 @@ import { NFLTeamListItem } from '../../../../core/models/nfl-team-model';
   styleUrls: ['./team-card.css']
 })
 export class TeamCard {
-  @Input() team!: NFLTeamListItem;
+  // Datos del equipo
+  @Input({ required: true }) team!: NFLTeamListItem;
+
+  // Permiso directo desde AuthzService (misma “verdad” que el Create)
+  private authz = inject(AuthzService);
+  readonly isAdmin = toSignal(this.authz.isAdmin$, { initialValue: false });
+
   @Output() view = new EventEmitter<void>();
   @Output() edit = new EventEmitter<void>();
 
@@ -33,7 +42,6 @@ export class TeamCard {
 
   onImgError(ev: Event) {
     const el = ev.target as HTMLImageElement;
-    // evita loop si ya tiene el fallback
     if (!el.src.startsWith('data:image/svg+xml')) {
       el.src = this.fallbackSrc;
     }
