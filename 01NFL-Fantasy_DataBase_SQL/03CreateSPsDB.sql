@@ -1962,6 +1962,7 @@ BEGIN
     p.LastName,
     p.FullName,
     p.Position,
+    p.NFLTeamID,
     p.InjuryStatus,
     p.IsActive
   FROM ref.NFLPlayer p

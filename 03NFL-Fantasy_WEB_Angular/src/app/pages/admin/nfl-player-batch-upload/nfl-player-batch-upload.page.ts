@@ -7,10 +7,14 @@ import { MatInputModule } from '@angular/material/input';
 import { MatTableModule } from '@angular/material/table';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
+
 import { NFLPlayerService } from '../../../core/services/nfl-player-service';
 import { NFLTeamService } from '../../../core/services/nfl-team-service';
 import { NFLTeamBasic } from '../../../core/models/nfl-team-model';
 import { CreateNFLPlayerDTO } from '../../../core/models/nfl-player-model';
+import { ImageStorageService } from '../../../core/services/image-storage.service';
+
+import { firstValueFrom } from 'rxjs';
 
 interface RawRecord { [k: string]: any; __row?: number; }
 interface ParsedRecord {
@@ -27,8 +31,7 @@ interface ValidRecord extends ParsedRecord {
   lastName: string;
   position: string;
   nflTeamID: number;
-  image?: string;
-  thumbnail?: string;
+  image?: string;    // URL de origen (CSV/JSON)
 }
 
 @Component({
@@ -50,6 +53,7 @@ export class NFLPlayerBatchUploadPage {
   private snack = inject(MatSnackBar);
   private players = inject(NFLPlayerService);
   private teamsSvc = inject(NFLTeamService);
+  private imageSvc = inject(ImageStorageService);
 
   loading = signal(false);
   checking = signal(false);
@@ -58,7 +62,6 @@ export class NFLPlayerBatchUploadPage {
   teams = signal<NFLTeamBasic[]>([]);
   allowedPositions = new Set(['QB','RB','WR','TE','K','DEF']);
 
-  // Players batch
   fileName = signal<string>('');
   parsed = signal<ParsedRecord[]>([]);
   valid = signal<ValidRecord[]>([]);
@@ -66,6 +69,19 @@ export class NFLPlayerBatchUploadPage {
   existingConflicts = signal<string[]>([]);
 
   report = signal<{ created: number; failed: number; errors: string[] } | null>(null);
+
+  // Para exportar exactamente lo que se creó (con URLs finales)
+  createdItems = signal<Array<{
+    ExternalID: string | number | null;
+    FullName: string;
+    Position: string;
+    NFLTeamID: number;
+    PhotoUrl: string | null;
+    ThumbnailUrl: string | null;
+    PhotoWidth?: number;
+    PhotoHeight?: number;
+    PhotoBytes?: number;
+  }>>([]);
 
   ngOnInit(): void {
     this.refreshTeams();
@@ -95,6 +111,7 @@ export class NFLPlayerBatchUploadPage {
     if (!file) return;
     this.fileName.set(file.name);
     this.report.set(null);
+    this.createdItems.set([]);
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -116,8 +133,7 @@ export class NFLPlayerBatchUploadPage {
         return;
       }
 
-      // Normalize
-      const parsed = records.map((r, i) => this.normalizeRecord(r, i+1));
+      const parsed = records.map((r, i) => this.normalizeRecord(r, i + 1));
       this.parsed.set(parsed);
       this.validateAll();
     };
@@ -129,18 +145,19 @@ export class NFLPlayerBatchUploadPage {
     if (lines.length === 0) return [];
     const header = lines[0].split(',').map(h => h.trim());
     const out: RawRecord[] = [];
-    for (let i=1;i<lines.length;i++) {
+    for (let i = 1; i < lines.length; i++) {
       const row = this.splitCSVLine(lines[i]);
-      const obj: RawRecord = {}; obj.__row = i+1;
+      const obj: RawRecord = {}; obj.__row = i + 1;
       header.forEach((h, idx) => obj[h] = row[idx]);
       out.push(obj);
     }
     return out;
   }
+
   private splitCSVLine(line: string): string[] {
     const res: string[] = [];
     let cur = ''; let inQuotes = false;
-    for (let i=0;i<line.length;i++) {
+    for (let i = 0; i < line.length; i++) {
       const ch = line[i];
       if (ch === '"') { inQuotes = !inQuotes; continue; }
       if (ch === ',' && !inQuotes) { res.push(cur.trim()); cur = ''; }
@@ -161,30 +178,6 @@ export class NFLPlayerBatchUploadPage {
     const teamInput = pick(['NFLTeamID','TeamID','Team','Equipo','EquipoNFL','NFLTeam','nflTeam']);
     const image = pick(['Image','Imagen','PhotoUrl','ImageUrl','image']);
     return { row, source: r, extId, name, position, teamInput, image };
-  }
-
-  private async buildThumbnail(url?: string): Promise<string | undefined> {
-    if (!url) return undefined;
-    try {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      const p = new Promise<HTMLImageElement>((resolve, reject) => {
-        img.onload = () => resolve(img);
-        img.onerror = reject;
-      });
-      img.src = url;
-      const loaded = await p;
-      const size = 96;
-      const canvas = document.createElement('canvas');
-      canvas.width = size; canvas.height = size;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return url;
-      ctx.drawImage(loaded, 0, 0, size, size);
-      return canvas.toDataURL('image/png');
-    } catch {
-      // fallback: reuse original url
-      return url;
-    }
   }
 
   async validateAll(): Promise<void> {
@@ -222,7 +215,6 @@ export class NFLPlayerBatchUploadPage {
       if (!pos || !this.allowedPositions.has(pos)) errsForRow.push(`[Fila ${rec.row}] Posición inválida: ${pos || '(vacía)'}`);
       if (!teamId) errsForRow.push(`[Fila ${rec.row}] Equipo NFL inválido o no encontrado`);
 
-      // split into first/last
       let firstName = ''; let lastName = '';
       if (name) {
         const parts = name.split(' ').filter(x => x);
@@ -252,21 +244,16 @@ export class NFLPlayerBatchUploadPage {
           image: rec.image,
           firstName,
           lastName,
-          nflTeamID: teamId!,
-          thumbnail: undefined
+          nflTeamID: teamId!
         });
       } else {
         errors.push(...errsForRow);
       }
     }
 
-    // generate thumbnails in parallel (best-effort)
-    await Promise.all(valids.map(async v => { v.thumbnail = await this.buildThumbnail(v.image); }));
-
     this.valid.set(valids);
     this.errors.set(errors);
 
-    // Check existing duplicates via API
     await this.checkExistingConflicts();
   }
 
@@ -283,14 +270,17 @@ export class NFLPlayerBatchUploadPage {
           });
           const data = resp?.data ?? resp?.Data;
           const players: any[] = data?.Players ?? [];
-          const exists = players.some(p => (p.FullName || (`${p.FirstName} ${p.LastName}`)).toLowerCase() === (v.firstName + ' ' + v.lastName).toLowerCase() && Number(p.NFLTeamID) === v.nflTeamID);
+          const exists = players.some(p =>
+            (p.FullName || (`${p.FirstName} ${p.LastName}`)).toLowerCase() === (v.firstName + ' ' + v.lastName).toLowerCase()
+            && Number(p.NFLTeamID) === v.nflTeamID
+          );
           if (exists) {
             const teamName = this.teams().find(t => t.NFLTeamID === v.nflTeamID)?.TeamName || `ID ${v.nflTeamID}`;
             conflicts.push(`[Ya existe] ${v.firstName} ${v.lastName} en ${teamName}`);
           }
         }
       } catch {
-        // ignore individual check errors to avoid blocking
+        // silencio por registro para no bloquear el checado global
       }
     }
 
@@ -302,36 +292,175 @@ export class NFLPlayerBatchUploadPage {
     return this.parsed().length > 0 && this.errors().length === 0 && this.existingConflicts().length === 0 && !this.uploading();
   }
 
+  /** =======================
+   *  Helpers de imágenes
+   *  ======================= */
+  private async fetchImageAsFile(url: string, suggestedName: string): Promise<File> {
+    // intenta CORS, luego fallback
+    const res = await fetch(url, { mode: 'cors' }).catch(() => fetch(url));
+    if (!res || !res.ok) throw new Error('No se pudo descargar la imagen: ' + url);
+    const blob = await res.blob();
+    const name = (suggestedName || 'image').replace(/[^\w.-]+/g, '_');
+    const type = blob.type && blob.type.startsWith('image/') ? blob.type : 'image/jpeg';
+    return new File([blob], name, { type });
+  }
+
+  private getImageMeta(file: File): Promise<{ width: number; height: number; bytes: number; }> {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const meta = { width: img.width, height: img.height, bytes: file.size };
+        URL.revokeObjectURL(url);
+        resolve(meta);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('No se pudieron obtener dimensiones de la imagen'));
+      };
+      img.src = url;
+    });
+  }
+
+  /** Genera un thumbnail local cuadrado (cover) y retorna como File PNG */
+  private async buildLocalThumbnailFile(srcFile: File, size = 96): Promise<File> {
+    const imgUrl = URL.createObjectURL(srcFile);
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const i = new Image();
+        i.onload = () => resolve(i);
+        i.onerror = reject;
+        i.src = imgUrl;
+      });
+
+      // recorte tipo "cover" para preservar encuadre
+      const canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('No se pudo inicializar canvas');
+
+      const srcW = img.width, srcH = img.height;
+      const scale = Math.max(size / srcW, size / srcH);
+      const drawW = srcW * scale, drawH = srcH * scale;
+      const dx = (size - drawW) / 2;
+      const dy = (size - drawH) / 2;
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, dx, dy, drawW, drawH);
+
+      const blob: Blob = await new Promise(resolve => canvas.toBlob(b => resolve(b as Blob), 'image/png'));
+      const thumbName = srcFile.name.replace(/\.(\w+)$/, '') + `__thumb_${size}.png`;
+      return new File([blob], thumbName, { type: 'image/png' });
+    } finally {
+      URL.revokeObjectURL(imgUrl);
+    }
+  }
+
+  private async uploadOriginal(file: File): Promise<{ photoUrl: string }> {
+    const resp: any = await firstValueFrom(this.imageSvc.uploadImage(file));
+    const url = resp?.imageUrl ?? resp?.data?.imageUrl ?? resp?.url ?? '';
+    return { photoUrl: url };
+  }
+
+  private async uploadThumbnail(thumbFile: File): Promise<{ thumbUrl: string }> {
+    // Si tu servicio acepta opciones para marcar el upload como "thumbnail", las pasamos.
+    const resp: any = await firstValueFrom(this.imageSvc.uploadImage(thumbFile));
+    const url =
+      resp?.thumbnailUrl ??
+      resp?.data?.thumbnailUrl ??
+      resp?.imageUrl ??            // fallback por si el backend usa mismo campo
+      resp?.data?.imageUrl ?? '';
+    return { thumbUrl: url };
+  }
+
+  /** =======================
+   *  Subida en lote
+   *  ======================= */
   async uploadAll(): Promise<void> {
     if (!this.canUpload()) return;
     this.uploading.set(true);
+    this.createdItems.set([]);
+
     let playerCreated = 0;
     const playerFailed: string[] = [];
 
-    // Create players
     for (const v of this.valid()) {
-      const dto: CreateNFLPlayerDTO = {
-        FirstName: v.firstName,
-        LastName: v.lastName,
-        Position: v.position,
-        NFLTeamID: v.nflTeamID,
-        ...(v.image ? { PhotoUrl: v.image } : {}),
-        ...(v.thumbnail ? { ThumbnailUrl: v.thumbnail } : {})
-      };
       try {
+        let photoUrl = '';
+        let thumbUrl = '';
+        let photoWidth: number | undefined;
+        let photoHeight: number | undefined;
+        let photoBytes: number | undefined;
+
+        // Si viene imagen de origen -> descargar, generar thumb local y subir ambos
+        if (v.image && typeof v.image === 'string' && v.image.trim().length > 0) {
+          // Nombre base útil
+          const baseName = `${v.firstName}_${v.lastName}_${v.nflTeamID}`.toLowerCase().replace(/[^\w.-]+/g, '_');
+          const originalFile = await this.fetchImageAsFile(v.image, `${baseName}.jpg`);
+
+          // Meta original
+          const meta = await this.getImageMeta(originalFile);
+          photoWidth = meta.width;
+          photoHeight = meta.height;
+          photoBytes = meta.bytes;
+
+          // Thumbnail local (96x96)
+          const thumbFile = await this.buildLocalThumbnailFile(originalFile, 96);
+
+          // Subidas a tu DB de objetos
+          const [{ photoUrl: uploadedPhotoUrl }, { thumbUrl: uploadedThumbUrl }] = await Promise.all([
+            this.uploadOriginal(originalFile),
+            this.uploadThumbnail(thumbFile)
+          ]);
+
+          // URLs oficiales desde tu storage
+          photoUrl = uploadedPhotoUrl || '';
+          thumbUrl = uploadedThumbUrl || '';
+          if (!photoUrl) throw new Error('No se obtuvo URL de foto desde el storage');
+          if (!thumbUrl) throw new Error('No se obtuvo URL de thumbnail desde el storage');
+        }
+
+        // DTO igual que en nfl-player-create
+        const dto: CreateNFLPlayerDTO = {
+          FirstName: v.firstName,
+          LastName: v.lastName,
+          Position: v.position,
+          NFLTeamID: v.nflTeamID,
+          ...(photoUrl ? { PhotoUrl: photoUrl } : {}),
+          ...(thumbUrl ? { ThumbnailUrl: thumbUrl } : {}),
+          ...(photoWidth ? { PhotoWidth: photoWidth } : {}),
+          ...(photoHeight ? { PhotoHeight: photoHeight } : {}),
+          ...(photoBytes ? { PhotoBytes: photoBytes } : {})
+        };
+
         const res: any = await new Promise((resolve, reject) => {
           this.players.create(dto).subscribe({ next: resolve, error: reject });
         });
         const ok = (res?.success ?? res?.Success) !== false;
         if (ok) {
           playerCreated++;
+          this.createdItems.update(items => [
+            ...items,
+            {
+              ExternalID: v.extId ?? null,
+              FullName: `${v.firstName} ${v.lastName}`,
+              Position: v.position,
+              NFLTeamID: v.nflTeamID,
+              PhotoUrl: photoUrl || null,
+              ThumbnailUrl: thumbUrl || null,
+              PhotoWidth: photoWidth,
+              PhotoHeight: photoHeight,
+              PhotoBytes: photoBytes
+            }
+          ]);
         } else {
           const errMsg = res?.message ?? res?.Message ?? 'Error desconocido al crear el jugador';
           playerFailed.push(`[Fila ${v.row}] ${v.firstName} ${v.lastName}: ${errMsg}`);
           break;
         }
       } catch (err: any) {
-        const errMsg = err?.error?.message ?? err?.error?.Message ?? 'Error de conexión con el servidor';
+        const errMsg = err?.message ?? err?.error?.message ?? err?.error?.Message ?? 'Error de conexión con el servidor';
         playerFailed.push(`[Fila ${v.row}] ${v.firstName} ${v.lastName}: ${errMsg}`);
         break;
       }
@@ -358,14 +487,7 @@ export class NFLPlayerBatchUploadPage {
       created: this.report()?.created ?? 0,
       failed: this.report()?.failed ?? 0,
       errors: this.report()?.errors ?? [],
-      items: this.valid().map(v => ({
-        ExternalID: v.extId ?? null,
-        FullName: v.firstName + ' ' + v.lastName,
-        Position: v.position,
-        NFLTeamID: v.nflTeamID,
-        PhotoUrl: v.image ?? null,
-        ThumbnailUrl: v.thumbnail ?? null
-      }))
+      items: this.createdItems()
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
