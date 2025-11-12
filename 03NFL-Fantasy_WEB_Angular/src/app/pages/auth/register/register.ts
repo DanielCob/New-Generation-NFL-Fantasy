@@ -82,17 +82,39 @@ export class Register {
   // --- Selección de archivo: valida tipo, tamaño y dimensiones (300-1024) ---
   async onProfileImageSelected(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement;
-    if (!input.files || input.files.length === 0) return;
+    const clearSelection = () => {
+      // Clear current selection so the same file can be re-selected
+      if (input) input.value = '';
+      this.profileImageFile = null;
+      this.previewImageUrl.set(null);
+      this.registerForm.patchValue({
+        profileImageWidth: '',
+        profileImageHeight: '',
+        profileImageBytes: ''
+      });
+      // Ensure we are not stuck in any loading state related to image
+      this.profileImageUploading.set(false);
+    };
+
+    // Reset previous error state on each selection
+    this.profileImageError.set(null);
+
+    if (!input.files || input.files.length === 0) {
+      clearSelection();
+      return;
+    }
 
     const file = input.files[0];
 
     if (!['image/jpeg', 'image/png'].includes(file.type.toLowerCase())) {
       this.profileImageError.set('Solo se permiten imágenes JPEG o PNG.');
+      clearSelection();
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
       this.profileImageError.set('La imagen no puede superar 5 MB.');
+      clearSelection();
       return;
     }
 
@@ -102,9 +124,11 @@ export class Register {
         dims.width < 300 || dims.height < 300 ||
         dims.width > 1024 || dims.height > 1024) {
       this.profileImageError.set('Las dimensiones deben estar entre 300 × 300 px y 1024 × 1024 px.');
+      clearSelection();
       return;
     }
 
+    // Valid image -> persist selection
     this.profileImageError.set(null);
     this.profileImageFile = file;
 

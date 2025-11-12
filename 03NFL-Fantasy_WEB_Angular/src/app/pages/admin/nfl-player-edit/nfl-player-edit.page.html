@@ -4,14 +4,12 @@
     Edit NFL Player — {{ displayName }}
   </h2>
 
-  <!-- loader inicial -->
   <div *ngIf="pageLoading()" class="loading-row">
     <mat-progress-spinner diameter="28" mode="indeterminate"></mat-progress-spinner>
     <span>Cargando jugador…</span>
   </div>
 
   <ng-container *ngIf="!pageLoading()">
-    <!-- Estado + toggle -->
     <div class="status-row">
       <mat-slide-toggle
         [checked]="active()"
@@ -50,13 +48,24 @@
         </mat-form-field>
       </div>
 
-      <!-- Placeholder de imagen -->
-      <div class="placeholder">
-        <mat-icon>image</mat-icon>
-        <div>
-          <div class="ph-title">Image & Thumbnail</div>
-          <div class="ph-sub">Se editarán cuando tu compañero integre el upload.</div>
+      <!-- Imagen -->
+      <div class="placeholder image-upload">
+        <div class="left">
+          <mat-icon>image</mat-icon>
+          <div>
+            <div class="ph-title">Player Photo</div>
+            <input type="file" accept="image/*" (change)="onFileSelected($event)">
+            <mat-hint *ngIf="saving()">Subiendo imagen...</mat-hint>
+          </div>
         </div>
+        <div class="right" *ngIf="imagePreview()">
+          <img [src]="imagePreview()" alt="Preview" class="preview-img" />
+        </div>
+      </div>
+
+      <div *ngIf="saving()" class="loading-row">
+        <mat-progress-spinner diameter="24" mode="indeterminate"></mat-progress-spinner>
+        <span>Subiendo imagen…</span>
       </div>
 
       <div class="actions">
