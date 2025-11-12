@@ -24,9 +24,9 @@
         <mat-label>NFL Team</mat-label>
         <mat-select formControlName="NFLTeamID" [disabled]="loadingTeams()">
           <mat-option [value]="null" disabled>— Select team —</mat-option>
-        <mat-option *ngFor="let t of teams(); trackBy: trackByTeam" [value]="t.NFLTeamID">
-          {{ t.TeamName }}
-        </mat-option>
+          <mat-option *ngFor="let t of teams(); trackBy: trackByTeam" [value]="t.NFLTeamID">
+            {{ t.TeamName }}
+          </mat-option>
         </mat-select>
         <mat-hint *ngIf="teams().length">Loaded: {{ teams().length }} teams</mat-hint>
         <button mat-icon-button type="button" matSuffix (click)="refreshTeams()" [disabled]="loadingTeams()"
@@ -36,13 +36,25 @@
       </mat-form-field>
     </div>
 
-    <!-- Placeholders de imagen -->
-    <div class="placeholder">
-      <mat-icon>image</mat-icon>
-      <div>
-        <div class="ph-title">Image & Thumbnail</div>
-        <div class="ph-sub">Esta sección la integrará tu compañero. De momento es un placeholder.</div>
+    <!-- 🔹 Sección de carga de imagen -->
+    <div class="img-upload">
+      <mat-label class="ph-title">Player photo</mat-label>
+      <div class="img-picker">
+        <input type="file" accept="image/*" (change)="onImageSelected($event)" hidden #photoInput>
+        <button mat-stroked-button type="button" (click)="photoInput.click()">
+          <mat-icon>upload</mat-icon> Choose image
+        </button>
+        <span *ngIf="selectedFileName" class="filename">{{ selectedFileName }}</span>
       </div>
+
+      <div *ngIf="photoPreview" class="preview-container">
+        <img [src]="photoPreview" alt="Preview" class="preview">
+        <button mat-icon-button color="warn" type="button" (click)="clearPhoto()" matTooltip="Remove image">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+
+      <mat-hint *ngIf="photoError" class="error">{{ photoError }}</mat-hint>
     </div>
 
     <div class="actions">
