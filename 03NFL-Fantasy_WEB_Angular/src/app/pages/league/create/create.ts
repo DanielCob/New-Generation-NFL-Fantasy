@@ -74,7 +74,7 @@ export class Create {
     Description: this.fb.control('', { validators: [Validators.maxLength(500)] }),
     TeamSlots: this.fb.control(8, { validators: [Validators.required] }), // ✅ Valor por defecto: 8
     PlayoffTeams: this.fb.control(4, { validators: [Validators.required] }), // ✅ Valor por defecto: 4
-    AllowDecimals: this.fb.control(false),
+    AllowDecimals: this.fb.control(true),
     PositionFormatID: this.fb.control(1, { validators: [Validators.required] }),
     ScoringSchemaID: this.fb.control(1, { validators: [Validators.required] }),
     InitialTeamName: this.fb.control('', { 
