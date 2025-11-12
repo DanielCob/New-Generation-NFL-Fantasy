@@ -176,13 +176,49 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/views/league-summary-admin/league-summary-admin').then(m => m.LeagueSummaryAdmin)
         // o loadChildren si vas a colgar más subrutas de admin
       },
-          // Seasons Admin
-          {
-            path: 'seasons/admin',
-            canActivate: [adminGuard],
-            loadComponent: () => import('./pages/seasons/admin/admin').then(m => m.SeasonsAdminComponent)
-          },
-    ]
+      // Seasons Admin
+      {
+        path: 'seasons/admin',
+        canActivate: [adminGuard],
+        loadComponent: () => import('./pages/seasons/admin/admin').then(m => m.SeasonsAdminComponent)
+      },
+      {
+        path: 'admin/nfl-player-actions',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('./pages/admin/admin-nfl-player-actions/admin-nfl-player-actions')
+            .then(m => m.NFLPlayerActionsPage)
+      },
+      {
+        path: 'admin/nfl-player-list',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('./pages/admin/nfl-player-list/nfl-player-list.page')
+            .then(m => m.NFLPlayerListPage)
+      },
+      {
+        path: 'admin/nfl-player-create',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('./pages/admin/nfl-player-create/nfl-player-create.page')
+            .then(m => m.NFLPlayerCreatePage)
+      },
+      {
+        path: 'admin/nfl-player-batch-upload',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('./pages/admin/nfl-player-batch-upload/nfl-player-batch-upload.page')
+            .then(m => m.NFLPlayerBatchUploadPage)
+      },
+      {
+        path: 'admin/nfl-player-edit/:id',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('./pages/admin/nfl-player-edit/nfl-player-edit.page')
+            .then(m => m.NFLPlayerEditPage)
+      },
+
+]
   },
 
   { path: '**', redirectTo: 'login' }

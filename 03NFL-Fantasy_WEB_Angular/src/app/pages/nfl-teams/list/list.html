@@ -4,7 +4,7 @@
       <mat-icon>groups</mat-icon>
       <span>NFL Teams</span>
     </div>
-    <button mat-raised-button color="primary" (click)="goToCreate()">
+    <button *ngIf="isAdmin()" mat-raised-button color="primary" (click)="goToCreate()">
       <mat-icon>add</mat-icon>
       Create team
     </button>
@@ -30,9 +30,10 @@
         *ngFor="let t of teams()"
         [team]="t"
         (view)="onViewDetails(t.NFLTeamID)"
-        (edit)="onEditTeam(t.NFLTeamID)"
-      ></app-team-card>
+        (edit)="onEditTeam(t.NFLTeamID)">
+      </app-team-card>
     </div>
+
 
     <!-- Paginación -->
     <mat-paginator

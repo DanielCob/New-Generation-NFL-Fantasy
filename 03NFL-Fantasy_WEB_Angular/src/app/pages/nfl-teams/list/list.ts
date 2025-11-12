@@ -1,4 +1,5 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -11,6 +12,7 @@ import { FiltersPanel, FiltersChange } from '../components/filters-panel/filters
 import { TeamCard } from '../components/team-card/team-card';
 import { environment } from '../../../../environments/environment';
 import { NFLTeamService } from '../../../core/services/nfl-team-service';
+import { AuthzService } from '../../../core/services/authz/authz.service';
 
 @Component({
   selector: 'app-nfl-teams-list',
@@ -27,6 +29,7 @@ import { NFLTeamService } from '../../../core/services/nfl-team-service';
 export class NflTeamsListComponent implements OnInit {
   private nfl = inject(NFLTeamService);
   private router = inject(Router);
+  private authz = inject(AuthzService);
 
   teams = signal<NFLTeamListItem[]>([]);
   loading = signal(false);
@@ -40,7 +43,10 @@ export class NflTeamsListComponent implements OnInit {
   filterCity = signal<string | undefined>(undefined);
   filterIsActive = signal<boolean | undefined>(undefined);
 
+  readonly isAdmin = toSignal(this.authz.isAdmin$, { initialValue: false });
+
   ngOnInit(): void {
+    this.authz.refresh();
     this.loadTeams();
   }
 
@@ -96,9 +102,11 @@ export class NflTeamsListComponent implements OnInit {
     this.router.navigate(['/nfl-teams', teamId]);
   }
   onEditTeam(teamId: number): void {
+    if (!this.isAdmin()) return;
     this.router.navigate(['/nfl-teams', teamId, 'edit']);
   }
   goToCreate(): void {
+    if (!this.isAdmin()) return;
     this.router.navigate(['/nfl-teams/create']);
   }
 }

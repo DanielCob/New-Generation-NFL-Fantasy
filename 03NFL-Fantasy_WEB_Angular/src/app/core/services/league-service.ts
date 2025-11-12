@@ -20,7 +20,8 @@ import {
   LeagueDirectoryResponse,
   LeagueMembersResponse,
   LeagueTeamsResponse,
-  JoinLeagueResponse
+  JoinLeagueResponse,
+  LeagueSearchResponse
 } from '../models/league-model';
 
 @Injectable({ providedIn: 'root' })
@@ -59,11 +60,10 @@ export class LeagueService {
   getTeams(id: number): Observable<LeagueTeamsResponse> {
     return this.http.get<LeagueTeamsResponse>(`${this.baseUrl}/${id}/teams`);
   }
+
   joinLeague(payload: JoinLeagueRequest) {
     return this.http.post<JoinLeagueResponse>(`${this.baseUrl}/join`, payload);
   }
-
-
 
   /**
    * GET /api/League/directory
@@ -76,4 +76,32 @@ export class LeagueService {
     if (options?.status != null)   params = params.set('Status', String(options.status));
     return this.http.get<LeagueDirectoryResponse>(`${this.baseUrl}/directory`, { params });
   }
+
+  /**
+   * GET /api/League/search
+   * Nuevo método para buscar ligas usando LeaguePublicID
+   * CORRECCIÓN: Es GET con parámetros query, no POST
+   */
+  searchLeagues(request: { 
+  SearchTerm?: string; 
+  SeasonID?: number; 
+  MinSlots?: number; 
+  MaxSlots?: number; 
+  PageNumber?: number; 
+  PageSize?: number; 
+}): Observable<any> {
+  let params = new HttpParams();
+  
+  if (request.SearchTerm) params = params.set('SearchTerm', request.SearchTerm);
+  if (request.SeasonID) params = params.set('SeasonID', request.SeasonID.toString());
+  if (request.MinSlots) params = params.set('MinSlots', request.MinSlots.toString());
+  if (request.MaxSlots) params = params.set('MaxSlots', request.MaxSlots.toString());
+  if (request.PageNumber) params = params.set('PageNumber', request.PageNumber.toString());
+  if (request.PageSize) params = params.set('PageSize', request.PageSize.toString());
+  
+  console.log('🌐 URL de búsqueda:', `${this.baseUrl}/search`);
+  console.log('📋 Parámetros:', params.toString());
+  
+  return this.http.get<any>(`${this.baseUrl}/search`, { params });
+}
 }

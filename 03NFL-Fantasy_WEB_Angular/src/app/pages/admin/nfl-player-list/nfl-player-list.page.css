@@ -1,0 +1,13 @@
+.card { max-width: 1200px; margin: 20px auto; padding: 18px; border-radius: 16px; }
+.header { display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px; }
+.header h2 { display:flex; gap:10px; align-items:center; margin:0; }
+.pager { display:flex; align-items:center; gap:8px; }
+.muted { color:#666; margin-right:6px; }
+
+.filters { display:grid; grid-template-columns: 1fr 160px 220px 160px auto auto; gap:10px; align-items:center; }
+.filters .grow { grid-column: 1 / span 1; }
+
+.table-wrapper { position:relative; margin-top: 12px; }
+.thumb { width:48px; height:48px; object-fit:cover; border-radius: 8px; }
+.loading { display:flex; align-items:center; gap:10px; padding:12px; color:#666; }
+.empty { padding: 12px; color:#666; }

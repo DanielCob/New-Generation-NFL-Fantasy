@@ -1,30 +1,15 @@
-<!--
-  navigation-bar.html
-  -----------------------------------------------------------------------------
-  FIX: Logout solo dentro del menú de usuario (no botones sueltos).
--->
-
+<!-- shared/components/navigation-bar/navigation-bar.html -->
 <mat-toolbar class="navbar">
-  <!-- Brand -->
   <div class="nav-brand">
     <mat-icon class="brand-icon">sports_football</mat-icon>
     <span class="brand-text">X-NFL Fantasy</span>
   </div>
 
-  <!-- Links fijos (centrales) -->
   <div class="nav-items">
     <a routerLink="/" mat-button class="nav-link">
       <mat-icon>home</mat-icon>
       <span>Home</span>
     </a>
-
-    <!-- Admin: Seasons (visible solo para ADMIN) -->
-    @if (isLoggedIn() && isAdmin()) {
-      <a routerLink="/seasons/admin" mat-button class="nav-link">
-        <mat-icon>calendar_month</mat-icon>
-        <span>Seasons</span>
-      </a>
-    }
 
     <!-- Teams -->
     <button mat-button [matMenuTriggerFor]="teamsMenu" class="nav-link">
@@ -70,7 +55,6 @@
         <span>Create League</span>
       </button>
 
-            <!-- NUEVO: ir al directorio para unirse -->
       <button mat-menu-item (click)="navigateToLeagueDirectory()">
         <mat-icon>group_add</mat-icon>
         <span>Join a League</span>
@@ -78,7 +62,6 @@
 
       <mat-divider></mat-divider>
 
-      <!-- Estados -->
       <button mat-menu-item disabled *ngIf="leaguesLoading()">Loading…</button>
       <button mat-menu-item disabled *ngIf="!leaguesLoading() && leaguesError()">
         {{ leaguesError() }}
@@ -87,7 +70,6 @@
         No leagues yet
       </button>
 
-      <!-- Listado -->
       <ng-container *ngIf="!leaguesLoading() && !leaguesError() && leagues().length>0">
         <button mat-menu-item *ngFor="let l of leagues()" (click)="selectLeague(l)">
           <mat-icon>emoji_events</mat-icon>
@@ -99,7 +81,6 @@
 
   <span class="spacer"></span>
 
-  <!-- Acciones según sesión -->
   @if (!isLoggedIn()) {
     <div class="nav-actions">
       <a routerLink="/login" mat-button>
@@ -113,13 +94,11 @@
     </div>
   } @else {
     <div class="nav-actions">
-      <!-- User menu trigger -->
       <button mat-button [matMenuTriggerFor]="userMenu" class="user-menu-trigger">
         <mat-icon>account_circle</mat-icon>
         <span>{{ userName() }}</span>
       </button>
 
-      <!-- User dropdown -->
       <mat-menu #userMenu="matMenu" xPosition="before">
         <div class="user-info">
           <mat-icon class="user-avatar">person</mat-icon>
@@ -131,15 +110,15 @@
 
         <mat-divider></mat-divider>
 
-        <button mat-menu-item (click)="navigateToProfile()">
+        <button mat-menu-item (click)="navigateProfileHeader()">
           <mat-icon>person</mat-icon>
           <span>Profile</span>
         </button>
-        <button mat-menu-item (click)="navigateToFullProfile()">
+        <button mat-menu-item (click)="navigateFullProfile()">
           <mat-icon>info</mat-icon>
           <span>Detailed profile</span>
         </button>
-        <button mat-menu-item (click)="navigateToSessions()">
+        <button mat-menu-item (click)="navigateSessions()">
           <mat-icon>devices</mat-icon>
           <span>Sessions</span>
         </button>
@@ -152,5 +131,23 @@
         </button>
       </mat-menu>
     </div>
+  }
+
+  @if (isLoggedIn() && isAdmin()) {
+    <button mat-button [matMenuTriggerFor]="adminMenu" class="nav-link">
+      <mat-icon>admin_panel_settings</mat-icon>
+      <span>Admin Capabilities</span>
+    </button>
+
+    <mat-menu #adminMenu="matMenu">
+      <button mat-menu-item (click)="adminCapability('manage-nfl-players')">
+        <mat-icon>sports_football</mat-icon>
+        <span>Manage NFL Players</span>
+      </button>
+      <button mat-menu-item (click)="adminCapability('manage-season')">
+        <mat-icon>calendar_month</mat-icon>
+        <span>Manage Seasons</span>
+      </button>
+    </mat-menu>
   }
 </mat-toolbar>
