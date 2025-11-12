@@ -1,395 +1,591 @@
-# API Integration Workflow (README) 
-# Image DataBase Added
+# API Integration Workflow
 
-> **Goal**
-> Keep a strict 1:1 mapping between **Database objects** (Tables, Views, Stored Procedures) and our **.NET API** layers. This document explains **where** to put new files, **what** to edit, and **how** to keep security and organization consistent.
-
----
-
-## Project layout (recap)
+**Simple rule:** Every database change flows through **5 SQL files** first, then gets exposed through the .NET API layers.
 
 ```
-/Controllers/*.cs                     → Web endpoints (HTTP, validation, response codes)
-/Data/DatabaseHelper.cs               → Direct SQL access (no EF); SP & view helpers
-/Middleware/AuthenticationMiddleware.cs→ Bearer GUID token auth + role checks
-/Models/DTOs/*.cs                     → Inbound/Outbound DTOs for API contracts
-/Models/Entities/*.cs                 → Entity reference models (schema documentation)
-/Models/ViewModels/*.cs               → View projections (shape of SQL Views)
-/Services/Interfaces/*.cs             → Service contracts
-/Services/Implementations/*.cs        → Business logic + DB calls via DatabaseHelper
-appsettings.json                      → Connection string & config
-Program.cs                            → DI container, Swagger, CORS, middleware
+Database (5 files) → DataAccess → Service → Controller → Client
 ```
 
-**Architecture rules**
+---
 
-* **Controllers** are *thin*: validate input, enforce result codes, call **Services**.
-* **Services** are *where logic lives*: call **DatabaseHelper** for SPs/Views and map to DTOs/ViewModels.
-* **DatabaseHelper** is the *only* place allowed to execute SQL.
-* **DTOs** = request/response of controllers.
-  **ViewModels** = exact shape of SQL **views**.
-  **Entities** = schema reference (not used by EF; kept for clarity).
-* **Auth**: `AuthenticationMiddleware` reads a **Bearer {GUID}** token, resolves `UserId`, `UserType`, adds them to `HttpContext.Items`, and enforces **ADMIN-only** routes.
+## Project Structure (Current)
+
+```
+/Controllers/
+  /Auth/           → AuthController
+  /Fantasy/        → LeagueController, TeamController
+  /NflDetails/     → NFLTeamController, NFLPlayerController
+  /System/         → ReferenceController, SeasonController, ScoringController
+  /Audit/          → AuditController
+  /Views/          → ViewsController (admin reports)
+
+/DataAccessLayer/
+  /SqlDatabase/
+    /Interfaces/
+      IDatabaseHelper.cs
+    /Implementations/
+      DatabaseHelper.cs              → Core SQL execution
+      /Auth/                         → AuthDataAccess, UserDataAccess, SystemRolesDataAccess
+      /Fantasy/                      → LeagueDataAccess, TeamDataAccess
+      /NflDetails/                   → NFLTeamDataAccess, NFLPlayerDataAccess, ScoringDataAccess
+      /Audit/                        → AuditDataAccess
+      ReferenceDataAccess.cs
+      SeasonDataAccess.cs
+  /StorageDatabase/
+    /Implementations/
+      MinIODataAccess.cs
+
+/LogicLayer/
+  /SqlLogic/Services/
+    /Interfaces/                     → I*Service contracts
+    /Implementations/
+      /Auth/                         → AuthService, UserService, SystemRolesService
+      /Fantasy/                      → LeagueService, TeamService
+      /NflDetails/                   → NFLTeamService, NFLPlayerService, ScoringService
+      /Audit/                        → AuditService
+      SeasonService.cs
+      ReferenceService.cs
+  /StorageLogic/Services/
+    /Implementations/
+      StorageService.cs
+  /EmailLogic/Services/
+    /Implementations/
+      SmtpEmailSender.cs
+
+/Models/
+  /DTOs/
+    /Auth/                           → Login, Register, Password DTOs
+    /Fantasy/                        → League, Team DTOs
+    /NflDetails/                     → NFLTeam, NFLPlayer DTOs
+  /Entities/
+    /Auth/                           → UserAccount, Session
+    /Fantasy/                        → League, Team, TeamRoster
+    /NflDetails/                     → NFLTeam, NFLPlayer
+  /ViewModels/
+    /Auth/, /Fantasy/, /NflDetails/  → View projections
+
+/SharedSystems/
+  /Middleware/
+    AuthenticationMiddleware.cs      → Bearer token validation
+  /Validators/                       → Reusable validation logic
+  /EmailConfig/, /StorageConfig/     → Configuration classes
+
+/Helpers/
+  /Extensions/                       → ControllerBase extensions (UserId, ClientIp, etc.)
+  /Filters/                          → ModelStateValidation, GlobalException, AuthLogging
+
+Program.cs                           → DI container, policies, middleware pipeline
+appsettings.json                     → Connection strings, SMTP, MinIO config
+```
 
 ---
 
-## Adding a **new SQL table** to the API
+## Database-First Workflow (5 SQL Files)
 
-> Example: you add table `Projects` and SPs `sp_CreateProject`, `sp_UpdateProject`, `sp_DeleteProject`, `sp_GetProjectById`.
+All schema changes happen in these files **in order**:
 
-### 1) Database (outside the API)
+1. **`01CreateTablesDB.sql`** — Tables, schemas, roles, constraints, indexes
+2. **`02CreateFunctionsDB.sql`** — Helper functions (optional, used by SPs)
+3. **`03CreateSPsDB.sql`** — Business logic stored procedures (`app.*`)
+4. **`04CreateViewsDB.sql`** — Read-only views (`dbo.vw_*`)
+5. **`05PopulationScriptDB.sql`** — Seed/demo data (idempotent)
 
-* Create the **table** and constraints.
-* Create **SPs** for create/update/delete/get and (optionally) list.
-* (Optional) Create **views** if you need projected read models.
-
-### 2) API files to **create**
-
-1. **DTOs** (API contracts) → `/Models/DTOs/ProjectDTOs.cs`
-
-   * `CreateProjectDTO`, `UpdateProjectDTO` (request)
-   * `ProjectResponseDTO` (response)
-
-   ```csharp
-   // /Models/DTOs/ProjectDTOs.cs
-   public class CreateProjectDTO { /* properties + [Required] */ }
-   public class UpdateProjectDTO { /* all optional fields */ }
-   public class ProjectResponseDTO { /* what the API returns */ }
-   ```
-
-2. **Entity** (schema reference) → `/Models/Entities/Project.cs`
-   Mirror columns (use `[Key]`, `[Required]`, etc.). This is documentation-only in our current stack.
-
-   ```csharp
-   // /Models/Entities/Project.cs
-   public class Project { public int ProjectID {get;set;} /* ... */ }
-   ```
-
-3. **Service interface** → `/Services/Interfaces/IProjectService.cs`
-
-   ```csharp
-   public interface IProjectService {
-       Task<ApiResponseDTO> CreateAsync(CreateProjectDTO dto);
-       Task<ApiResponseDTO> UpdateAsync(int id, UpdateProjectDTO dto);
-       Task<ApiResponseDTO> DeleteAsync(int id);
-       Task<ProjectResponseDTO?> GetByIdAsync(int id);
-   }
-   ```
-
-4. **Service implementation** → `/Services/Implementations/ProjectService.cs`
-   Use `DatabaseHelper` to call each SP. Map **SqlParameter[]** carefully and convert DB rows → DTOs.
-
-   ```csharp
-   public class ProjectService : IProjectService {
-       private readonly DatabaseHelper _db;
-       public ProjectService(IConfiguration cfg) { _db = new DatabaseHelper(cfg); }
-
-       public async Task<ApiResponseDTO> CreateAsync(CreateProjectDTO dto) {
-           var p = new SqlParameter[] {
-               new("@Name", dto.Name),
-               new("@ProjectID", SqlDbType.Int){ Direction = ParameterDirection.Output }
-           };
-           var result = await _db.ExecuteStoredProcedureAsync<object>(
-               "sp_CreateProject",
-               p,
-               r => new { NewProjectID = DatabaseHelper.GetSafeInt32(r,"NewProjectID"),
-                          Message = DatabaseHelper.GetSafeString(r,"Message") });
-           return new ApiResponseDTO { Success = true, Message = "Created", Data = result };
-       }
-
-       public async Task<ProjectResponseDTO?> GetByIdAsync(int id) {
-           // Prefer SP if available. If you must read a table directly use ExecuteViewAsync against a FROM clause.
-           return (await _db.ExecuteViewAsync<ProjectResponseDTO>(
-               /* FROM */ "Projects",
-               r => new ProjectResponseDTO { /* map columns */ },
-               /* WHERE */ $"ProjectID = {id}"     // safe because id is int route param
-           )).FirstOrDefault();
-       }
-
-       // UpdateAsync → call sp_UpdateProject with optional parameters (DBNull when null)
-       // DeleteAsync → call sp_DeleteProject
-   }
-   ```
-
-5. **Controller** → `/Controllers/ProjectController.cs`
-   Route pattern: `api/project`. Validate `ModelState`, use try/catch, return `ActionResult`.
-
-   ```csharp
-   [ApiController]
-   [Route("api/[controller]")]
-   public class ProjectController : ControllerBase {
-       private readonly IProjectService _svc;
-       public ProjectController(IProjectService svc) { _svc = svc; }
-
-       [HttpPost] // public or protected? see security section
-       public async Task<ActionResult<ApiResponseDTO>> Create([FromBody] CreateProjectDTO dto) { /* ... */ }
-
-       [HttpPut("{id}")]
-       public async Task<ActionResult<ApiResponseDTO>> Update(int id, [FromBody] UpdateProjectDTO dto) { /* ... */ }
-
-       [HttpDelete("{id}")]
-       public async Task<ActionResult<ApiResponseDTO>> Delete(int id) { /* ... */ }
-
-       [HttpGet("{id}")]
-       public async Task<ActionResult<ProjectResponseDTO>> GetById(int id) { /* ... */ }
-   }
-   ```
-
-6. **DI registration** → add to `Program.cs`
-
-   ```csharp
-   builder.Services.AddScoped<IProjectService, ProjectService>();
-   ```
-
-### 3) Security & routing
-
-* **Public or protected?** If endpoints must be public (like registration), add their paths to `ShouldSkipAuthentication` in `/Middleware/AuthenticationMiddleware.cs`.
-* **Role restrictions**: If endpoints are **ADMIN-only**, ensure the path triggers the ADMIN gate in `HasRequiredRole` or put them under `/api/admin/...`.
-
-> **Tip**: For new “admin tools”, prefer adding endpoints to **`AdminController`** or create `/Controllers/Admin<Project>Controller.cs` with route prefix `/api/admin/...`.
-
-### 4) Tests & Swagger
-
-* Swagger is pre-configured. For protected endpoints, click **Authorize**, paste `Bearer {GUID}` from `/api/auth/login`.
+**Execution order on fresh DB:**
+```
+01 → 02 → 03 → 04 → 05
+```
 
 ---
 
-## Adding a **SQL View** (and exposing it)
+## Adding a New Feature (End-to-End)
 
-> Example: you create `vw_ProjectsSummary`.
+### Example: Add "NFLPlayer Management"
 
-### 1) Database
+#### 1. Database (SQL Files)
 
-* Create the **view** and verify its column names.
+**01CreateTablesDB.sql:**
+```sql
+IF OBJECT_ID('ref.NFLPlayer','U') IS NULL
+CREATE TABLE ref.NFLPlayer (
+  NFLPlayerID INT IDENTITY(1,1),
+  FirstName NVARCHAR(50) NOT NULL,
+  LastName NVARCHAR(50) NOT NULL,
+  -- FullName computed column
+  Position NVARCHAR(20) NOT NULL,
+  NFLTeamID INT NOT NULL,
+  -- image fields (PhotoUrl, PhotoWidth, PhotoHeight, PhotoBytes, etc.)
+  IsActive BIT DEFAULT 1,
+  CreatedByUserID INT,
+  UpdatedByUserID INT,
+  CreatedAt DATETIME2 DEFAULT SYSUTCDATETIME(),
+  UpdatedAt DATETIME2 DEFAULT SYSUTCDATETIME(),
+  CONSTRAINT PK_NFLPlayer PRIMARY KEY(NFLPlayerID),
+  CONSTRAINT FK_NFLPlayer_NFLTeam FOREIGN KEY(NFLTeamID) REFERENCES ref.NFLTeam(NFLTeamID)
+);
+GO
+```
 
-### 2) API files to **create/modify**
+**03CreateSPsDB.sql:**
+```sql
+CREATE OR ALTER PROCEDURE app.sp_CreateNFLPlayer
+  @ActorUserID INT,
+  @FirstName NVARCHAR(50),
+  @LastName NVARCHAR(50),
+  @Position NVARCHAR(20),
+  @NFLTeamID INT,
+  -- optional image fields
+  @SourceIp NVARCHAR(45) = NULL,
+  @UserAgent NVARCHAR(300) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+  BEGIN TRY
+    -- Validation
+    IF @FirstName IS NULL OR @LastName IS NULL
+      THROW 50001, 'Name required', 1;
 
-1. **ViewModel** → `/Models/ViewModels/ProjectSummaryViewModel.cs`
-   Match **exact** view columns (names & types you will read).
+    BEGIN TRAN;
+      INSERT INTO ref.NFLPlayer(FirstName, LastName, Position, NFLTeamID, CreatedByUserID)
+      VALUES(@FirstName, @LastName, @Position, @NFLTeamID, @ActorUserID);
 
-   ```csharp
-   public class ProjectSummaryViewModel {
-       public int ProjectID {get;set;}
-       public string Name {get;set;} = string.Empty;
-       public DateTime CreatedAt {get;set;}
-       public bool IsActive {get;set;}
-       // etc.
-   }
-   ```
+      DECLARE @NewID INT = SCOPE_IDENTITY();
 
-2. **Service method** (existing domain service or a new one)
-   Use `DatabaseHelper.ExecuteViewAsync<T>("vw_ProjectsSummary", mapper)`.
+      -- Audit
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, SourceIp, UserAgent)
+      VALUES(@ActorUserID, N'NFL_PLAYER', CAST(@NewID AS NVARCHAR(50)), N'CREATE', @SourceIp, @UserAgent);
+    COMMIT;
 
-   ```csharp
-   public async Task<IEnumerable<ProjectSummaryViewModel>> GetProjectsSummaryAsync() {
-       return await _db.ExecuteViewAsync<ProjectSummaryViewModel>(
-           "vw_ProjectsSummary",
-           r => new ProjectSummaryViewModel {
-               ProjectID = DatabaseHelper.GetSafeInt32(r,"ProjectID"),
-               Name      = DatabaseHelper.GetSafeString(r,"Name"),
-               CreatedAt = DatabaseHelper.GetSafeDateTime(r,"CreatedAt"),
-               IsActive  = DatabaseHelper.GetSafeBool(r,"IsActive")
-           }
-       );
-   }
-   ```
+    SELECT @NewID AS NFLPlayerID, N'Player created' AS Message;
+  END TRY
+  BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK;
+    THROW;
+  END CATCH
+END
+GO
 
-3. **Controller endpoint**
-   If it is an **admin report**, add to `/Controllers/ViewsController.cs` or a new controller under `/api/views/...`.
-   The middleware already restricts `/api/views/*` to **ADMIN**.
+GRANT EXECUTE ON OBJECT::app.sp_CreateNFLPlayer TO app_executor;
+GO
+```
 
-   ```csharp
-   [HttpGet("projects-summary")]
-   public async Task<ActionResult<IEnumerable<ProjectSummaryViewModel>>> GetProjectsSummary() {
-       // ADMIN enforced by middleware on /api/views/*
-       var data = await _userService.GetProjectsSummaryAsync();
-       return Ok(data);
-   }
-   ```
+**04CreateViewsDB.sql:**
+```sql
+CREATE OR ALTER VIEW dbo.vw_NFLPlayers
+AS
+SELECT
+  p.NFLPlayerID,
+  p.FirstName,
+  p.LastName,
+  p.FullName,
+  p.Position,
+  p.NFLTeamID,
+  nt.TeamName AS NFLTeamName,
+  p.IsActive,
+  p.CreatedAt
+FROM ref.NFLPlayer p
+JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID;
+GO
 
-> **Security note:** `ExecuteViewAsync` composes a raw `SELECT`. Only use `whereClause` with **trusted values** (route ints, enums). If you need user-provided filters, **wrap the view in a stored procedure** and call it via `ExecuteStoredProcedureListAsync` with parameters.
+GRANT SELECT ON dbo.vw_NFLPlayers TO app_executor;
+GO
+```
 
----
+#### 2. API Integration
 
-## Integrating a **Stored Procedure** (SP)
-
-We use two patterns:
-
-1. **SP that returns a result set** (possibly with a `Message` column):
-
-   * Use `ExecuteStoredProcedureAsync<T>` to read the first row (or `ExecuteStoredProcedureListAsync<T>` for multiple).
-   * Map columns via the provided `mapper(SqlDataReader)`.
-
-   ```csharp
-   var res = await _db.ExecuteStoredProcedureAsync<string>(
-       "sp_DeleteProject",
-       new[] { new SqlParameter("@ProjectID", id) },
-       r => r["Message"].ToString() ?? "OK"
-   );
-   ```
-
-2. **SP that uses OUTPUT parameters** (like `sp_UserLogin`):
-
-   * Use `ExecuteStoredProcedureWithOutputAsync` and read the returned dictionary.
-
-   ```csharp
-   var p = new SqlParameter[] {
-       new("@Email", dto.Email),
-       new("@Password", dto.Password),
-       new("@Success", SqlDbType.Bit){ Direction = ParameterDirection.Output },
-       new("@Message", SqlDbType.NVarChar, 500){ Direction = ParameterDirection.Output }
-   };
-   var (ok, err, outVals) = await _db.ExecuteStoredProcedureWithOutputAsync("sp_SomeAction", p);
-   var success = (bool)(outVals["@Success"] ?? false);
-   var message = outVals["@Message"]?.ToString() ?? (ok ? "Success" : err);
-   ```
-
-**Where to put things**
-
-* **New SP “feature”** for a domain = add methods on the corresponding `*Service`, declare them on the matching interface, and expose endpoints on an existing controller (e.g., `AdminController`, `UserController`) or a new one.
-* **Utility/maintenance SPs** (like token cleanup) belong in `AdminService` + `AdminController`.
-
----
-
-## Modifying an existing table (columns & contracts)
-
-When changing a table or SP signature (e.g., add `Users.Phone`):
-
-1. **Database**: apply DDL and adjust SPs/views.
-2. **API updates**:
-
-   * **DTOs**: add fields to `Create*DTO`, `Update*DTO`, and `*ResponseDTO` as needed (`/Models/DTOs`).
-   * **Services**: pass the new parameters (use `DBNull.Value` for optional input), and **map** any new output columns.
-   * **ViewModels**: if views expose the new column, add it to the corresponding `ViewModel`.
-   * **Controllers**: the action signatures remain the same; model binding will include the new property automatically.
-   * **Validation**: add `[Required]`, `[StringLength]`, etc. if the DB enforces it.
-   * **Security**: if the change affects **who** can call (**role**), update `HasRequiredRole` and/or routes.
-
-> **Breaking changes**: If an SP starts requiring a field that used to be optional, update API validation and document in the PR body as **BREAKING CHANGE**.
-
----
-
-## Removing a table / feature
-
-1. **Database**: drop SPs, views, and the table (or mark as deprecated first).
-2. **API**:
-
-   * Delete or deprecate **controller endpoints** that expose it.
-   * Remove **service methods** + **interface** signatures.
-   * Remove related **DTOs**, **ViewModels**, and **Entity**.
-   * Update **middleware** if route prefixes are no longer used.
-   * Clean Swagger examples or docs referencing it.
-
----
-
-## Security workflow (very important)
-
-* **Authentication** (global): `AuthenticationMiddleware` enforces:
-
-  * public endpoints (login, selected POST registrations, and GET locations) are whitelisted in `ShouldSkipAuthentication`.
-  * for everything else, require `Authorization: Bearer {GUID}` header.
-  * resolves `UserId`, `UserType`, `SessionToken` into `HttpContext.Items`.
-* **Authorization** (role-based):
-
-  * **ADMIN-only**: `/api/admin/*`, `/api/auth/reset-password`, `/api/views/*`
-  * **Any authenticated user**: logout, change-password, `/api/user/*`, `/api/location/*` (non-public verbs)
-  * When you add a new admin/report route, prefer a path that starts with `/api/admin/...` or `/api/views/...` so **no extra code** is needed.
-* **Controller double-checks**: Controllers still check `HttpContext.Items["UserType"]` for ADMIN to fail fast and return proper HTTP codes (403 vs 401).
-* **Self-protection**: Example exists to **prevent admin self-deletion**.
-
-> **Input safety**: Our `ExecuteViewAsync` builds raw `SELECT` text. Continue to use it **only** with trusted route values (ints, enums). For free-form filters or user-provided strings, **wrap the view in an SP** and call it with parameters.
-
----
-
-## Patterns & snippets
-
-### Passing optional parameters to SPs
-
+**a) DTOs** (`/Models/DTOs/NflDetails/NFLPlayerDTOs.cs`):
 ```csharp
-new("@SecondSurname", (object?)dto.SecondSurname ?? DBNull.Value)
+public class CreateNFLPlayerDTO
+{
+    [Required]
+    public string FirstName { get; set; } = string.Empty;
+    
+    [Required]
+    public string LastName { get; set; } = string.Empty;
+    
+    [Required]
+    public string Position { get; set; } = string.Empty;
+    
+    [Required]
+    public int NFLTeamID { get; set; }
+    
+    // Optional image fields
+    public string? PhotoUrl { get; set; }
+    public short? PhotoWidth { get; set; }
+    // ...
+}
+
+public class NFLPlayerResponseDTO
+{
+    public int NFLPlayerID { get; set; }
+    public string FullName { get; set; } = string.Empty;
+    public string Position { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+}
 ```
 
-### Reading safe values
-
+**b) DataAccess** (`/DataAccessLayer/.../NFLPlayerDataAccess.cs`):
 ```csharp
-DatabaseHelper.GetSafeInt32(reader, "CantonID");
-DatabaseHelper.GetSafeString(reader, "ProvinceName");
-DatabaseHelper.GetSafeNullableString(reader, "DistrictName");
-DatabaseHelper.GetSafeDateTime(reader, "CreatedAt");
-DatabaseHelper.GetSafeBool(reader, "IsActive");
-DatabaseHelper.GetSafeIntToBool(reader, "HasActiveSession");
+public class NFLPlayerDataAccess
+{
+    private readonly IDatabaseHelper _db;
+    
+    public NFLPlayerDataAccess(IDatabaseHelper db) { _db = db; }
+    
+    public async Task<NFLPlayerResponseDTO?> CreateAsync(
+        CreateNFLPlayerDTO dto,
+        int actorUserId,
+        string? sourceIp,
+        string? userAgent)
+    {
+        var parameters = new SqlParameter[]
+        {
+            SqlParameterExtensions.CreateParameter("@ActorUserID", actorUserId),
+            SqlParameterExtensions.CreateParameter("@FirstName", dto.FirstName),
+            SqlParameterExtensions.CreateParameter("@LastName", dto.LastName),
+            SqlParameterExtensions.CreateParameter("@Position", dto.Position),
+            SqlParameterExtensions.CreateParameter("@NFLTeamID", dto.NFLTeamID),
+            SqlParameterExtensions.CreateParameter("@SourceIp", sourceIp),
+            SqlParameterExtensions.CreateParameter("@UserAgent", userAgent)
+        };
+        
+        return await _db.ExecuteStoredProcedureAsync(
+            "app.sp_CreateNFLPlayer",
+            parameters,
+            reader => new NFLPlayerResponseDTO
+            {
+                NFLPlayerID = reader.GetSafeInt32("NFLPlayerID"),
+                Message = reader.GetSafeString("Message")
+            }
+        );
+    }
+}
 ```
 
-### Creating a new domain module (end-to-end checklist)
+**c) Service Interface** (`/LogicLayer/.../INFLPlayerService.cs`):
+```csharp
+public interface INFLPlayerService
+{
+    Task<ApiResponseDTO> CreateAsync(CreateNFLPlayerDTO dto, int actorUserId, string? sourceIp, string? userAgent);
+    Task<List<NFLPlayerListDTO>> ListAsync(string? position = null);
+}
+```
 
-* [ ] DB: Table + SPs (CRUD) (+ views if needed)
-* [ ] `/Models/DTOs/<Domain>DTOs.cs`
-* [ ] `/Models/Entities/<Domain>.cs`
-* [ ] `/Models/ViewModels/<Domain>*.cs` (for views only)
-* [ ] `/Services/Interfaces/I<Domain>Service.cs`
-* [ ] `/Services/Implementations/<Domain>Service.cs`
-* [ ] `/Controllers/<Domain>Controller.cs` (or extend `AdminController` if admin-only)
-* [ ] DI: `Program.cs` → `AddScoped<I<Domain>Service, <Domain>Service>()`
-* [ ] Security: adjust `AuthenticationMiddleware` public/admin lists if needed
-* [ ] Swagger sanity check
+**d) Service Implementation** (`/LogicLayer/.../NFLPlayerService.cs`):
+```csharp
+public class NFLPlayerService : INFLPlayerService
+{
+    private readonly NFLPlayerDataAccess _dataAccess;
+    private readonly ILogger<NFLPlayerService> _logger;
+    
+    public NFLPlayerService(NFLPlayerDataAccess dataAccess, ILogger<NFLPlayerService> logger)
+    {
+        _dataAccess = dataAccess;
+        _logger = logger;
+    }
+    
+    public async Task<ApiResponseDTO> CreateAsync(
+        CreateNFLPlayerDTO dto,
+        int actorUserId,
+        string? sourceIp,
+        string? userAgent)
+    {
+        try
+        {
+            // Business validation (if needed)
+            
+            var result = await _dataAccess.CreateAsync(dto, actorUserId, sourceIp, userAgent);
+            
+            if (result != null)
+            {
+                _logger.LogInformation("Player created: {Name}", $"{dto.FirstName} {dto.LastName}");
+                return ApiResponseDTO.SuccessResponse(result.Message, result);
+            }
+            
+            return ApiResponseDTO.ErrorResponse("Failed to create player");
+        }
+        catch (SqlException ex)
+        {
+            _logger.LogError(ex, "SQL error creating player");
+            return ApiResponseDTO.ErrorResponse(ex.Message);
+        }
+    }
+}
+```
+
+**e) Controller** (`/Controllers/NflDetails/NFLPlayerController.cs`):
+```csharp
+[ApiController]
+[Route("api/nflplayer")]
+[Authorize]
+public class NFLPlayerController : ControllerBase
+{
+    private readonly INFLPlayerService _service;
+    private readonly ILogger<NFLPlayerController> _logger;
+    
+    public NFLPlayerController(INFLPlayerService service, ILogger<NFLPlayerController> logger)
+    {
+        _service = service;
+        _logger = logger;
+    }
+    
+    [HttpPost]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<ActionResult<ApiResponseDTO>> Create([FromBody] CreateNFLPlayerDTO dto)
+    {
+        var userId = this.UserId();
+        var sourceIp = this.ClientIp();
+        var userAgent = this.UserAgent();
+        
+        var result = await _service.CreateAsync(dto, userId, sourceIp, userAgent);
+        
+        if (result.Success)
+        {
+            return CreatedAtAction(nameof(GetById), new { id = ((NFLPlayerResponseDTO?)result.Data)?.NFLPlayerID }, result);
+        }
+        
+        return BadRequest(result);
+    }
+    
+    [HttpGet("{id}")]
+    public async Task<ActionResult<NFLPlayerDetailsDTO>> GetById(int id)
+    {
+        // Implementation
+    }
+}
+```
+
+**f) Register in Program.cs:**
+```csharp
+// DataAccess
+builder.Services.AddScoped<NFLPlayerDataAccess>();
+
+// Service
+builder.Services.AddScoped<INFLPlayerService, NFLPlayerService>();
+```
 
 ---
 
-## How we expose **existing DB objects** already in the repo (examples)
+## Layers & Responsibilities
 
-* **Login / Logout / Password** → `AuthController` → `AuthService` → SPs:
+| Layer | Responsibility | Example |
+|-------|---------------|---------|
+| **Controller** | HTTP routing, validation, status codes | `NFLPlayerController.Create()` |
+| **Service** | Business logic, orchestration, logging | `NFLPlayerService.CreateAsync()` |
+| **DataAccess** | SQL parameter building, SP execution, mapping | `NFLPlayerDataAccess.CreateAsync()` |
+| **DatabaseHelper** | Raw SQL execution (SPs, views, queries) | `ExecuteStoredProcedureAsync()` |
 
-  * `sp_UserLogin` (OUTPUT params)
-  * `sp_UserLogout`, `sp_ChangePassword`, `sp_ResetPasswordByAdmin`
-* **Admin utilities** → `AdminController` → `AdminService` → SPs:
-
-  * `sp_CleanExpiredTokens`, `sp_SyncIsActiveWithTokens`
-* **Users (Create/Update/Delete/Get)** → `UserController`/`AdminController` → `UserService`/`AdminService` → SPs:
-
-  * `sp_CreateClient`, `sp_CreateEngineer`, `sp_CreateAdministrator`
-  * `sp_UpdateClient`, `sp_UpdateEngineer`, `sp_UpdateAdministrator`
-  * `sp_DeleteClient`, `sp_DeleteEngineer`, `sp_DeleteAdministrator`
-* **Locations** → `LocationController` → `LocationService` → SPs/Views:
-
-  * `sp_GetProvinces`, `sp_GetCantonsByProvince`, `sp_GetDistrictsByCanton`
-  * `sp_AddProvince`, `sp_AddCanton`, `sp_AddDistrict`
-* **Views (reports)** → `ViewsController` → `UserService` → **views**:
-
-  * `vw_ActiveClients`, `vw_ActiveEngineers`, `vw_ActiveAdministrators`
-  * `vw_AllClients`, `vw_AllEngineers`, `vw_AllAdministrators`
+**Rules:**
+- Controllers are **thin** — validate, call service, return HTTP status
+- Services contain **business logic** — validation, orchestration, error handling
+- DataAccess builds **SQL calls** — parameters, execution, row mapping
+- **Never** write SQL outside DatabaseHelper or DataAccess
 
 ---
 
-## Configuration & environment
+## Security Model
 
-* **Connection string**: `appsettings.json > ConnectionStrings:DefaultConnection`
-* **Swagger security**: preconfigured with **Bearer** header.
-* **CORS**: `"AllowAllOrigins"` policy (tune for production).
-* **HTTPS**: enabled by default.
-* **DI registrations**: in `Program.cs` (add your new service here).
+### Authentication
+**Middleware:** `AuthenticationMiddleware.cs`
+- Validates `Bearer {GUID}` token from `Authorization` header
+- Resolves session → adds `UserId`, `UserRole` to `HttpContext.Items`
+- Public endpoints (login, register) skip auth via whitelist
+
+### Authorization
+**Policies** (defined in Program.cs):
+```csharp
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", p => p.RequireRole("ADMIN"));
+    options.AddPolicy("BrandOrAdmin", p => p.RequireRole("ADMIN", "BRAND_MANAGER"));
+});
+```
+
+**Usage:**
+```csharp
+[Authorize(Policy = "AdminOnly")]  // ADMIN only
+public async Task<ActionResult> AdminEndpoint() { }
+
+[Authorize]  // Any authenticated user
+public async Task<ActionResult> UserEndpoint() { }
+```
+
+### Role Hierarchy
+- **ADMIN** — Full system access (users, teams, players, seasons)
+- **BRAND_MANAGER** — Brand assets only (team images, etc.)
+- **USER** — Regular user (leagues, teams they own)
+
+---
+
+## Common Patterns
+
+### Calling a Stored Procedure
+```csharp
+var parameters = new SqlParameter[]
+{
+    SqlParameterExtensions.CreateParameter("@Param1", value1),
+    SqlParameterExtensions.CreateParameter("@Param2", value2 ?? (object)DBNull.Value)
+};
+
+var result = await _db.ExecuteStoredProcedureAsync(
+    "app.sp_Something",
+    parameters,
+    reader => new ResultDTO
+    {
+        ID = reader.GetSafeInt32("ID"),
+        Name = reader.GetSafeString("Name")
+    }
+);
+```
+
+### Reading a View
+```csharp
+var results = await _db.ExecuteViewAsync(
+    "vw_SomethingList",
+    reader => new SomethingVM
+    {
+        ID = reader.GetSafeInt32("ID"),
+        Name = reader.GetSafeString("Name")
+    },
+    whereClause: "IsActive = 1",
+    orderBy: "Name"
+);
+```
+
+### Controller Helpers (Extension Methods)
+```csharp
+var userId = this.UserId();           // from HttpContext.Items["UserId"]
+var userRole = this.UserRole();       // from HttpContext.Items["SystemRoleCode"]
+var sourceIp = this.ClientIp();       // from connection
+var userAgent = this.UserAgent();    // from headers
+```
+
+### Service Error Handling
+```csharp
+try
+{
+    // Call DataAccess
+    var result = await _dataAccess.DoSomething();
+    
+    if (result != null)
+    {
+        _logger.LogInformation("Success");
+        return ApiResponseDTO.SuccessResponse("Done", result);
+    }
+    
+    return ApiResponseDTO.ErrorResponse("Failed");
+}
+catch (SqlException ex)
+{
+    _logger.LogError(ex, "SQL error");
+    return ApiResponseDTO.ErrorResponse(ex.Message);
+}
+```
+
+---
+
+## Naming Conventions
+
+| Type | Pattern | Example |
+|------|---------|---------|
+| DTO | `{Action}{Entity}DTO` | `CreateNFLPlayerDTO` |
+| Response DTO | `{Entity}ResponseDTO` | `NFLPlayerResponseDTO` |
+| List DTO | `{Entity}ListItemDTO` | `NFLPlayerListItemDTO` |
+| ViewModel | `{Entity}VM` | `NFLPlayerVM` |
+| DataAccess | `{Entity}DataAccess` | `NFLPlayerDataAccess` |
+| Service | `{Entity}Service` | `NFLPlayerService` |
+| Interface | `I{Entity}Service` | `INFLPlayerService` |
+| Controller | `{Entity}Controller` | `NFLPlayerController` |
+
+---
+
+## Configuration (appsettings.json)
+
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=...;Database=XNFLFantasyDB;..."
+  },
+  "Smtp": {
+    "Host": "smtp.gmail.com",
+    "Port": 587,
+    "Username": "...",
+    "Password": "...",
+    "FromEmail": "...",
+    "FromName": "X-NFL Fantasy"
+  },
+  "MinIO": {
+    "Endpoint": "127.0.0.1:9000",
+    "AccessKey": "...",
+    "SecretKey": "...",
+    "BucketName": "nfl-fantasy-images",
+    "UseSSL": false
+  }
+}
+```
+
+---
+
+## Checklist: Adding a New Feature
+
+- [ ] **Database:**
+  - [ ] Table in 01 (with constraints, indexes)
+  - [ ] Functions in 02 (if needed)
+  - [ ] SPs in 03 (CRUD operations)
+  - [ ] Views in 04 (read projections)
+  - [ ] Seed data in 05 (if applicable)
+
+- [ ] **API:**
+  - [ ] DTOs in `/Models/DTOs/{Domain}/`
+  - [ ] Entity in `/Models/Entities/{Domain}/`
+  - [ ] ViewModels in `/Models/ViewModels/{Domain}/` (if using views)
+  - [ ] DataAccess in `/DataAccessLayer/.../Implementations/{Domain}/`
+  - [ ] Service Interface in `/LogicLayer/.../Interfaces/{Domain}/`
+  - [ ] Service Implementation in `/LogicLayer/.../Implementations/{Domain}/`
+  - [ ] Controller in `/Controllers/{Domain}/`
+  - [ ] Register DataAccess + Service in `Program.cs`
+
+- [ ] **Security:**
+  - [ ] Apply `[Authorize]` or `[Authorize(Policy = "...")]`
+  - [ ] Test with admin and regular user tokens
+
+- [ ] **Testing:**
+  - [ ] Smoke test all endpoints via Swagger
+  - [ ] Verify audit logs are created
+
+---
+
+## Key Files Reference
+
+| File | Purpose |
+|------|---------|
+| `DatabaseHelper.cs` | Core SQL execution engine |
+| `AuthenticationMiddleware.cs` | Bearer token validation |
+| `SqlParameterExtensions.cs` | Helper for creating SQL parameters |
+| `ControllerBaseExtensions.cs` | UserId(), ClientIp(), UserAgent() helpers |
+| `ModelStateValidationFilter.cs` | Auto-validate ModelState |
+| `GlobalExceptionFilter.cs` | Catch unhandled exceptions |
+| `Program.cs` | DI container, policies, middleware |
 
 ---
 
 ## Troubleshooting
 
-* **401 Unauthorized**
+**401 Unauthorized:**
+- Missing/invalid Bearer token
+- Session expired or invalidated
 
-  * Missing or malformed `Authorization` header; token is not a GUID; token expired/invalidated.
-* **403 Forbidden**
+**403 Forbidden:**
+- Endpoint requires ADMIN role
+- User role doesn't match policy
 
-  * Route is **ADMIN-only** and requester’s `UserType` isn’t `ADMIN`.
-* **500 errors**
+**500 Internal Server Error:**
+- SP threw exception (check SQL logs)
+- Mapping error (column name mismatch)
 
-  * SP raised an error → check message returned by `ExecuteStoredProcedureWithOutputAsync` / SQL logs.
-* **Empty results from views**
-
-  * View columns don’t match **ViewModel** mapping names; or the WHERE clause filters out everything; or `HasActiveSession` typed mismatch (use `GetSafeIntToBool`).
+**Empty results from view:**
+- Column names don't match ViewModel properties
+- WHERE clause filters everything out
 
 ---
 
-## Final notes
-
-* Always keep **SP contracts** (names & parameters) and **DTO/ViewModel** shapes in sync with DB.
-* Favor **SPs** for any operation that needs filtering, validation, or multi-table logic.
-* Keep **controllers thin**, **services explicit**, and **middleware authoritative** for security.
-* Stick to these directories and naming conventions so the whole team finds things instantly.
+**That's it.** Follow the 5 SQL files → DataAccess → Service → Controller pattern. Keep layers separated, validate inputs, audit significant actions, and enforce security policies.

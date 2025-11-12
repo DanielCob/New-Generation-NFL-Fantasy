@@ -16,7 +16,9 @@
       <mat-icon>visibility</mat-icon>
       View
     </button>
-    <button mat-button (click)="edit.emit()">
+
+    <!-- 👇 ahora depende del AuthzService directamente -->
+    <button *ngIf="isAdmin()" mat-button (click)="edit.emit()">
       <mat-icon>edit</mat-icon>
       Edit
     </button>

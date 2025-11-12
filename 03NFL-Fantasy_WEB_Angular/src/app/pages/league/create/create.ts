@@ -1,6 +1,4 @@
-// create.component.ts - ARCHIVO COMPLETO CON InitialTeamName OPCIONAL
-
-import { Component, inject } from '@angular/core';
+import { Component, inject, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
@@ -16,6 +14,19 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 import { LeagueService } from '../../../core/services/league-service';
 import { CreateLeagueRequest } from '../../../core/models/league-model';
+
+interface TeamSlotsOption {
+  value: number;
+  label: string;
+  description: string;
+  allowedPlayoffTeams: number[];
+}
+
+interface PlayoffTeamsOption {
+  value: number;
+  label: string;
+  description: string;
+}
 
 @Component({
   standalone: true,
@@ -37,16 +48,46 @@ export class Create {
   loading = false;
   hidePwd = true;
 
+  // ✅ Opciones predefinidas según el SP
+  teamSlotsOptions: TeamSlotsOption[] = [
+    { value: 4, label: '4 Teams', description: 'Small league', allowedPlayoffTeams: [4] },
+    { value: 6, label: '6 Teams', description: 'Compact league', allowedPlayoffTeams: [4] },
+    { value: 8, label: '8 Teams', description: 'Standard league', allowedPlayoffTeams: [4] },
+    { value: 10, label: '10 Teams', description: 'Medium league', allowedPlayoffTeams: [4, 6] },
+    { value: 12, label: '12 Teams', description: 'Large league', allowedPlayoffTeams: [4, 6] },
+    { value: 14, label: '14 Teams', description: 'Extended league', allowedPlayoffTeams: [4, 6] },
+    { value: 16, label: '16 Teams', description: 'Very large league', allowedPlayoffTeams: [4, 6] },
+    { value: 18, label: '18 Teams', description: 'Professional league', allowedPlayoffTeams: [4, 6] },
+    { value: 20, label: '20 Teams', description: 'Maximum league', allowedPlayoffTeams: [4, 6] }
+  ];
+
+  playoffTeamsOptions: PlayoffTeamsOption[] = [
+    { value: 4, label: '4 Teams', description: 'Semi-finals' },
+    { value: 6, label: '6 Teams', description: 'With wild cards' }
+  ];
+
+  // ✅ Señal para opciones dinámicas de playoff teams
+  availablePlayoffTeams = signal<PlayoffTeamsOption[]>([]);
+
   form = this.fb.group({
     Name: this.fb.control('', { validators: [Validators.required, Validators.maxLength(80)] }),
     Description: this.fb.control('', { validators: [Validators.maxLength(500)] }),
-    TeamSlots: this.fb.control(10, { validators: [Validators.required, Validators.min(2), Validators.max(20)] }),
-    PlayoffTeams: this.fb.control(4, { validators: [Validators.required, Validators.min(2)] }),
-    AllowDecimals: this.fb.control(false),
+    TeamSlots: this.fb.control(8, { validators: [Validators.required] }), // ✅ Valor por defecto: 8
+    PlayoffTeams: this.fb.control(4, { validators: [Validators.required] }), // ✅ Valor por defecto: 4
+    AllowDecimals: this.fb.control(true),
     PositionFormatID: this.fb.control(1, { validators: [Validators.required] }),
     ScoringSchemaID: this.fb.control(1, { validators: [Validators.required] }),
-    InitialTeamName: this.fb.control('', { validators: [Validators.maxLength(40)] }), // ← AHORA ES OPCIONAL
-    LeaguePassword: this.fb.control('', { validators: [Validators.required, Validators.minLength(4), Validators.maxLength(32)] })
+    InitialTeamName: this.fb.control('', { 
+      validators: [Validators.required, Validators.maxLength(40)] // ✅ AHORA ES OBLIGATORIO
+    }),
+    LeaguePassword: this.fb.control('', { 
+      validators: [
+        Validators.required, 
+        Validators.minLength(8), 
+        Validators.maxLength(12),
+        Validators.pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,12}$/)
+      ] 
+    })
   });
 
   positionFormats = [
@@ -61,26 +102,47 @@ export class Create {
     { id: 3, label: 'PPR' }
   ];
 
-  get teamSlots() { 
-    return this.form.controls.TeamSlots.value; 
+  constructor() {
+    // ✅ Inicializar opciones de playoff teams
+    this.updatePlayoffTeamsOptions(8);
+    
+    // ✅ Escuchar cambios en teamSlots
+    this.form.controls.TeamSlots.valueChanges.subscribe(teamSlots => {
+      if (teamSlots) {
+        this.updatePlayoffTeamsOptions(teamSlots);
+      }
+    });
+  }
+
+  // ✅ Actualizar opciones disponibles de playoff teams
+  private updatePlayoffTeamsOptions(teamSlots: number): void {
+    const selectedTeamSlots = this.teamSlotsOptions.find(opt => opt.value === teamSlots);
+    
+    if (selectedTeamSlots) {
+      const availableOptions = this.playoffTeamsOptions.filter(opt => 
+        selectedTeamSlots.allowedPlayoffTeams.includes(opt.value)
+      );
+      
+      this.availablePlayoffTeams.set(availableOptions);
+      
+      // ✅ Ajustar playoffTeams si la selección actual no es válida
+      const currentPlayoffTeams = this.form.controls.PlayoffTeams.value;
+      if (currentPlayoffTeams && !availableOptions.some(opt => opt.value === currentPlayoffTeams)) {
+        this.form.controls.PlayoffTeams.setValue(availableOptions[0]?.value || 4);
+      }
+    }
   }
 
   submit(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
-      this.snack.open('Revisá los campos requeridos', 'OK', { duration: 2500 });
-      return;
-    }
-    
-    const playoff = this.form.controls.PlayoffTeams.value;
-    if (playoff > this.teamSlots) {
-      this.snack.open('Playoff teams no puede exceder Team slots', 'OK', { duration: 2500 });
+      this.snack.open('Please check required fields', 'OK', { duration: 2500 });
       return;
     }
 
     const v = this.form.getRawValue();
     
-    // Construir body base
+    // Construir body
     const body: CreateLeagueRequest = {
       Name: v.Name,
       Description: v.Description,
@@ -89,21 +151,16 @@ export class Create {
       AllowDecimals: v.AllowDecimals,
       PositionFormatID: v.PositionFormatID,
       ScoringSchemaID: v.ScoringSchemaID,
-      LeaguePassword: v.LeaguePassword
+      LeaguePassword: v.LeaguePassword,
+      InitialTeamName: v.InitialTeamName // ✅ SIEMPRE se envía (obligatorio)
     };
 
-    // Solo agregar InitialTeamName si tiene valor
-    const teamName = v.InitialTeamName?.trim();
-    if (teamName) {
-      body.InitialTeamName = teamName;
-    }
-
-    console.log('🚀 Body a enviar:', body);
+    console.log('🚀 Body to send:', body);
 
     this.loading = true;
     this.leagues.create(body).subscribe({
       next: (res) => {
-        console.log('✅ Respuesta de crear liga:', res);
+        console.log('✅ League creation response:', res);
         this.loading = false;
         
         const apiData = (res as any)?.Data ?? (res as any)?.data;
@@ -111,15 +168,16 @@ export class Create {
         const name = apiData?.Name ?? apiData?.name ?? v.Name;
         
         this.snack.open(
-          id ? `Liga creada (#${id}) – ${name}` : 'Liga creada exitosamente', 
+          id ? `League created (#${id}) – ${name}` : 'League created successfully', 
           'OK', 
           { duration: 3500 }
         );
 
+        // ✅ Reset form manteniendo valores por defecto
         this.form.reset({
           Name: '',
           Description: '',
-          TeamSlots: 10,
+          TeamSlots: 8,
           PlayoffTeams: 4,
           AllowDecimals: false,
           PositionFormatID: 1,
@@ -127,9 +185,12 @@ export class Create {
           InitialTeamName: '',
           LeaguePassword: ''
         });
+        
+        // ✅ Restaurar opciones de playoff teams
+        this.updatePlayoffTeamsOptions(8);
       },
       error: (err) => {
-        console.error('❌ Error al crear liga:', err);
+        console.error('❌ Error creating league:', err);
         this.loading = false;
         
         const e = err?.error ?? err;
@@ -147,7 +208,7 @@ export class Create {
         }
         
         if (!msg) {
-          msg = e?.message ?? e?.Message ?? e?.suggestedAction ?? 'No se pudo crear la liga';
+          msg = e?.message ?? e?.Message ?? e?.suggestedAction ?? 'Could not create league';
         }
         
         this.snack.open(msg, 'OK', { duration: 4000 });

@@ -1,0 +1,112 @@
+<mat-card class="card">
+  <div class="header">
+    <h2><mat-icon>view_list</mat-icon> Players</h2>
+    <div class="pager">
+      <span class="muted">{{ showingRange }}</span>
+      <button mat-stroked-button (click)="prev()" [disabled]="page()===1">Prev</button>
+      <button mat-stroked-button (click)="next()" [disabled]="rows().length < pageSize">Next</button>
+    </div>
+  </div>
+
+  <div class="filters" [formGroup]="filters">
+    <mat-form-field appearance="outline" class="grow">
+      <mat-label>Search</mat-label>
+      <input matInput formControlName="SearchTerm" (keyup.enter)="page.set(1); load()" placeholder="Name...">
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Position</mat-label>
+      <mat-select formControlName="FilterPosition">
+        <mat-option [value]="''">Any</mat-option>
+        <mat-option *ngFor="let p of positions" [value]="p">{{ p }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>NFL Team</mat-label>
+      <mat-select formControlName="FilterNFLTeamID">
+        <mat-option [value]="null">Any</mat-option>
+        <mat-option *ngFor="let t of teams()" [value]="t.NFLTeamID">{{ t.TeamName }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Status</mat-label>
+      <mat-select formControlName="FilterIsActive">
+        <mat-option [value]="null">Any</mat-option>
+        <mat-option [value]="true">Active</mat-option>
+        <mat-option [value]="false">Inactive</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <button mat-raised-button color="primary" (click)="page.set(1); load()">Apply</button>
+    <button mat-button (click)="clearFilters()">Clear</button>
+  </div>
+
+  <div class="table-wrapper">
+    <table mat-table [dataSource]="rows()" class="mat-elevation-z1">
+      <ng-container matColumnDef="thumb">
+        <th mat-header-cell *matHeaderCellDef></th>
+        <td mat-cell *matCellDef="let r">
+          <img [src]="r.ThumbnailUrl || r.PhotoUrl" class="thumb" alt="thumb">
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="name">
+        <th mat-header-cell *matHeaderCellDef>Name</th>
+        <td mat-cell *matCellDef="let r">
+          <div class="name">{{ r.FullName }}</div>
+          <div class="meta">#{{ r.NFLPlayerID }}</div>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="position">
+        <th mat-header-cell *matHeaderCellDef>Position</th>
+        <td mat-cell *matCellDef="let r">{{ r.Position }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="team">
+        <th mat-header-cell *matHeaderCellDef>Team</th>
+        <td mat-cell *matCellDef="let r">{{ teamName(r.NFLTeamID) }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="status">
+        <th mat-header-cell *matHeaderCellDef>Status</th>
+        <td mat-cell *matCellDef="let r">
+          <mat-chip [color]="r.IsActive ? 'primary':'warn'" selected>
+            {{ r.IsActive ? 'Active' : 'Inactive' }}
+          </mat-chip>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="created">
+        <th mat-header-cell *matHeaderCellDef>Created</th>
+        <td mat-cell *matCellDef="let r">{{ r.CreatedAt || '—' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef></th>
+        <td mat-cell *matCellDef="let r">
+          <button mat-icon-button color="primary" matTooltip="Edit" (click)="edit(r)">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button mat-icon-button [color]="r.IsActive ? 'warn' : 'primary'"
+                  [matTooltip]="r.IsActive ? 'Deactivate' : 'Reactivate'"
+                  (click)="toggleActive(r)">
+            <mat-icon>{{ r.IsActive ? 'block' : 'check_circle' }}</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="['thumb','name','position','team','status','created','actions']"></tr>
+      <tr mat-row *matRowDef="let row; columns: ['thumb','name','position','team','status','created','actions'];"></tr>
+    </table>
+
+    <div class="loading" *ngIf="loading()">
+      <mat-progress-spinner mode="indeterminate" diameter="28"></mat-progress-spinner>
+      <span>Loading…</span>
+    </div>
+
+    <div class="empty" *ngIf="!loading() && rows().length===0">No players found.</div>
+  </div>
+</mat-card>

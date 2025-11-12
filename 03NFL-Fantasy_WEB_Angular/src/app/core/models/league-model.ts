@@ -62,6 +62,7 @@ export interface LeagueIdParam { id: number; }
 /* ========= League: Responses (POST/PUT con envoltura) ========= */
 export interface CreateLeagueData {
   LeagueID: number;
+  LeaguePublicID: number; // NUEVO
   Name: string;
   TeamSlots: number;
   AvailableSlots: number;
@@ -82,6 +83,7 @@ export interface LeagueTeamSummary {
 
 export interface LeagueSummary {
   LeagueID: number;
+  LeaguePublicID: number; // NUEVO
   Name: string;
   Description: string;
   Status: number;
@@ -110,6 +112,7 @@ export interface LeagueSummary {
 
 export interface LeagueDirectoryItem {
   LeagueID: number;
+  LeaguePublicID: number; // NUEVO
   SeasonLabel: string;
   Name: string;
   Status: number;
@@ -185,3 +188,52 @@ export type LeagueSummaryResponse = ApiResponse<LeagueSummary>;  // GET /api/Lea
 export type LeagueDirectoryResponse = ApiResponse<LeagueDirectoryItem[]>;  // GET /api/League/directory
 export type LeagueMembersResponse = ApiResponse<LeagueMember[]>;  // GET /api/League/{id}/members
 export type LeagueTeamsResponse = ApiResponse<LeagueTeam[]>;// GET /api/League/{id}/teams
+
+// ========= SEARCH RESPONSE =========
+// LeagueSearchResult debe ser compatible con LeagueDirectoryItem
+export interface LeagueSearchResult {
+  LeagueID: number;
+  LeaguePublicID: number;
+  Name: string;
+  Description: string;
+  TeamSlots: number;
+  TeamsCount: number;
+  AvailableSlots: number;
+  PlayoffTeams: number;
+  AllowDecimals: boolean;
+  SeasonLabel: string;
+  SeasonYear: number;
+  CreatedByName: string;
+  CreatedAt: string;
+  TotalRecords: number;
+  CurrentPage: number;
+  PageSize: number;
+  TotalPages: number;
+  // Propiedades adicionales para compatibilidad con LeagueDirectoryItem
+  Status: number;
+  CreatedByUserID: number;
+}
+
+export interface PagedLeagueSearchResult {
+  data: LeagueSearchResult[];
+  totalRecords: number;
+  currentPage: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+// ========= LEAGUE CONFIGURATION =========
+export interface TeamSlotsOption {
+  value: number;
+  label: string;
+  description: string;
+  allowedPlayoffTeams: number[];
+}
+
+export interface PlayoffTeamsOption {
+  value: number;
+  label: string;
+  description: string;
+}
+
+export type LeagueSearchResponse = ApiResponse<PagedLeagueSearchResult>;

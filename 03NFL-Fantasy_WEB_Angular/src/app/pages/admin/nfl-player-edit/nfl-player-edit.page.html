@@ -1,0 +1,79 @@
+<mat-card class="card">
+  <h2 class="header">
+    <mat-icon>edit</mat-icon>
+    Edit NFL Player — {{ displayName }}
+  </h2>
+
+  <div *ngIf="pageLoading()" class="loading-row">
+    <mat-progress-spinner diameter="28" mode="indeterminate"></mat-progress-spinner>
+    <span>Cargando jugador…</span>
+  </div>
+
+  <ng-container *ngIf="!pageLoading()">
+    <div class="status-row">
+      <mat-slide-toggle
+        [checked]="active()"
+        (change)="onActiveToggle($event.checked)"
+        [disabled]="toggling()">
+        {{ active() ? 'Active' : 'Inactive' }}
+      </mat-slide-toggle>
+    </div>
+
+    <form [formGroup]="form" class="form">
+      <div class="grid">
+        <mat-form-field appearance="outline">
+          <mat-label>First name</mat-label>
+          <input matInput formControlName="FirstName" autocomplete="off">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Last name</mat-label>
+          <input matInput formControlName="LastName" autocomplete="off">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Position</mat-label>
+          <mat-select formControlName="Position">
+            <mat-option [value]="''">—</mat-option>
+            <mat-option *ngFor="let p of positions" [value]="p">{{ p }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>NFL Team</mat-label>
+          <mat-select formControlName="NFLTeamID">
+            <mat-option [value]="null">—</mat-option>
+            <mat-option *ngFor="let t of teams()" [value]="t.NFLTeamID">{{ t.TeamName }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <!-- Imagen -->
+      <div class="placeholder image-upload">
+        <div class="left">
+          <mat-icon>image</mat-icon>
+          <div>
+            <div class="ph-title">Player Photo</div>
+            <input type="file" accept="image/*" (change)="onFileSelected($event)">
+            <mat-hint *ngIf="saving()">Subiendo imagen...</mat-hint>
+          </div>
+        </div>
+        <div class="right" *ngIf="imagePreview()">
+          <img [src]="imagePreview()" alt="Preview" class="preview-img" />
+        </div>
+      </div>
+
+      <div *ngIf="saving()" class="loading-row">
+        <mat-progress-spinner diameter="24" mode="indeterminate"></mat-progress-spinner>
+        <span>Subiendo imagen…</span>
+      </div>
+
+      <div class="actions">
+        <button mat-raised-button color="primary" (click)="save()" [disabled]="saving() || toggling()">
+          Save
+        </button>
+        <mat-progress-spinner *ngIf="saving()" diameter="24" mode="indeterminate"></mat-progress-spinner>
+      </div>
+    </form>
+  </ng-container>
+</mat-card>

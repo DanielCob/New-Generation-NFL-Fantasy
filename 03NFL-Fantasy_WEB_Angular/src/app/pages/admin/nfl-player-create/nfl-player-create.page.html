@@ -1,0 +1,65 @@
+<mat-card class="card">
+  <h2 class="header"><mat-icon>person_add</mat-icon> Create NFL Player</h2>
+
+  <form [formGroup]="form" class="form" (ngSubmit)="submit()">
+    <div class="grid">
+      <mat-form-field appearance="outline">
+        <mat-label>First name</mat-label>
+        <input matInput formControlName="FirstName" autocomplete="off">
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Last name</mat-label>
+        <input matInput formControlName="LastName" autocomplete="off">
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Position</mat-label>
+        <mat-select formControlName="Position">
+          <mat-option *ngFor="let p of positions" [value]="p">{{ p }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>NFL Team</mat-label>
+        <mat-select formControlName="NFLTeamID" [disabled]="loadingTeams()">
+          <mat-option [value]="null" disabled>— Select team —</mat-option>
+          <mat-option *ngFor="let t of teams(); trackBy: trackByTeam" [value]="t.NFLTeamID">
+            {{ t.TeamName }}
+          </mat-option>
+        </mat-select>
+        <mat-hint *ngIf="teams().length">Loaded: {{ teams().length }} teams</mat-hint>
+        <button mat-icon-button type="button" matSuffix (click)="refreshTeams()" [disabled]="loadingTeams()"
+                matTooltip="Reload teams">
+          <mat-icon>refresh</mat-icon>
+        </button>
+      </mat-form-field>
+    </div>
+
+    <!-- 🔹 Sección de carga de imagen -->
+    <div class="img-upload">
+      <mat-label class="ph-title">Player photo</mat-label>
+      <div class="img-picker">
+        <input type="file" accept="image/*" (change)="onImageSelected($event)" hidden #photoInput>
+        <button mat-stroked-button type="button" (click)="photoInput.click()">
+          <mat-icon>upload</mat-icon> Choose image
+        </button>
+        <span *ngIf="selectedFileName" class="filename">{{ selectedFileName }}</span>
+      </div>
+
+      <div *ngIf="photoPreview" class="preview-container">
+        <img [src]="photoPreview" alt="Preview" class="preview">
+        <button mat-icon-button color="warn" type="button" (click)="clearPhoto()" matTooltip="Remove image">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+
+      <mat-hint *ngIf="photoError" class="error">{{ photoError }}</mat-hint>
+    </div>
+
+    <div class="actions">
+      <button mat-raised-button color="primary" [disabled]="loading() || loadingTeams()">Create</button>
+      <mat-progress-spinner *ngIf="loading()" diameter="24" mode="indeterminate"></mat-progress-spinner>
+    </div>
+  </form>
+</mat-card>

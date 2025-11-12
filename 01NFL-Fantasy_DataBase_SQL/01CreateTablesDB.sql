@@ -246,6 +246,7 @@ BEGIN
     PositionFormatID INT NOT NULL,
     PositionCode NVARCHAR(20) NOT NULL,
     SlotCount TINYINT NOT NULL,
+    PointsAllowed BIT NOT NULL CONSTRAINT DF_PositionSlot_PointsAllowed DEFAULT(1),
     CONSTRAINT PK_PositionSlot PRIMARY KEY(PositionFormatID, PositionCode)
   );
 END
@@ -408,7 +409,8 @@ GO
 IF OBJECT_ID('league.League','U') IS NULL
 BEGIN
   CREATE TABLE league.League(
-    LeagueID INT IDENTITY(1,1) CONSTRAINT PK_League PRIMARY KEY,
+    LeagueID INT NOT NULL CONSTRAINT PK_League PRIMARY KEY,
+    LeaguePublicID INT NOT NULL CONSTRAINT UQ_League_PublicID UNIQUE,
     SeasonID INT NOT NULL,
     Name NVARCHAR(100) NOT NULL,
     Description NVARCHAR(500) NULL,
@@ -455,7 +457,6 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_League_Season' AND objec
   CREATE NONCLUSTERED INDEX IX_League_Season ON league.League(SeasonID);
 GO
 
-
 -- Miembros asociados a una liga
 IF OBJECT_ID('league.LeagueMember','U') IS NULL
 BEGIN
@@ -463,13 +464,9 @@ BEGIN
     LeagueID INT NOT NULL,
     UserID INT NOT NULL,
     RoleCode NVARCHAR(20) NOT NULL,
-    IsPrimaryCommissioner BIT NOT NULL CONSTRAINT DF_LeagueMember_PrimaryComm DEFAULT(0),
     JoinedAt DATETIME2(0) NOT NULL CONSTRAINT DF_LeagueMember_JoinedAt DEFAULT(SYSUTCDATETIME()),
     LeftAt DATETIME2(0) NULL,
-    CONSTRAINT PK_LeagueMember PRIMARY KEY(LeagueID, UserID),
-    CONSTRAINT CK_LeagueMember_PrimaryConsistency CHECK(
-      CASE WHEN RoleCode <> 'COMMISSIONER' AND IsPrimaryCommissioner = 1 THEN 0 ELSE 1 END = 1
-    )
+    CONSTRAINT PK_LeagueMember PRIMARY KEY(LeagueID, UserID)
   );
 END
 GO
@@ -484,8 +481,8 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_LeagueMember_Role')
   ALTER TABLE league.LeagueMember ADD CONSTRAINT FK_LeagueMember_Role FOREIGN KEY(RoleCode) REFERENCES ref.LeagueRole(RoleCode) ON DELETE NO ACTION;
 GO
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='UQ_LeagueMember_PrimaryComm' AND object_id=OBJECT_ID('league.LeagueMember'))
-  CREATE UNIQUE INDEX UQ_LeagueMember_PrimaryComm ON league.LeagueMember(LeagueID) WHERE IsPrimaryCommissioner = 1;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='UQ_LeagueMember_UniqueCommissioner' AND object_id=OBJECT_ID('league.LeagueMember'))
+  CREATE UNIQUE INDEX UQ_LeagueMember_UniqueCommissioner ON league.LeagueMember(LeagueID) WHERE RoleCode = 'COMMISSIONER';
 GO
 
 
@@ -536,40 +533,93 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_Team_IsActive' AND objec
   CREATE NONCLUSTERED INDEX IX_Team_IsActive ON league.Team(IsActive);
 GO
 
-
--- Jugadores de la liga y su estado
-IF OBJECT_ID('league.Player','U') IS NULL
+-- Jugadores oficiales de la NFL
+IF OBJECT_ID('ref.NFLPlayer','U') IS NULL
 BEGIN
-  CREATE TABLE league.Player(
-    PlayerID INT IDENTITY(1,1) CONSTRAINT PK_Player PRIMARY KEY,
+  CREATE TABLE ref.NFLPlayer(
+    NFLPlayerID INT IDENTITY(1,1) CONSTRAINT PK_NFLPlayer PRIMARY KEY,
     FirstName NVARCHAR(50) NOT NULL,
     LastName NVARCHAR(50) NOT NULL,
     FullName AS (FirstName + N' ' + LastName) PERSISTED,
     Position NVARCHAR(20) NOT NULL,
-    NFLTeamID INT NULL,
+    NFLTeamID INT NOT NULL,
     InjuryStatus NVARCHAR(50) NULL,
     InjuryDescription NVARCHAR(300) NULL,
     PhotoUrl NVARCHAR(400) NULL,
+    PhotoWidth SMALLINT NULL,
+    PhotoHeight SMALLINT NULL,
+    PhotoBytes INT NULL,
     PhotoThumbnailUrl NVARCHAR(400) NULL,
-    IsActive BIT NOT NULL CONSTRAINT DF_Player_IsActive DEFAULT(1),
-    CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_Player_CreatedAt DEFAULT(SYSUTCDATETIME()),
-    UpdatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_Player_UpdatedAt DEFAULT(SYSUTCDATETIME())
+    ThumbnailWidth SMALLINT NULL,
+    ThumbnailHeight SMALLINT NULL,
+    ThumbnailBytes INT NULL,
+    IsActive BIT NOT NULL CONSTRAINT DF_NFLPlayer_IsActive DEFAULT(1),
+    CreatedByUserID INT NULL,
+    CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_NFLPlayer_CreatedAt DEFAULT(SYSUTCDATETIME()),
+    UpdatedByUserID INT NULL,
+    UpdatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_NFLPlayer_UpdatedAt DEFAULT(SYSUTCDATETIME()),
+    CONSTRAINT UQ_NFLPlayer_Name_NFLTeam UNIQUE(FirstName, LastName, NFLTeamID),
+    CONSTRAINT CK_NFLPlayer_PhotoDims CHECK (
+      (PhotoWidth IS NULL OR (PhotoWidth BETWEEN 300 AND 1024)) AND
+      (PhotoHeight IS NULL OR (PhotoHeight BETWEEN 300 AND 1024))
+    ),
+    CONSTRAINT CK_NFLPlayer_PhotoSize CHECK (PhotoBytes IS NULL OR PhotoBytes <= 5242880),
+    CONSTRAINT CK_NFLPlayer_ThumbnailDims CHECK (
+      (ThumbnailWidth IS NULL OR (ThumbnailWidth BETWEEN 300 AND 1024)) AND
+      (ThumbnailHeight IS NULL OR (ThumbnailHeight BETWEEN 300 AND 1024))
+    ),
+    CONSTRAINT CK_NFLPlayer_ThumbnailSize CHECK (ThumbnailBytes IS NULL OR ThumbnailBytes <= 5242880)
   );
 END
 GO
-IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_Player_NFLTeam')
-  ALTER TABLE league.Player ADD CONSTRAINT FK_Player_NFLTeam FOREIGN KEY(NFLTeamID) REFERENCES ref.NFLTeam(NFLTeamID) ON DELETE SET NULL;
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLPlayer_NFLTeam')
+  ALTER TABLE ref.NFLPlayer ADD CONSTRAINT FK_NFLPlayer_NFLTeam FOREIGN KEY(NFLTeamID) REFERENCES ref.NFLTeam(NFLTeamID) ON DELETE NO ACTION;
 GO
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_Player_Position' AND object_id=OBJECT_ID('league.Player'))
-  CREATE NONCLUSTERED INDEX IX_Player_Position ON league.Player(Position);
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLPlayer_Creator')
+  ALTER TABLE ref.NFLPlayer ADD CONSTRAINT FK_NFLPlayer_Creator FOREIGN KEY(CreatedByUserID) REFERENCES auth.UserAccount(UserID) ON DELETE NO ACTION;
 GO
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_Player_NFLTeam' AND object_id=OBJECT_ID('league.Player'))
-  CREATE NONCLUSTERED INDEX IX_Player_NFLTeam ON league.Player(NFLTeamID);
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLPlayer_Updater')
+  ALTER TABLE ref.NFLPlayer ADD CONSTRAINT FK_NFLPlayer_Updater FOREIGN KEY(UpdatedByUserID) REFERENCES auth.UserAccount(UserID) ON DELETE NO ACTION;
 GO
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_Player_LastName' AND object_id=OBJECT_ID('league.Player'))
-  CREATE NONCLUSTERED INDEX IX_Player_LastName ON league.Player(LastName);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayer_Position' AND object_id=OBJECT_ID('ref.NFLPlayer'))
+  CREATE NONCLUSTERED INDEX IX_NFLPlayer_Position ON ref.NFLPlayer(Position);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayer_NFLTeam' AND object_id=OBJECT_ID('ref.NFLPlayer'))
+  CREATE NONCLUSTERED INDEX IX_NFLPlayer_NFLTeam ON ref.NFLPlayer(NFLTeamID);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayer_LastName' AND object_id=OBJECT_ID('ref.NFLPlayer'))
+  CREATE NONCLUSTERED INDEX IX_NFLPlayer_LastName ON ref.NFLPlayer(LastName);
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayer_IsActive' AND object_id=OBJECT_ID('ref.NFLPlayer'))
+  CREATE NONCLUSTERED INDEX IX_NFLPlayer_IsActive ON ref.NFLPlayer(IsActive);
 GO
 
+
+-- Registro de cambios en datos de jugadores NFL
+IF OBJECT_ID('ref.NFLPlayerChangeLog','U') IS NULL
+BEGIN
+  CREATE TABLE ref.NFLPlayerChangeLog(
+    ChangeID BIGINT IDENTITY(1,1) CONSTRAINT PK_NFLPlayerChangeLog PRIMARY KEY,
+    NFLPlayerID INT NOT NULL,
+    ChangedByUserID INT NOT NULL,
+    FieldName NVARCHAR(100) NOT NULL,
+    OldValue NVARCHAR(1000) NULL,
+    NewValue NVARCHAR(1000) NULL,
+    ChangedAt DATETIME2(0) NOT NULL CONSTRAINT DF_NFLPlayerChangeLog_At DEFAULT(SYSUTCDATETIME()),
+    SourceIp NVARCHAR(45) NULL,
+    UserAgent NVARCHAR(300) NULL
+  );
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLPlayerChangeLog_Player')
+  ALTER TABLE ref.NFLPlayerChangeLog ADD CONSTRAINT FK_NFLPlayerChangeLog_Player FOREIGN KEY(NFLPlayerID) REFERENCES ref.NFLPlayer(NFLPlayerID) ON DELETE CASCADE;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLPlayerChangeLog_User')
+  ALTER TABLE ref.NFLPlayerChangeLog ADD CONSTRAINT FK_NFLPlayerChangeLog_User FOREIGN KEY(ChangedByUserID) REFERENCES auth.UserAccount(UserID) ON DELETE NO ACTION;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayerChangeLog_Player_At' AND object_id=OBJECT_ID('ref.NFLPlayerChangeLog'))
+  CREATE NONCLUSTERED INDEX IX_NFLPlayerChangeLog_Player_At ON ref.NFLPlayerChangeLog(NFLPlayerID, ChangedAt DESC);
+GO
 
 -- Relacion entre equipos y jugadores (roster)
 IF OBJECT_ID('league.TeamRoster','U') IS NULL
@@ -577,13 +627,13 @@ BEGIN
   CREATE TABLE league.TeamRoster(
     RosterID BIGINT IDENTITY(1,1) CONSTRAINT PK_TeamRoster PRIMARY KEY,
     TeamID INT NOT NULL,
-    PlayerID INT NOT NULL,
+    NFLPlayerID INT NOT NULL,
     AcquisitionType NVARCHAR(20) NOT NULL,
     AcquisitionDate DATETIME2(0) NOT NULL CONSTRAINT DF_TeamRoster_AcqDate DEFAULT(SYSUTCDATETIME()),
     IsActive BIT NOT NULL CONSTRAINT DF_TeamRoster_IsActive DEFAULT(1),
     DroppedDate DATETIME2(0) NULL,
     AddedByUserID INT NOT NULL,
-    CONSTRAINT UQ_TeamRoster_Team_Player UNIQUE(TeamID, PlayerID),
+    CONSTRAINT UQ_TeamRoster_Team_Player UNIQUE(TeamID, NFLPlayerID),
     CONSTRAINT CK_TeamRoster_AcqType CHECK (AcquisitionType IN (N'Draft',N'Trade',N'FreeAgent',N'Waiver'))
   );
 END
@@ -591,8 +641,8 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_TeamRoster_Team')
   ALTER TABLE league.TeamRoster ADD CONSTRAINT FK_TeamRoster_Team FOREIGN KEY(TeamID) REFERENCES league.Team(TeamID) ON DELETE CASCADE;
 GO
-IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_TeamRoster_Player')
-  ALTER TABLE league.TeamRoster ADD CONSTRAINT FK_TeamRoster_Player FOREIGN KEY(PlayerID) REFERENCES league.Player(PlayerID) ON DELETE CASCADE;
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_TeamRoster_NFLPlayer')
+  ALTER TABLE league.TeamRoster ADD CONSTRAINT FK_TeamRoster_NFLPlayer FOREIGN KEY(NFLPlayerID) REFERENCES ref.NFLPlayer(NFLPlayerID) ON DELETE CASCADE;
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_TeamRoster_AddedBy')
   ALTER TABLE league.TeamRoster ADD CONSTRAINT FK_TeamRoster_AddedBy FOREIGN KEY(AddedByUserID) REFERENCES auth.UserAccount(UserID) ON DELETE NO ACTION;
