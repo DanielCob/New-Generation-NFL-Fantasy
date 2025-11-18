@@ -4071,5 +4071,233 @@ GO
 GRANT EXECUTE ON OBJECT::app.sp_GetNFLPlayerDetails TO app_executor;
 GO
 
+-- ============================================================================
+-- sp_CreateNFLPlayerBatchReport
+-- Solo ADMIN puede crear reportes de batch de jugadores NFL
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_CreateNFLPlayerBatchReport
+  @ActorUserID      INT,
+  @ReportUrl        NVARCHAR(400),
+  @TotalProcessed   INT,
+  @SuccessCount     INT,
+  @ErrorCount       INT,
+  @SourceIp         NVARCHAR(45) = NULL,
+  @UserAgent        NVARCHAR(300) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+  BEGIN TRY
+    -- Validar que el actor es ADMIN
+    DECLARE @ActorRole NVARCHAR(20);
+    SELECT @ActorRole = SystemRoleCode FROM auth.UserAccount WHERE UserID = @ActorUserID;
+
+    IF @ActorRole IS NULL
+      THROW 50600, 'Usuario actor no existe.', 1;
+
+    IF @ActorRole <> N'ADMIN'
+      THROW 50601, 'Solo un ADMIN puede crear reportes de batch de jugadores NFL.', 1;
+
+    -- Validaciones de campos requeridos
+    IF @ReportUrl IS NULL OR LEN(@ReportUrl) < 1 OR LEN(@ReportUrl) > 400
+      THROW 50602, 'URL de reporte inválida: debe tener entre 1 y 400 caracteres.', 1;
+
+    IF @TotalProcessed IS NULL OR @TotalProcessed < 0
+      THROW 50603, 'Total procesado inválido: debe ser mayor o igual a 0.', 1;
+
+    IF @SuccessCount IS NULL OR @SuccessCount < 0
+      THROW 50604, 'Cantidad de éxitos inválida: debe ser mayor o igual a 0.', 1;
+
+    IF @ErrorCount IS NULL OR @ErrorCount < 0
+      THROW 50605, 'Cantidad de errores inválida: debe ser mayor o igual a 0.', 1;
+
+    -- Validar que TotalProcessed = SuccessCount + ErrorCount
+    IF @TotalProcessed <> (@SuccessCount + @ErrorCount)
+      THROW 50606, 'Total procesado debe ser igual a la suma de éxitos y errores.', 1;
+
+    DECLARE @BatchReportID INT;
+
+    BEGIN TRAN;
+
+      INSERT INTO ref.NFLPlayerBatchReport(
+        ReportUrl, TotalProcessed, SuccessCount, ErrorCount,
+        ActorUserID, SourceIp, UserAgent
+      )
+      VALUES(
+        @ReportUrl, @TotalProcessed, @SuccessCount, @ErrorCount,
+        @ActorUserID, @SourceIp, @UserAgent
+      );
+
+      SET @BatchReportID = SCOPE_IDENTITY();
+
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+      VALUES(@ActorUserID, N'NFL_PLAYER_BATCH_REPORT', CAST(@BatchReportID AS NVARCHAR(50)), N'CREATE',
+             CONCAT(N'Reporte de batch creado: ', @SuccessCount, N' éxitos, ', @ErrorCount, N' errores de ', @TotalProcessed, N' total'), 
+             @SourceIp, @UserAgent);
+
+    COMMIT;
+
+    SELECT 
+      @BatchReportID AS BatchReportID,
+      @ReportUrl AS ReportUrl,
+      @TotalProcessed AS TotalProcessed,
+      @SuccessCount AS SuccessCount,
+      @ErrorCount AS ErrorCount,
+      N'Reporte de batch creado exitosamente.' AS Message;
+  END TRY
+  BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK;
+    THROW;
+  END CATCH
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_CreateNFLPlayerBatchReport TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_GetAllNFLPlayerBatchReports
+-- Solo ADMIN puede obtener todos los reportes de batch
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_GetAllNFLPlayerBatchReports
+  @ActorUserID    INT,
+  @PageNumber     INT = 1,
+  @PageSize       INT = 50,
+  @OrderBy        NVARCHAR(20) = 'CreatedAt',
+  @SortDirection  NVARCHAR(4) = 'DESC'
+AS
+BEGIN
+  SET NOCOUNT ON;
+  BEGIN TRY
+    -- Validar que el actor es ADMIN
+    DECLARE @ActorRole NVARCHAR(20);
+    SELECT @ActorRole = SystemRoleCode FROM auth.UserAccount WHERE UserID = @ActorUserID;
+
+    IF @ActorRole IS NULL
+      THROW 50610, 'Usuario actor no existe.', 1;
+
+    IF @ActorRole <> N'ADMIN'
+      THROW 50611, 'Solo un ADMIN puede obtener reportes de batch de jugadores NFL.', 1;
+
+    -- Validar parámetros de paginación
+    IF @PageNumber < 1
+      SET @PageNumber = 1;
+
+    IF @PageSize < 1 OR @PageSize > 100
+      SET @PageSize = 50;
+
+    IF @OrderBy NOT IN ('BatchReportID', 'CreatedAt', 'TotalProcessed', 'SuccessCount', 'ErrorCount')
+      SET @OrderBy = 'CreatedAt';
+
+    IF @SortDirection NOT IN ('ASC', 'DESC')
+      SET @SortDirection = 'DESC';
+
+    DECLARE @Offset INT = (@PageNumber - 1) * @PageSize;
+
+    -- Obtener total de registros
+    DECLARE @TotalRecords INT;
+    SELECT @TotalRecords = COUNT(*) FROM ref.NFLPlayerBatchReport;
+
+    -- Query dinámico para ordenamiento
+    DECLARE @SQL NVARCHAR(MAX) = N'
+      SELECT 
+        br.BatchReportID,
+        br.ReportUrl,
+        br.TotalProcessed,
+        br.SuccessCount,
+        br.ErrorCount,
+        br.ActorUserID,
+        u.Name AS ActorName,
+        u.Email AS ActorEmail,
+        br.SourceIp,
+        br.UserAgent,
+        br.CreatedAt,
+        @TotalRecords AS TotalRecords,
+        @PageNumber AS CurrentPage,
+        @PageSize AS PageSize,
+        CEILING(CAST(@TotalRecords AS FLOAT) / @PageSize) AS TotalPages
+      FROM ref.NFLPlayerBatchReport br
+      INNER JOIN auth.UserAccount u ON br.ActorUserID = u.UserID
+      ORDER BY ' + QUOTENAME(@OrderBy) + N' ' + @SortDirection + N'
+      OFFSET @Offset ROWS
+      FETCH NEXT @PageSize ROWS ONLY;
+    ';
+
+    EXEC sp_executesql @SQL,
+      N'@TotalRecords INT, @PageNumber INT, @PageSize INT, @Offset INT',
+      @TotalRecords, @PageNumber, @PageSize, @Offset;
+
+    -- Registrar auditoría
+    INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+    VALUES(@ActorUserID, N'NFL_PLAYER_BATCH_REPORT', N'ALL', N'READ',
+           CONCAT(N'Consulta de reportes de batch - Página ', @PageNumber), NULL, NULL);
+
+  END TRY
+  BEGIN CATCH
+    THROW;
+  END CATCH
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_GetAllNFLPlayerBatchReports TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_GetNFLPlayerBatchReportById
+-- Solo ADMIN puede obtener un reporte específico de batch
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_GetNFLPlayerBatchReportById
+  @ActorUserID     INT,
+  @BatchReportID   INT
+AS
+BEGIN
+  SET NOCOUNT ON;
+  BEGIN TRY
+    -- Validar que el actor es ADMIN
+    DECLARE @ActorRole NVARCHAR(20);
+    SELECT @ActorRole = SystemRoleCode FROM auth.UserAccount WHERE UserID = @ActorUserID;
+
+    IF @ActorRole IS NULL
+      THROW 50620, 'Usuario actor no existe.', 1;
+
+    IF @ActorRole <> N'ADMIN'
+      THROW 50621, 'Solo un ADMIN puede obtener reportes de batch de jugadores NFL.', 1;
+
+    -- Validar que el BatchReportID existe
+    IF NOT EXISTS (SELECT 1 FROM ref.NFLPlayerBatchReport WHERE BatchReportID = @BatchReportID)
+      THROW 50622, 'Reporte de batch no existe.', 1;
+
+    -- Obtener el reporte
+    SELECT 
+      br.BatchReportID,
+      br.ReportUrl,
+      br.TotalProcessed,
+      br.SuccessCount,
+      br.ErrorCount,
+      br.ActorUserID,
+      u.Name AS ActorName,
+      u.Email AS ActorEmail,
+      u.SystemRoleCode AS ActorRole,
+      br.SourceIp,
+      br.UserAgent,
+      br.CreatedAt
+    FROM ref.NFLPlayerBatchReport br
+    INNER JOIN auth.UserAccount u ON br.ActorUserID = u.UserID
+    WHERE br.BatchReportID = @BatchReportID;
+
+    -- Registrar auditoría
+    INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+    VALUES(@ActorUserID, N'NFL_PLAYER_BATCH_REPORT', CAST(@BatchReportID AS NVARCHAR(50)), N'READ',
+           N'Consulta de reporte de batch específico', NULL, NULL);
+
+  END TRY
+  BEGIN CATCH
+    THROW;
+  END CATCH
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_GetNFLPlayerBatchReportById TO app_executor;
+GO
+
 GRANT EXECUTE ON SCHEMA::app TO app_executor;
 GO

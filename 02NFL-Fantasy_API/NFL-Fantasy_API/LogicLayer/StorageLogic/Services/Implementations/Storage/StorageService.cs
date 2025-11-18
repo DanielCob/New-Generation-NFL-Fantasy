@@ -43,10 +43,8 @@ namespace NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Implementations.Stora
         {
             try
             {
-                // Generar nombre único para evitar colisiones
                 var uniqueObjectName = GenerateUniqueObjectName(fileName, folder);
 
-                // EJECUCIÓN: Delegada a DataAccess
                 var publicUrl = await _dataAccess.UploadObjectAsync(
                     imageStream,
                     uniqueObjectName,
@@ -71,38 +69,69 @@ namespace NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Implementations.Stora
                 throw;
             }
         }
-
         #endregion
 
-        #region Delete Image
-
-        /// <summary>
-        /// Elimina una imagen del almacenamiento.
-        /// </summary>
-        public async Task<bool> DeleteImageAsync(string imageUrl)
+        #region Upload JSON
+        public async Task<string> UploadJsonAsync(
+            Stream jsonStream,
+            string fileName,
+            string contentType,
+            string? folder = null)
         {
             try
             {
-                // Extraer nombre del objeto desde la URL
-                var objectName = _dataAccess.ExtractObjectNameFromUrl(imageUrl);
+                var uniqueObjectName = GenerateUniqueObjectName(fileName, folder);
+
+                var publicUrl = await _dataAccess.UploadObjectAsync(
+                    jsonStream,
+                    uniqueObjectName,
+                    contentType
+                );
+
+                _logger.LogInformation(
+                    "JSON cargado: {FileName} -> {Url}",
+                    fileName,
+                    publicUrl
+                );
+
+                return publicUrl;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error al cargar JSON: {FileName}",
+                    fileName
+                );
+                throw;
+            }
+        }
+        #endregion
+
+        #region Delete Object
+
+        public async Task<bool> DeleteObjectAsync(string objectUrl)
+        {
+            try
+            {
+                var objectName = _dataAccess.ExtractObjectNameFromUrl(objectUrl);
 
                 if (string.IsNullOrWhiteSpace(objectName))
                 {
                     _logger.LogWarning(
                         "No se pudo extraer object name de URL: {Url}",
-                        imageUrl
+                        objectUrl
                     );
                     return false;
                 }
 
-                // EJECUCIÓN: Delegada a DataAccess
                 var deleted = await _dataAccess.DeleteObjectAsync(objectName);
 
                 if (deleted)
                 {
                     _logger.LogInformation(
-                        "Imagen eliminada: {Url}",
-                        imageUrl
+                        "Objeto eliminado: {Url}",
+                        objectUrl
                     );
                 }
 
@@ -112,8 +141,8 @@ namespace NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Implementations.Stora
             {
                 _logger.LogError(
                     ex,
-                    "Error al eliminar imagen: {Url}",
-                    imageUrl
+                    "Error al eliminar objeto: {Url}",
+                    objectUrl
                 );
                 return false;
             }
@@ -121,31 +150,27 @@ namespace NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Implementations.Stora
 
         #endregion
 
-        #region Image Exists
+        #region Object Exists
 
-        /// <summary>
-        /// Verifica si una imagen existe.
-        /// </summary>
-        public async Task<bool> ImageExistsAsync(string imageUrl)
+        public async Task<bool> ObjectExistsAsync(string objectUrl)
         {
             try
             {
-                var objectName = _dataAccess.ExtractObjectNameFromUrl(imageUrl);
+                var objectName = _dataAccess.ExtractObjectNameFromUrl(objectUrl);
 
                 if (string.IsNullOrWhiteSpace(objectName))
                 {
                     return false;
                 }
 
-                // EJECUCIÓN: Delegada a DataAccess
                 return await _dataAccess.ObjectExistsAsync(objectName);
             }
             catch (Exception ex)
             {
                 _logger.LogError(
                     ex,
-                    "Error al verificar existencia de imagen: {Url}",
-                    imageUrl
+                    "Error al verificar existencia de objeto: {Url}",
+                    objectUrl
                 );
                 return false;
             }

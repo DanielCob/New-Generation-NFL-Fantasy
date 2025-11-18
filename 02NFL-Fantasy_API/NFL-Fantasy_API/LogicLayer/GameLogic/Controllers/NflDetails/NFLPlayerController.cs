@@ -97,6 +97,111 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.NflDetails
         }
 
         /// <summary>
+        /// Crea múltiples jugadores NFL mediante batch.
+        /// POST /api/nflplayer/batch
+        /// </summary>
+        /// <param name="dtos">Lista de jugadores a crear</param>
+        /// <returns>Resultados de la creación en batch</returns>
+        /// <response code="200">Proceso completado con resumen de éxitos y errores</response>
+        /// <response code="400">No se proporcionaron jugadores</response>
+        /// <response code="403">No eres ADMIN</response>
+        /// <remarks>
+        /// Solo ADMIN puede crear jugadores NFL.
+        /// Procesa cada jugador individualmente y retorna un resumen completo.
+        /// Los errores individuales no detienen el proceso completo.
+        /// Feature: Crear jugadores NFL en batch
+        /// </remarks>
+        [HttpPost("batch")]
+        [Authorize(Policy = "AdminOnly")]
+        public async Task<ActionResult<ApiResponseDTO>> CreateNFLPlayersBatch([FromBody] List<CreateNFLPlayerDTO> dtos)
+        {
+            if (dtos == null || dtos.Count == 0)
+            {
+                return BadRequest(ApiResponseDTO.ErrorResponse(
+                    "No se proporcionaron jugadores para crear."
+                ));
+            }
+
+            var actorUserId = this.UserId();
+            var sourceIp = this.ClientIp();
+            var userAgent = this.UserAgent();
+
+            var results = new List<object>();
+            var errors = new List<string>();
+
+            foreach (var dto in dtos)
+            {
+                try
+                {
+                    var result = await _nflPlayerService.CreateNFLPlayerAsync(
+                        dto,
+                        actorUserId,
+                        sourceIp,
+                        userAgent
+                    );
+
+                    if (result is null)
+                    {
+                        errors.Add($"{dto.FirstName} {dto.LastName}: No se pudo crear el jugador NFL.");
+                        continue;
+                    }
+
+                    if (result.Success)
+                    {
+                        var createdPlayer = (CreateNFLPlayerResponseDTO?)result.Data;
+                        results.Add(new
+                        {
+                            NFLPlayerID = createdPlayer?.NFLPlayerID ?? 0,
+                            PlayerName = $"{dto.FirstName} {dto.LastName}",
+                            Position = dto.Position,
+                            NFLTeamID = dto.NFLTeamID,
+                            Success = true
+                        });
+
+                        _logger.LogInformation(
+                            "User {UserID} created NFL player in batch: {PlayerName}",
+                            actorUserId,
+                            $"{dto.FirstName} {dto.LastName}"
+                        );
+                    }
+                    else
+                    {
+                        errors.Add($"{dto.FirstName} {dto.LastName}: {result.Message}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"{dto.FirstName} {dto.LastName}: {ex.Message}");
+                    _logger.LogError(
+                        ex,
+                        "Error creating NFL player in batch: {PlayerName}",
+                        $"{dto.FirstName} {dto.LastName}"
+                    );
+                }
+            }
+
+            _logger.LogInformation(
+                "User {UserID} completed batch creation: {SuccessCount} players created, {ErrorCount} errors from {IP}",
+                actorUserId,
+                results.Count,
+                errors.Count,
+                sourceIp
+            );
+
+            return Ok(ApiResponseDTO.SuccessResponse(
+                $"Proceso completado. {results.Count} jugadores creados, {errors.Count} errores.",
+                new
+                {
+                    CreatedPlayers = results,
+                    Errors = errors,
+                    TotalProcessed = dtos.Count,
+                    SuccessCount = results.Count,
+                    ErrorCount = errors.Count
+                }
+            ));
+        }
+
+        /// <summary>
         /// Lista jugadores NFL con paginación y filtros.
         /// GET /api/nflplayer
         /// </summary>
@@ -366,5 +471,132 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.NflDetails
                 players
             ));
         }
+
+        #region Batch Reports
+
+        /// <summary>
+        /// Crea un reporte de importación batch de jugadores NFL.
+        /// POST /api/nflplayer/batch-report
+        /// </summary>
+        /// <param name="dto">Datos del reporte a crear</param>
+        /// <returns>Datos del reporte creado con su ID</returns>
+        /// <response code="201">Reporte creado exitosamente</response>
+        /// <response code="400">Datos inválidos</response>
+        /// <response code="403">No eres ADMIN</response>
+        /// <remarks>
+        /// Solo ADMIN puede crear reportes de batch.
+        /// Se llama después de completar un proceso de importación batch.
+        /// Feature: Reportes de importación batch
+        /// </remarks>
+        [HttpPost("batch-report")]
+        [Authorize(Policy = "AdminOnly")]
+        public async Task<ActionResult<ApiResponseDTO>> CreateBatchReport([FromBody] CreateNFLPlayerBatchReportDTO dto)
+        {
+            var actorUserId = this.UserId();
+            var sourceIp = this.ClientIp();
+            var userAgent = this.UserAgent();
+
+            var result = await _nflPlayerService.CreateBatchReportAsync(
+                dto,
+                actorUserId,
+                sourceIp,
+                userAgent
+            );
+
+            if (result is null)
+            {
+                return BadRequest(ApiResponseDTO.ErrorResponse("No se pudo crear el reporte de batch."));
+            }
+
+            if (result.Success)
+            {
+                _logger.LogInformation(
+                    "User {UserID} created batch report {BatchReportID}: {SuccessCount} successes, {ErrorCount} errors from {IP}",
+                    actorUserId,
+                    ((CreateNFLPlayerBatchReportResponseDTO?)result.Data)?.BatchReportID ?? 0,
+                    dto.SuccessCount,
+                    dto.ErrorCount,
+                    sourceIp
+                );
+
+                return CreatedAtAction(
+                    nameof(GetBatchReportById),
+                    new { id = ((CreateNFLPlayerBatchReportResponseDTO?)result.Data)?.BatchReportID ?? 0 },
+                    result
+                );
+            }
+
+            return BadRequest(result);
+        }
+
+        /// <summary>
+        /// Lista todos los reportes de batch con paginación.
+        /// GET /api/nflplayer/batch-reports
+        /// </summary>
+        /// <param name="request">Parámetros de paginación y ordenamiento</param>
+        /// <returns>Lista paginada de reportes</returns>
+        /// <response code="200">Reportes obtenidos exitosamente</response>
+        /// <response code="403">No eres ADMIN</response>
+        /// <remarks>
+        /// Solo ADMIN puede ver reportes de batch.
+        /// Paginación: 50 por página (máx 100)
+        /// Ordenamiento por: BatchReportID, CreatedAt, TotalProcessed, SuccessCount, ErrorCount
+        /// Feature: Listar reportes de batch
+        /// </remarks>
+        [HttpGet("batch-reports")]
+        [Authorize(Policy = "AdminOnly")]
+        public async Task<ActionResult<ApiResponseDTO>> GetAllBatchReports([FromQuery] ListNFLPlayerBatchReportsRequestDTO request)
+        {
+            var actorUserId = this.UserId();
+
+            var result = await _nflPlayerService.GetAllBatchReportsAsync(request, actorUserId);
+
+            if (result is null)
+            {
+                return BadRequest(ApiResponseDTO.ErrorResponse("No se pudieron obtener los reportes de batch."));
+            }
+
+            return Ok(ApiResponseDTO.SuccessResponse(
+                "Reportes de batch obtenidos exitosamente.",
+                result
+            ));
+        }
+
+        /// <summary>
+        /// Obtiene un reporte de batch específico por ID.
+        /// GET /api/nflplayer/batch-report/{id}
+        /// </summary>
+        /// <param name="id">ID del reporte</param>
+        /// <returns>Detalles completos del reporte</returns>
+        /// <response code="200">Reporte obtenido exitosamente</response>
+        /// <response code="404">Reporte no encontrado</response>
+        /// <response code="403">No eres ADMIN</response>
+        /// <remarks>
+        /// Solo ADMIN puede ver reportes de batch.
+        /// Feature: Ver detalles de reporte de batch
+        /// </remarks>
+        [HttpGet("batch-report/{id}")]
+        [Authorize(Policy = "AdminOnly")]
+        public async Task<ActionResult<ApiResponseDTO>> GetBatchReportById(int id)
+        {
+            var actorUserId = this.UserId();
+
+            var details = await _nflPlayerService.GetBatchReportByIdAsync(id, actorUserId);
+
+            if (details == null)
+            {
+                return NotFound(ApiResponseDTO.ErrorResponse(
+                    "Reporte de batch no encontrado."
+                ));
+            }
+
+            return Ok(ApiResponseDTO.SuccessResponse(
+                "Reporte de batch obtenido exitosamente.",
+                details
+            ));
+        }
+
+        #endregion
+
     }
 }

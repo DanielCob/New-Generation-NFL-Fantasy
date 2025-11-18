@@ -621,6 +621,46 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayerChangeLog_Playe
   CREATE NONCLUSTERED INDEX IX_NFLPlayerChangeLog_Player_At ON ref.NFLPlayerChangeLog(NFLPlayerID, ChangedAt DESC);
 GO
 
+/* ================================================
+   TABLA DE REPORTES DE IMPORTACIÓN BATCH
+   ================================================ */
+-- Registro de reportes generados por importaciones batch de jugadores NFL
+IF OBJECT_ID('ref.NFLPlayerBatchReport','U') IS NULL
+BEGIN
+  CREATE TABLE ref.NFLPlayerBatchReport(
+    BatchReportID INT IDENTITY(1,1) CONSTRAINT PK_NFLPlayerBatchReport PRIMARY KEY,
+    ReportUrl NVARCHAR(400) NOT NULL,
+    TotalProcessed INT NOT NULL CONSTRAINT DF_NFLPlayerBatchReport_Total DEFAULT(0),
+    SuccessCount INT NOT NULL CONSTRAINT DF_NFLPlayerBatchReport_Success DEFAULT(0),
+    ErrorCount INT NOT NULL CONSTRAINT DF_NFLPlayerBatchReport_Error DEFAULT(0),
+    ActorUserID INT NOT NULL,
+    SourceIp NVARCHAR(45) NULL,
+    UserAgent NVARCHAR(300) NULL,
+    CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_NFLPlayerBatchReport_CreatedAt DEFAULT(SYSUTCDATETIME()),
+    CONSTRAINT CK_NFLPlayerBatchReport_Counts CHECK (TotalProcessed = SuccessCount + ErrorCount)
+  );
+END
+GO
+
+-- Llave foránea hacia el usuario que ejecutó la importación
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLPlayerBatchReport_Actor')
+  ALTER TABLE ref.NFLPlayerBatchReport 
+    ADD CONSTRAINT FK_NFLPlayerBatchReport_Actor 
+      FOREIGN KEY(ActorUserID) REFERENCES auth.UserAccount(UserID) ON DELETE NO ACTION;
+GO
+
+-- Índice para búsqueda por usuario y fecha
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayerBatchReport_Actor_Date' AND object_id=OBJECT_ID('ref.NFLPlayerBatchReport'))
+  CREATE NONCLUSTERED INDEX IX_NFLPlayerBatchReport_Actor_Date 
+    ON ref.NFLPlayerBatchReport(ActorUserID, CreatedAt DESC);
+GO
+
+-- Índice para búsqueda por fecha
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayerBatchReport_CreatedAt' AND object_id=OBJECT_ID('ref.NFLPlayerBatchReport'))
+  CREATE NONCLUSTERED INDEX IX_NFLPlayerBatchReport_CreatedAt 
+    ON ref.NFLPlayerBatchReport(CreatedAt DESC);
+GO
+
 -- Relacion entre equipos y jugadores (roster)
 IF OBJECT_ID('league.TeamRoster','U') IS NULL
 BEGIN

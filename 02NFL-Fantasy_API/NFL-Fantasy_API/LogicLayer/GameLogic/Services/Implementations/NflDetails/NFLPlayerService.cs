@@ -452,5 +452,153 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.NflDetai
         }
 
         #endregion
+
+        #region Batch Reports
+
+        /// <summary>
+        /// Crea un reporte de importación batch de jugadores NFL.
+        /// SP: app.sp_CreateNFLPlayerBatchReport
+        /// </summary>
+        public async Task<ApiResponseDTO> CreateBatchReportAsync(
+            CreateNFLPlayerBatchReportDTO dto,
+            int actorUserId,
+            string? sourceIp = null,
+            string? userAgent = null)
+        {
+            try
+            {
+                // VALIDACIÓN: TotalProcessed debe ser igual a SuccessCount + ErrorCount
+                if (dto.TotalProcessed != (dto.SuccessCount + dto.ErrorCount))
+                {
+                    return ApiResponseDTO.ErrorResponse(
+                        "Total procesado debe ser igual a la suma de éxitos y errores."
+                    );
+                }
+
+                // EJECUCIÓN: Delegada a DataAccess
+                var result = await _dataAccess.CreateBatchReportAsync(
+                    dto,
+                    actorUserId,
+                    sourceIp,
+                    userAgent
+                );
+
+                if (result != null)
+                {
+                    _logger.LogInformation(
+                        "User {ActorUserId} created batch report {BatchReportID}: {SuccessCount}/{TotalProcessed}",
+                        actorUserId,
+                        result.BatchReportID,
+                        result.SuccessCount,
+                        result.TotalProcessed
+                    );
+
+                    return ApiResponseDTO.SuccessResponse(result.Message, result);
+                }
+
+                return ApiResponseDTO.ErrorResponse("Error al crear reporte de batch.");
+            }
+            catch (SqlException ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "SQL error al crear reporte de batch: Actor={ActorUserId}",
+                    actorUserId
+                );
+                return ApiResponseDTO.ErrorResponse(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error al crear reporte de batch: Actor={ActorUserId}",
+                    actorUserId
+                );
+                return ApiResponseDTO.ErrorResponse($"Error inesperado: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Lista todos los reportes de batch con paginación.
+        /// SP: app.sp_GetAllNFLPlayerBatchReports
+        /// </summary>
+        public async Task<ListNFLPlayerBatchReportsResponseDTO> GetAllBatchReportsAsync(
+            ListNFLPlayerBatchReportsRequestDTO request,
+            int actorUserId)
+        {
+            try
+            {
+                // VALIDACIÓN: Delegada a PaginationValidator
+                var (adjustedPageNumber, adjustedPageSize, paginationErrors) =
+                    PaginationValidator.ValidateAndAdjustPagination(
+                        request.PageNumber,
+                        request.PageSize
+                    );
+
+                if (paginationErrors.Any())
+                {
+                    _logger.LogWarning(
+                        "Parámetros de paginación ajustados: {Errors}",
+                        string.Join(", ", paginationErrors)
+                    );
+
+                    request.PageNumber = adjustedPageNumber;
+                    request.PageSize = adjustedPageSize;
+                }
+
+                // Validar OrderBy
+                var validOrderByFields = new[] { "BatchReportID", "CreatedAt", "TotalProcessed", "SuccessCount", "ErrorCount" };
+                if (!validOrderByFields.Contains(request.OrderBy))
+                {
+                    request.OrderBy = "CreatedAt";
+                }
+
+                // Validar SortDirection
+                if (request.SortDirection.ToUpper() != "ASC" && request.SortDirection.ToUpper() != "DESC")
+                {
+                    request.SortDirection = "DESC";
+                }
+
+                // EJECUCIÓN: Delegada a DataAccess
+                return await _dataAccess.GetAllBatchReportsAsync(request, actorUserId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error al listar reportes de batch: Actor={ActorUserId}",
+                    actorUserId
+                );
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Obtiene un reporte de batch específico por ID.
+        /// SP: app.sp_GetNFLPlayerBatchReportById
+        /// </summary>
+        public async Task<NFLPlayerBatchReportDetailsDTO?> GetBatchReportByIdAsync(
+            int batchReportId,
+            int actorUserId)
+        {
+            try
+            {
+                // EJECUCIÓN: Delegada a DataAccess
+                return await _dataAccess.GetBatchReportByIdAsync(batchReportId, actorUserId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error al obtener reporte de batch {BatchReportId}: Actor={ActorUserId}",
+                    batchReportId,
+                    actorUserId
+                );
+                throw;
+            }
+        }
+
+        #endregion
+
     }
 }

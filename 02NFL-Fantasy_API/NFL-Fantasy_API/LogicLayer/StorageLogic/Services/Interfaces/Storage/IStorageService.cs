@@ -39,27 +39,41 @@
             string? folder = null);
 
         /// <summary>
-        /// Elimina una imagen del almacenamiento.
+        /// Carga un objeto de tipo json al almacenamiento.
         /// </summary>
-        /// <param name="imageUrl">URL completa o nombre del objeto</param>
+        /// <param name="jsonStream">Stream del json</param>
+        /// <param name="fileName">Nombre original del archivo</param>
+        /// <param name="contentType">Tipo MIME (image/jpeg, image/png, etc.)</param>
+        /// <param name="folder">Carpeta opcional dentro del bucket</param>
+        /// <returns>URL pública de la imagen cargada</returns>
+        Task<string> UploadJsonAsync(
+            Stream jsonStream,
+            string fileName,
+            string contentType,
+            string? folder = null);
+
+        /// <summary>
+        /// Elimina un objeto del almacenamiento.
+        /// </summary>
+        /// <param name="objectUrl">URL completa o nombre del objeto</param>
         /// <returns>True si se eliminó exitosamente</returns>
-        Task<bool> DeleteImageAsync(string imageUrl);
+        Task<bool> DeleteObjectAsync(string objectUrl);
 
         /// <summary>
         /// Verifica si una imagen existe en el almacenamiento.
         /// </summary>
-        /// <param name="imageUrl">URL completa o nombre del objeto</param>
+        /// <param name="objectUrl">URL completa o nombre del objeto</param>
         /// <returns>True si existe</returns>
-        Task<bool> ImageExistsAsync(string imageUrl);
+        Task<bool> ObjectExistsAsync(string objectUrl);
 
         /// <summary>
         /// Genera una URL temporal con firma para acceso privado.
         /// </summary>
-        /// <param name="imageUrl">URL completa o nombre del objeto</param>
+        /// <param name="objectUrl">URL completa o nombre del objeto</param>
         /// <param name="expiryInSeconds">Segundos hasta expiración (default: 1 hora)</param>
         /// <returns>URL temporal firmada</returns>
         Task<string> GetPresignedUrlAsync(
-            string imageUrl,
+            string objectUrl,
             int expiryInSeconds = 3600);
     }
 }

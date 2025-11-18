@@ -476,5 +476,152 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.NflDetail
         }
 
         #endregion
+
+        #region Batch Reports
+
+        /// <summary>
+        /// Crea un reporte de importación batch de jugadores NFL.
+        /// SP: app.sp_CreateNFLPlayerBatchReport
+        /// </summary>
+        public async Task<CreateNFLPlayerBatchReportResponseDTO?> CreateBatchReportAsync(
+            CreateNFLPlayerBatchReportDTO dto,
+            int actorUserId,
+            string? sourceIp,
+            string? userAgent)
+        {
+            var parameters = new SqlParameter[]
+            {
+                SqlParameterExtensions.CreateParameter("@ActorUserID", actorUserId),
+                SqlParameterExtensions.CreateParameter("@ReportUrl", dto.ReportUrl),
+                SqlParameterExtensions.CreateParameter("@TotalProcessed", dto.TotalProcessed),
+                SqlParameterExtensions.CreateParameter("@SuccessCount", dto.SuccessCount),
+                SqlParameterExtensions.CreateParameter("@ErrorCount", dto.ErrorCount),
+                SqlParameterExtensions.CreateParameter("@SourceIp", sourceIp),
+                SqlParameterExtensions.CreateParameter("@UserAgent", userAgent)
+            };
+
+            return await _db.ExecuteStoredProcedureAsync(
+                "app.sp_CreateNFLPlayerBatchReport",
+                parameters,
+                reader => new CreateNFLPlayerBatchReportResponseDTO
+                {
+                    BatchReportID = reader.GetSafeInt32("BatchReportID"),
+                    ReportUrl = reader.GetSafeString("ReportUrl"),
+                    TotalProcessed = reader.GetSafeInt32("TotalProcessed"),
+                    SuccessCount = reader.GetSafeInt32("SuccessCount"),
+                    ErrorCount = reader.GetSafeInt32("ErrorCount"),
+                    Message = reader.GetSafeString("Message")
+                }
+            );
+        }
+
+        /// <summary>
+        /// Lista todos los reportes de batch con paginación.
+        /// SP: app.sp_GetAllNFLPlayerBatchReports
+        /// </summary>
+        public async Task<ListNFLPlayerBatchReportsResponseDTO> GetAllBatchReportsAsync(
+            ListNFLPlayerBatchReportsRequestDTO request,
+            int actorUserId)
+        {
+            var parameters = new SqlParameter[]
+            {
+                SqlParameterExtensions.CreateParameter("@ActorUserID", actorUserId),
+                SqlParameterExtensions.CreateParameter("@PageNumber", request.PageNumber),
+                SqlParameterExtensions.CreateParameter("@PageSize", request.PageSize),
+                SqlParameterExtensions.CreateParameter("@OrderBy", request.OrderBy),
+                SqlParameterExtensions.CreateParameter("@SortDirection", request.SortDirection)
+            };
+
+            var response = new ListNFLPlayerBatchReportsResponseDTO();
+
+            // Obtener connection string usando reflection
+            var connStr = _db.GetType()
+                .GetField("_connectionString", BindingFlags.NonPublic | BindingFlags.Instance)?
+                .GetValue(_db) as string;
+
+            if (string.IsNullOrEmpty(connStr))
+            {
+                throw new InvalidOperationException("No se pudo obtener la cadena de conexión.");
+            }
+
+            using var connection = new SqlConnection(connStr);
+            using var command = new SqlCommand("app.sp_GetAllNFLPlayerBatchReports", connection)
+            {
+                CommandType = CommandType.StoredProcedure
+            };
+
+            command.Parameters.AddRange(parameters);
+
+            await connection.OpenAsync();
+            using var reader = await command.ExecuteReaderAsync();
+
+            // Leer reportes
+            while (await reader.ReadAsync())
+            {
+                response.Reports.Add(new NFLPlayerBatchReportListItemDTO
+                {
+                    BatchReportID = reader.GetSafeInt32("BatchReportID"),
+                    ReportUrl = reader.GetSafeString("ReportUrl"),
+                    TotalProcessed = reader.GetSafeInt32("TotalProcessed"),
+                    SuccessCount = reader.GetSafeInt32("SuccessCount"),
+                    ErrorCount = reader.GetSafeInt32("ErrorCount"),
+                    ActorUserID = reader.GetSafeInt32("ActorUserID"),
+                    ActorName = reader.GetSafeString("ActorName"),
+                    ActorEmail = reader.GetSafeString("ActorEmail"),
+                    SourceIp = reader.GetSafeNullableString("SourceIp"),
+                    UserAgent = reader.GetSafeNullableString("UserAgent"),
+                    CreatedAt = reader.GetSafeDateTime("CreatedAt")
+                });
+
+                // Leer metadatos de la primera fila
+                if (response.TotalRecords == 0)
+                {
+                    response.TotalRecords = reader.GetSafeInt32("TotalRecords");
+                    response.CurrentPage = reader.GetSafeInt32("CurrentPage");
+                    response.PageSize = reader.GetSafeInt32("PageSize");
+                    response.TotalPages = reader.GetSafeInt32("TotalPages");
+                }
+            }
+
+            return response;
+        }
+
+        /// <summary>
+        /// Obtiene un reporte de batch específico por ID.
+        /// SP: app.sp_GetNFLPlayerBatchReportById
+        /// </summary>
+        public async Task<NFLPlayerBatchReportDetailsDTO?> GetBatchReportByIdAsync(
+            int batchReportId,
+            int actorUserId)
+        {
+            var parameters = new SqlParameter[]
+            {
+                SqlParameterExtensions.CreateParameter("@ActorUserID", actorUserId),
+                SqlParameterExtensions.CreateParameter("@BatchReportID", batchReportId)
+            };
+
+            return await _db.ExecuteStoredProcedureAsync(
+                "app.sp_GetNFLPlayerBatchReportById",
+                parameters,
+                reader => new NFLPlayerBatchReportDetailsDTO
+                {
+                    BatchReportID = reader.GetSafeInt32("BatchReportID"),
+                    ReportUrl = reader.GetSafeString("ReportUrl"),
+                    TotalProcessed = reader.GetSafeInt32("TotalProcessed"),
+                    SuccessCount = reader.GetSafeInt32("SuccessCount"),
+                    ErrorCount = reader.GetSafeInt32("ErrorCount"),
+                    ActorUserID = reader.GetSafeInt32("ActorUserID"),
+                    ActorName = reader.GetSafeString("ActorName"),
+                    ActorEmail = reader.GetSafeString("ActorEmail"),
+                    ActorRole = reader.GetSafeString("ActorRole"),
+                    SourceIp = reader.GetSafeNullableString("SourceIp"),
+                    UserAgent = reader.GetSafeNullableString("UserAgent"),
+                    CreatedAt = reader.GetSafeDateTime("CreatedAt")
+                }
+            );
+        }
+
+        #endregion
+
     }
 }

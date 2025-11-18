@@ -84,5 +84,40 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Interfaces.NflDetails
         /// VIEW: vw_Players con WHERE
         /// </summary>
         Task<PlayerBasicDTO?> GetPlayerByIdAsync(int nflPlayerId);
+
+        #region Batch Reports
+
+        /// <summary>
+        /// Crea un reporte de importación batch de jugadores NFL
+        /// SP: app.sp_CreateNFLPlayerBatchReport
+        /// Feature: Crear reporte de batch
+        /// </summary>
+        Task<ApiResponseDTO> CreateBatchReportAsync(
+            CreateNFLPlayerBatchReportDTO dto,
+            int actorUserId,
+            string? sourceIp = null,
+            string? userAgent = null);
+
+        /// <summary>
+        /// Lista todos los reportes de batch con paginación
+        /// SP: app.sp_GetAllNFLPlayerBatchReports
+        /// Feature: Listar reportes de batch
+        /// Paginación: 50 por página (máx 100)
+        /// </summary>
+        Task<ListNFLPlayerBatchReportsResponseDTO> GetAllBatchReportsAsync(
+            ListNFLPlayerBatchReportsRequestDTO request,
+            int actorUserId);
+
+        /// <summary>
+        /// Obtiene un reporte de batch específico por ID
+        /// SP: app.sp_GetNFLPlayerBatchReportById
+        /// Feature: Ver detalles de reporte de batch
+        /// </summary>
+        Task<NFLPlayerBatchReportDetailsDTO?> GetBatchReportByIdAsync(
+            int batchReportId,
+            int actorUserId);
+
+        #endregion
+
     }
 }
