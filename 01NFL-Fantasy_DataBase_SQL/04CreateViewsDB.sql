@@ -519,8 +519,7 @@ GO
 CREATE OR ALTER VIEW dbo.vw_LeagueDirectory
 AS
 SELECT
-  l.LeagueID,
-  l.LeaguePublicID,  -- NUEVO
+  l.LeaguePublicID,
   s.Label AS SeasonLabel,
   l.Name,
   l.Status,
@@ -539,12 +538,12 @@ GO
 
 -- ============================================================================
 -- vw_LeagueMembers - VERSIÓN ACTUALIZADA
--- Incluye SystemRoleCode de cada miembro para permisos granulares
+-- Incluye LeagueID para permitir filtrado (pero no se expone en la API)
 -- ============================================================================
 CREATE OR ALTER VIEW dbo.vw_LeagueMembers
 AS
 SELECT
-  lm.LeagueID,
+  lm.LeagueID,  -- DEBE ESTAR PRESENTE (necesaria para filtrar)
   lm.UserID,
   lm.RoleCode AS LeagueRoleCode,
   lm.JoinedAt,
@@ -565,13 +564,13 @@ GO
 
 -- ============================================================================
 -- vw_LeagueTeams - VERSIÓN ACTUALIZADA
--- Incluye SystemRoleCode del dueño del equipo
+-- Incluye LeagueID para permitir filtrado (pero no se expone en la API)
 -- ============================================================================
 CREATE OR ALTER VIEW dbo.vw_LeagueTeams
 AS
 SELECT
   t.TeamID,
-  t.LeagueID,
+  t.LeagueID,  -- AGREGAR ESTA LÍNEA (necesaria para filtrar)
   t.TeamName,
   t.OwnerUserID,
   u.Name AS OwnerName,
@@ -653,7 +652,7 @@ CREATE OR ALTER VIEW dbo.vw_UserCommissionedLeagues
 AS
 SELECT
   lm.UserID,
-  lm.LeagueID,
+  l.LeaguePublicID,
   l.Name        AS LeagueName,
   l.Status,
   l.TeamSlots,
@@ -678,7 +677,7 @@ AS
 SELECT
   t.OwnerUserID AS UserID,
   t.TeamID,
-  t.LeagueID,
+  l.LeaguePublicID,
   l.Name AS LeagueName,
   l.Status AS LeagueStatus,
   t.TeamName,
@@ -705,8 +704,7 @@ GO
 CREATE OR ALTER VIEW dbo.vw_LeagueSummary
 AS
 SELECT
-  l.LeagueID,
-  l.LeaguePublicID,  -- NUEVO
+  l.LeaguePublicID,
   l.Name,
   l.Description,
   l.Status,

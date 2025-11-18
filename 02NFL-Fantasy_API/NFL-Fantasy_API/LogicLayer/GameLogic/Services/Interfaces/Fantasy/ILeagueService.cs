@@ -23,7 +23,11 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Interfaces.Fantasy
         /// <param name="dto">Datos de la nueva liga</param>
         /// <param name="creatorUserId">ID del usuario creador (del contexto auth)</param>
         /// <returns>Datos de la liga creada con cupos disponibles</returns>
-        Task<ApiResponseDTO> CreateLeagueAsync(CreateLeagueDTO dto, int creatorUserId, string? sourceIp = null, string? userAgent = null);
+        Task<ApiResponseDTO> CreateLeagueAsync(
+            CreateLeagueDTO dto,
+            int creatorUserId,
+            string? sourceIp = null,
+            string? userAgent = null);
 
         /// <summary>
         /// Edita la configuración de una liga
@@ -35,11 +39,16 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Interfaces.Fantasy
         /// - Siempre editables: Name, Description, MaxRosterChangesPerTeam, MaxFreeAgentAddsPerTeam
         /// Solo el comisionado principal puede editar
         /// </summary>
-        /// <param name="leagueId">ID de la liga</param>
+        /// <param name="leaguePublicId">ID de la liga</param>
         /// <param name="dto">Campos a actualizar (todos opcionales)</param>
         /// <param name="actorUserId">ID del usuario que realiza el cambio</param>
         /// <returns>Mensaje de confirmación o error</returns>
-        Task<ApiResponseDTO> EditLeagueConfigAsync(int leagueId, EditLeagueConfigDTO dto, int actorUserId, string? sourceIp = null, string? userAgent = null);
+        Task<ApiResponseDTO> EditLeagueConfigAsync(
+            int leaguePublicId,
+            EditLeagueConfigDTO dto,
+            int actorUserId,
+            string? sourceIp = null,
+            string? userAgent = null);
 
         /// <summary>
         /// Cambia el estado de una liga
@@ -48,20 +57,25 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Interfaces.Fantasy
         /// Estados: 0=PreDraft, 1=Active, 2=Inactive, 3=Closed
         /// Solo el comisionado principal puede cambiar el estado
         /// </summary>
-        /// <param name="leagueId">ID de la liga</param>
+        /// <param name="leaguePublicId">ID de la liga</param>
         /// <param name="dto">Nuevo estado y razón opcional</param>
         /// <param name="actorUserId">ID del usuario que realiza el cambio</param>
         /// <returns>Mensaje de confirmación</returns>
-        Task<ApiResponseDTO> SetLeagueStatusAsync(int leagueId, SetLeagueStatusDTO dto, int actorUserId, string? sourceIp = null, string? userAgent = null);
+        Task<ApiResponseDTO> SetLeagueStatusAsync(
+            int leaguePublicId,
+            SetLeagueStatusDTO dto,
+            int actorUserId,
+            string? sourceIp = null,
+            string? userAgent = null);
 
         /// <summary>
         /// Obtiene el resumen completo de una liga
         /// SP: app.sp_GetLeagueSummary (retorna 2 result sets: liga + equipos)
         /// Feature 1.2 - Ver liga
         /// </summary>
-        /// <param name="leagueId">ID de la liga</param>
+        /// <param name="leaguePublicId">ID de la liga</param>
         /// <returns>Resumen completo con equipos</returns>
-        Task<LeagueSummaryDTO?> GetLeagueSummaryAsync(int leagueId);
+        Task<LeagueSummaryDTO?> GetLeagueSummaryAsync(int leaguePublicId);
 
         /// <summary>
         /// Obtiene el directorio/listado de ligas
@@ -75,17 +89,17 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Interfaces.Fantasy
         /// Obtiene los miembros de una liga específica
         /// VIEW: vw_LeagueMembers
         /// </summary>
-        /// <param name="leagueId">ID de la liga</param>
+        /// <param name="leaguePublicId">ID de la liga</param>
         /// <returns>Lista de miembros con sus roles</returns>
-        Task<List<LeagueMemberVM>> GetLeagueMembersAsync(int leagueId);
+        Task<List<LeagueMemberVM>> GetLeagueMembersAsync(int leaguePublicId);
 
         /// <summary>
         /// Obtiene los equipos de una liga específica
         /// VIEW: vw_LeagueTeams
         /// </summary>
-        /// <param name="leagueId">ID de la liga</param>
+        /// <param name="leaguePublicId">ID de la liga</param>
         /// <returns>Lista de equipos con sus owners</returns>
-        Task<List<LeagueTeamVM>> GetLeagueTeamsAsync(int leagueId);
+        Task<List<LeagueTeamVM>> GetLeagueTeamsAsync(int leaguePublicId);
 
         /// <summary>
         /// Obtiene todos los roles efectivos de un usuario en una liga
@@ -93,9 +107,9 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Interfaces.Fantasy
         /// Retorna roles explícitos, derivados y resumen
         /// </summary>
         /// <param name="userId">ID del usuario</param>
-        /// <param name="leagueId">ID de la liga</param>
+        /// <param name="leaguePublicId">ID de la liga</param>
         /// <returns>Roles y resumen del usuario en la liga</returns>
-        Task<GetUserRolesInLeagueResponseDTO?> GetUserRolesInLeagueAsync(int userId, int leagueId);
+        Task<GetUserRolesInLeagueResponseDTO?> GetUserRolesInLeagueAsync(int userId, int leaguePublicId);
 
         /// <summary>
         /// Obtiene las ligas donde un usuario es comisionado
@@ -123,7 +137,11 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Interfaces.Fantasy
         /// <summary>
         /// Une a un usuario a una liga existente
         /// </summary>
-        Task<JoinLeagueResultDTO> JoinLeagueAsync(int userId, JoinLeagueRequestDTO request, string? sourceIp, string? userAgent);
+        Task<JoinLeagueResultDTO> JoinLeagueAsync(
+            int userId,
+            JoinLeagueRequestDTO request,
+            string? sourceIp,
+            string? userAgent);
 
         /// <summary>
         /// Valida si una contraseña de liga es correcta
@@ -137,29 +155,43 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Interfaces.Fantasy
         /// <summary>
         /// Remueve un equipo de la liga (solo comisionado)
         /// </summary>
-        Task<ApiResponseDTO> RemoveTeamFromLeagueAsync(int actorUserId, int leagueId, RemoveTeamRequestDTO request, string? sourceIp, string? userAgent);
+        Task<ApiResponseDTO> RemoveTeamFromLeagueAsync(
+            int actorUserId,
+            int leaguePublicId,
+            RemoveTeamRequestDTO request,
+            string? sourceIp,
+            string? userAgent);
 
         /// <summary>
         /// Permite a un usuario salir voluntariamente de una liga
         /// </summary>
-        Task<ApiResponseDTO> LeaveLeagueAsync(int userId, int leagueId, string? sourceIp, string? userAgent);
+        Task<ApiResponseDTO> LeaveLeagueAsync(
+            int userId,
+            int leaguePublicId,
+            string? sourceIp,
+            string? userAgent);
 
         /// <summary>
         /// Transfiere el rol de comisionado principal a otro miembro
         /// </summary>
-        Task<ApiResponseDTO> TransferCommissionerAsync(int actorUserId, int leagueId, TransferCommissionerRequestDTO request, string? sourceIp, string? userAgent);
+        Task<ApiResponseDTO> TransferCommissionerAsync(
+            int actorUserId,
+            int leaguePublicId,
+            TransferCommissionerRequestDTO request,
+            string? sourceIp,
+            string? userAgent);
 
         /// <summary>
         /// Obtiene el resumen de una liga desde la VIEW (versión ligera).
         /// VIEW: vw_LeagueSummary
         /// Alternativa a sp_GetLeagueSummary (sin equipos detallados)
         /// </summary>
-        /// <param name="leagueId">ID de la liga</param>
+        /// <param name="leaguePublicId">ID de la liga</param>
         /// <returns>Resumen de liga o null si no existe</returns>
         /// <remarks>
         /// Más rápido que GetLeagueSummaryAsync porque no trae equipos.
         /// Ideal para listados y dashboards.
         /// </remarks>
-        Task<LeagueSummaryVM?> GetLeagueSummaryViewAsync(int leagueId);
+        Task<LeagueSummaryVM?> GetLeagueSummaryViewAsync(int leaguePublicId);
     }
 }

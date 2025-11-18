@@ -21,6 +21,8 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
     /// - Búsqueda y validación de contraseña son públicas
     /// - Operaciones administrativas requieren rol de comisionado
     /// 
+    /// ⭐ ACTUALIZADO: Todos los endpoints usan LeaguePublicID en lugar de LeagueID
+    /// 
     /// Feature 1.2: Creación y administración de ligas
     /// </summary>
     [ApiController]
@@ -46,11 +48,12 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
         /// POST /api/league
         /// </summary>
         /// <param name="dto">Configuración de la liga</param>
-        /// <returns>Datos de la liga creada con su LeagueID</returns>
+        /// <returns>Datos de la liga creada con su LeaguePublicID</returns>
         /// <response code="201">Liga creada exitosamente</response>
         /// <response code="400">Datos inválidos o nombre duplicado</response>
         /// <remarks>
         /// El usuario autenticado se convierte automáticamente en comisionado principal.
+        /// ⭐ RETORNA: LeaguePublicID (no el LeagueID privado)
         /// </remarks>
         [HttpPost]
         public async Task<ActionResult<ApiResponseDTO>> CreateLeague([FromBody] CreateLeagueDTO dto)
@@ -70,15 +73,16 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
             if (result.Success)
             {
                 _logger.LogInformation(
-                    "User {UserID} created league: {LeagueName} from {IP}",
+                    "User {UserID} created league: {LeagueName} (PublicID: {LeaguePublicID}) from {IP}",
                     creatorUserId,
                     dto.Name,
+                    ((CreateLeagueResponseDTO?)result.Data)?.LeaguePublicID ?? 0,
                     sourceIp
                 );
 
                 return CreatedAtAction(
                     nameof(GetLeagueSummary),
-                    new { id = ((CreateLeagueResponseDTO?)result.Data)?.LeagueID ?? 0 },
+                    new { leaguePublicId = ((CreateLeagueResponseDTO?)result.Data)?.LeaguePublicID ?? 0 },
                     result
                 );
             }
@@ -88,9 +92,9 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
 
         /// <summary>
         /// Edita la configuración de una liga.
-        /// PUT /api/league/{id}/config
+        /// PUT /api/league/{leaguePublicId}/config
         /// </summary>
-        /// <param name="id">ID de la liga</param>
+        /// <param name="leaguePublicId">ID público de la liga</param>
         /// <param name="dto">Nueva configuración</param>
         /// <returns>Confirmación de actualización</returns>
         /// <response code="200">Configuración actualizada exitosamente</response>
@@ -101,9 +105,9 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
         /// - Solo el comisionado principal puede editar
         /// - Algunas configuraciones solo editables en estado Pre-Draft
         /// </remarks>
-        [HttpPut("{id}/config")]
+        [HttpPut("{leaguePublicId}/config")]
         public async Task<ActionResult<ApiResponseDTO>> EditLeagueConfig(
-            int id,
+            int leaguePublicId,
             [FromBody] EditLeagueConfigDTO dto)
         {
             var actorUserId = this.UserId();
@@ -111,7 +115,7 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
             var userAgent = this.UserAgent();
 
             var result = await _leagueService.EditLeagueConfigAsync(
-                id,
+                leaguePublicId,
                 dto,
                 actorUserId,
                 sourceIp,
@@ -122,9 +126,9 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
             if (result.Success)
             {
                 _logger.LogInformation(
-                    "User {UserID} edited config for league {LeagueID} from {IP}",
+                    "User {UserID} edited config for league PublicID {LeaguePublicID} from {IP}",
                     actorUserId,
-                    id,
+                    leaguePublicId,
                     sourceIp
                 );
             }
@@ -134,9 +138,9 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
 
         /// <summary>
         /// Cambia el estado de una liga.
-        /// PUT /api/league/{id}/status
+        /// PUT /api/league/{leaguePublicId}/status
         /// </summary>
-        /// <param name="id">ID de la liga</param>
+        /// <param name="leaguePublicId">ID público de la liga</param>
         /// <param name="dto">Nuevo estado</param>
         /// <returns>Confirmación de cambio de estado</returns>
         /// <response code="200">Estado cambiado exitosamente</response>
@@ -151,9 +155,9 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
         /// 
         /// Solo el comisionado principal puede cambiar el estado.
         /// </remarks>
-        [HttpPut("{id}/status")]
+        [HttpPut("{leaguePublicId}/status")]
         public async Task<ActionResult<ApiResponseDTO>> SetLeagueStatus(
-            int id,
+            int leaguePublicId,
             [FromBody] SetLeagueStatusDTO dto)
         {
             var actorUserId = this.UserId();
@@ -161,7 +165,7 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
             var userAgent = this.UserAgent();
 
             var result = await _leagueService.SetLeagueStatusAsync(
-                id,
+                leaguePublicId,
                 dto,
                 actorUserId,
                 sourceIp,
@@ -172,9 +176,9 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
             if (result.Success)
             {
                 _logger.LogInformation(
-                    "User {UserID} changed status of league {LeagueID} to {NewStatus} from {IP}",
+                    "User {UserID} changed status of league PublicID {LeaguePublicID} to {NewStatus} from {IP}",
                     actorUserId,
-                    id,
+                    leaguePublicId,
                     dto.NewStatus,
                     sourceIp
                 );
@@ -189,16 +193,16 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
 
         /// <summary>
         /// Obtiene el resumen completo de una liga.
-        /// GET /api/league/{id}/summary
+        /// GET /api/league/{leaguePublicId}/summary
         /// </summary>
-        /// <param name="id">ID de la liga</param>
+        /// <param name="leaguePublicId">ID público de la liga</param>
         /// <returns>Resumen con información completa y equipos</returns>
         /// <response code="200">Resumen obtenido exitosamente</response>
         /// <response code="404">Liga no encontrada</response>
-        [HttpGet("{id}/summary")]
-        public async Task<ActionResult<ApiResponseDTO>> GetLeagueSummary(int id)
+        [HttpGet("{leaguePublicId}/summary")]
+        public async Task<ActionResult<ApiResponseDTO>> GetLeagueSummary(int leaguePublicId)
         {
-            var summary = await _leagueService.GetLeagueSummaryAsync(id);
+            var summary = await _leagueService.GetLeagueSummaryAsync(leaguePublicId);
 
             if (summary == null)
             {
@@ -231,15 +235,15 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
 
         /// <summary>
         /// Obtiene los miembros de una liga.
-        /// GET /api/league/{id}/members
+        /// GET /api/league/{leaguePublicId}/members
         /// </summary>
-        /// <param name="id">ID de la liga</param>
+        /// <param name="leaguePublicId">ID público de la liga</param>
         /// <returns>Lista de usuarios con sus roles en la liga</returns>
         /// <response code="200">Miembros obtenidos exitosamente</response>
-        [HttpGet("{id}/members")]
-        public async Task<ActionResult<ApiResponseDTO>> GetLeagueMembers(int id)
+        [HttpGet("{leaguePublicId}/members")]
+        public async Task<ActionResult<ApiResponseDTO>> GetLeagueMembers(int leaguePublicId)
         {
-            var members = await _leagueService.GetLeagueMembersAsync(id);
+            var members = await _leagueService.GetLeagueMembersAsync(leaguePublicId);
             if (members is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudieron obtener los miembros de la liga."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
@@ -250,15 +254,15 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
 
         /// <summary>
         /// Obtiene los equipos de una liga.
-        /// GET /api/league/{id}/teams
+        /// GET /api/league/{leaguePublicId}/teams
         /// </summary>
-        /// <param name="id">ID de la liga</param>
+        /// <param name="leaguePublicId">ID público de la liga</param>
         /// <returns>Lista de equipos con sus propietarios</returns>
         /// <response code="200">Equipos obtenidos exitosamente</response>
-        [HttpGet("{id}/teams")]
-        public async Task<ActionResult<ApiResponseDTO>> GetLeagueTeams(int id)
+        [HttpGet("{leaguePublicId}/teams")]
+        public async Task<ActionResult<ApiResponseDTO>> GetLeagueTeams(int leaguePublicId)
         {
-            var teams = await _leagueService.GetLeagueTeamsAsync(id);
+            var teams = await _leagueService.GetLeagueTeamsAsync(leaguePublicId);
             if (teams is null) return BadRequest(ApiResponseDTO.ErrorResponse("No se pudieron obtener los equipos de la liga."));
 
             return Ok(ApiResponseDTO.SuccessResponse(
@@ -269,19 +273,19 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
 
         /// <summary>
         /// Obtiene todos los roles de un usuario en una liga específica.
-        /// GET /api/league/{leagueId}/users/{userId}/roles
+        /// GET /api/league/{leaguePublicId}/users/{userId}/roles
         /// </summary>
-        /// <param name="leagueId">ID de la liga</param>
+        /// <param name="leaguePublicId">ID público de la liga</param>
         /// <param name="userId">ID del usuario</param>
         /// <returns>Roles explícitos, derivados y resumen</returns>
         /// <response code="200">Roles obtenidos exitosamente</response>
         /// <response code="404">Usuario no encontrado en esta liga o sin roles</response>
-        [HttpGet("{leagueId}/users/{userId}/roles")]
+        [HttpGet("{leaguePublicId}/users/{userId}/roles")]
         public async Task<ActionResult<ApiResponseDTO>> GetUserRolesInLeague(
-            int leagueId,
+            int leaguePublicId,
             int userId)
         {
-            var roles = await _leagueService.GetUserRolesInLeagueAsync(userId, leagueId);
+            var roles = await _leagueService.GetUserRolesInLeagueAsync(userId, leaguePublicId);
 
             if (roles == null || roles.Roles.Count == 0)
             {
@@ -309,6 +313,7 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
         /// <response code="200">Búsqueda completada exitosamente</response>
         /// <remarks>
         /// Acceso público - no requiere autenticación.
+        /// ⭐ RETORNA: Solo LeaguePublicID (no el LeagueID privado)
         /// </remarks>
         [HttpGet("search")]
         [AllowAnonymous]
@@ -328,12 +333,13 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
         /// Valida la contraseña de una liga.
         /// POST /api/league/validate-password
         /// </summary>
-        /// <param name="request">LeagueID y contraseña a validar</param>
+        /// <param name="request">LeaguePublicID y contraseña a validar</param>
         /// <returns>Resultado de validación (válida o inválida)</returns>
         /// <response code="200">Validación completada</response>
         /// <remarks>
         /// Acceso público - no requiere autenticación.
         /// Siempre retorna 200 OK con IsValid=true/false para no revelar si la liga existe.
+        /// ⭐ USA: LeaguePublicID en lugar de LeagueID
         /// </remarks>
         [HttpPost("validate-password")]
         [AllowAnonymous]
@@ -350,10 +356,13 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
         /// Une al usuario autenticado a una liga.
         /// POST /api/league/join
         /// </summary>
-        /// <param name="request">LeagueID y contraseña (si requiere)</param>
+        /// <param name="request">LeaguePublicID y contraseña (si requiere)</param>
         /// <returns>Confirmación de unión exitosa</returns>
         /// <response code="200">Usuario unido exitosamente</response>
         /// <response code="400">Liga llena, contraseña incorrecta o ya es miembro</response>
+        /// <remarks>
+        /// ⭐ USA: LeaguePublicID en lugar de LeagueID
+        /// </remarks>
         [HttpPost("join")]
         public async Task<ActionResult<ApiResponseDTO>> JoinLeague(
             [FromBody] JoinLeagueRequestDTO request)
@@ -379,9 +388,9 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
 
         /// <summary>
         /// Remueve un equipo de la liga.
-        /// DELETE /api/league/{leagueId}/teams
+        /// DELETE /api/league/{leaguePublicId}/teams
         /// </summary>
-        /// <param name="leagueId">ID de la liga</param>
+        /// <param name="leaguePublicId">ID público de la liga</param>
         /// <param name="request">ID del equipo a remover</param>
         /// <returns>Confirmación de remoción</returns>
         /// <response code="200">Equipo removido exitosamente</response>
@@ -390,9 +399,9 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
         /// <remarks>
         /// Solo el comisionado puede remover equipos.
         /// </remarks>
-        [HttpDelete("{leagueId}/teams")]
+        [HttpDelete("{leaguePublicId}/teams")]
         public async Task<ActionResult<ApiResponseDTO>> RemoveTeam(
-            int leagueId,
+            int leaguePublicId,
             [FromBody] RemoveTeamRequestDTO request)
         {
             var userId = this.UserId();
@@ -401,7 +410,7 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
 
             var result = await _leagueService.RemoveTeamFromLeagueAsync(
                 userId,
-                leagueId,
+                leaguePublicId,
                 request,
                 sourceIp,
                 userAgent
@@ -413,14 +422,14 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
 
         /// <summary>
         /// Permite al usuario salir de una liga.
-        /// POST /api/league/{leagueId}/leave
+        /// POST /api/league/{leaguePublicId}/leave
         /// </summary>
-        /// <param name="leagueId">ID de la liga</param>
+        /// <param name="leaguePublicId">ID público de la liga</param>
         /// <returns>Confirmación de salida</returns>
         /// <response code="200">Usuario salió exitosamente</response>
         /// <response code="400">No se puede salir (eres comisionado, draft iniciado, etc.)</response>
-        [HttpPost("{leagueId}/leave")]
-        public async Task<ActionResult<ApiResponseDTO>> LeaveLeague(int leagueId)
+        [HttpPost("{leaguePublicId}/leave")]
+        public async Task<ActionResult<ApiResponseDTO>> LeaveLeague(int leaguePublicId)
         {
             var userId = this.UserId();
             var sourceIp = this.ClientIp();
@@ -428,7 +437,7 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
 
             var result = await _leagueService.LeaveLeagueAsync(
                 userId,
-                leagueId,
+                leaguePublicId,
                 sourceIp,
                 userAgent
             );
@@ -443,20 +452,20 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
 
         /// <summary>
         /// Transfiere el rol de comisionado principal a otro miembro.
-        /// POST /api/league/{leagueId}/transfer-commissioner
+        /// POST /api/league/{leaguePublicId}/transfer-commissioner
         /// </summary>
-        /// <param name="leagueId">ID de la liga</param>
+        /// <param name="leaguePublicId">ID público de la liga</param>
         /// <param name="request">ID del nuevo comisionado principal</param>
         /// <returns>Confirmación de transferencia</returns>
         /// <response code="200">Comisionado transferido exitosamente</response>
         /// <response code="400">Usuario no es miembro de la liga</response>
         /// <response code="403">No eres el comisionado principal actual</response>
         /// <remarks>
-        /// El comisionado anterior se convierte automáticamente en co-comisionado.
+        /// El comisionado anterior pierde completamente su rol administrativo.
         /// </remarks>
-        [HttpPost("{leagueId}/transfer-commissioner")]
+        [HttpPost("{leaguePublicId}/transfer-commissioner")]
         public async Task<ActionResult<ApiResponseDTO>> TransferCommissioner(
-            int leagueId,
+            int leaguePublicId,
             [FromBody] TransferCommissionerRequestDTO request)
         {
             var userId = this.UserId();
@@ -465,7 +474,7 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
 
             var result = await _leagueService.TransferCommissionerAsync(
                 userId,
-                leagueId,
+                leaguePublicId,
                 request,
                 sourceIp,
                 userAgent
@@ -477,24 +486,24 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.Fantasy
 
         /// <summary>
         /// Obtiene resumen de liga desde VIEW (versión ligera sin equipos).
-        /// GET /api/league/{id}/summary-view
+        /// GET /api/league/{leaguePublicId}/summary-view
         /// </summary>
-        /// <param name="id">ID de la liga</param>
+        /// <param name="leaguePublicId">ID público de la liga</param>
         /// <returns>Resumen ligero de la liga</returns>
         /// <response code="200">Resumen obtenido exitosamente</response>
         /// <response code="404">Liga no encontrada</response>
         /// <remarks>
-        /// DIFERENCIA CON /api/league/{id}/summary:
+        /// DIFERENCIA CON /api/league/{leaguePublicId}/summary:
         /// - Este endpoint usa una VIEW directa (más rápido)
         /// - No incluye lista de equipos (solo cuenta)
         /// - Ideal para listados y dashboards
         /// 
         /// El endpoint /summary usa un SP y retorna equipos completos.
         /// </remarks>
-        [HttpGet("{id}/summary-view")]
-        public async Task<ActionResult<ApiResponseDTO>> GetLeagueSummaryView(int id)
+        [HttpGet("{leaguePublicId}/summary-view")]
+        public async Task<ActionResult<ApiResponseDTO>> GetLeagueSummaryView(int leaguePublicId)
         {
-            var summary = await _leagueService.GetLeagueSummaryViewAsync(id);
+            var summary = await _leagueService.GetLeagueSummaryViewAsync(leaguePublicId);
 
             if (summary == null)
             {

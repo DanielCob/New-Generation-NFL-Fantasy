@@ -841,7 +841,7 @@ BEGIN
   DECLARE @PwdBytes VARBINARY(4000) = CONVERT(VARBINARY(4000), @LeaguePassword);
   DECLARE @Hash VARBINARY(64) = HASHBYTES('SHA2_256', @PwdBytes + @Salt);
 
-  -- GENERAR IDs ALEATORIOS ÚNICOS
+  -- GENERAR SOLO LeaguePublicID ALEATORIO ÚNICO (LeagueID será IDENTITY)
   DECLARE @LeagueID INT;
   DECLARE @LeaguePublicID INT;
   DECLARE @MaxAttempts INT = 100;
@@ -865,29 +865,12 @@ BEGIN
                N'Ligas activas desactivadas automáticamente al crear nueva liga', @SourceIp, @UserAgent);
       END
 
-      -- GENERAR LeagueID ÚNICO
-      WHILE @Attempt < @MaxAttempts
-      BEGIN
-        SET @LeagueID = dbo.fn_GenerateRandomInt();
-        
-        IF NOT EXISTS (SELECT 1 FROM league.League WHERE LeagueID = @LeagueID)
-          BREAK;
-        
-        SET @Attempt = @Attempt + 1;
-      END
-
-      IF @Attempt >= @MaxAttempts
-        THROW 50055, 'No se pudo generar un LeagueID único después de múltiples intentos.', 1;
-
-      -- GENERAR LeaguePublicID ÚNICO (diferente del LeagueID)
-      SET @Attempt = 0;
+      -- GENERAR SOLO LeaguePublicID ÚNICO (pseudoaleatorio)
       WHILE @Attempt < @MaxAttempts
       BEGIN
         SET @LeaguePublicID = dbo.fn_GenerateRandomInt();
         
-        -- Debe ser diferente del LeagueID y no existir en la tabla
-        IF @LeaguePublicID <> @LeagueID 
-           AND NOT EXISTS (SELECT 1 FROM league.League WHERE LeaguePublicID = @LeaguePublicID)
+        IF NOT EXISTS (SELECT 1 FROM league.League WHERE LeaguePublicID = @LeaguePublicID)
           BREAK;
         
         SET @Attempt = @Attempt + 1;
@@ -896,9 +879,9 @@ BEGIN
       IF @Attempt >= @MaxAttempts
         THROW 50056, 'No se pudo generar un LeaguePublicID único después de múltiples intentos.', 1;
 
-      -- Crear la liga con IDs aleatorios
+      -- Crear la liga (LeagueID se genera automáticamente con IDENTITY)
       INSERT INTO league.League
-      (LeagueID, LeaguePublicID, SeasonID, Name, Description, TeamSlots,
+      (LeaguePublicID, SeasonID, Name, Description, TeamSlots,
        LeaguePasswordHash, LeaguePasswordSalt,
        Status, AllowDecimals, PlayoffTeams,
        TradeDeadlineEnabled, TradeDeadlineDate,
@@ -906,13 +889,16 @@ BEGIN
        PositionFormatID, ScoringSchemaID,
        CreatedByUserID)
       VALUES
-      (@LeagueID, @LeaguePublicID, @SeasonID, @Name, @Description, @TeamSlots,
+      (@LeaguePublicID, @SeasonID, @Name, @Description, @TeamSlots,
        @Hash, @Salt,
        0, @AllowDecimals, @PlayoffTeams,
        0, NULL,
        NULL, NULL,
        @PositionFormatID, @ScoringSchemaID,
        @CreatorUserID);
+
+      -- Obtener el LeagueID autogenerado
+      SET @LeagueID = SCOPE_IDENTITY();
 
       -- Miembro: comisionado principal
       INSERT INTO league.LeagueMember(LeagueID, UserID, RoleCode)
@@ -933,7 +919,7 @@ BEGIN
     -- Result set esperado por el backend
     SELECT
       l.LeagueID, 
-      l.LeaguePublicID,  -- NUEVO: Incluir en respuesta
+      l.LeaguePublicID,
       l.Name, 
       l.TeamSlots,
       (l.TeamSlots - (SELECT COUNT(*) FROM league.Team t WHERE t.LeagueID = l.LeagueID)) AS AvailableSlots,
@@ -958,15 +944,24 @@ GO
 -- sp_SetLeagueStatus
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_SetLeagueStatus
-  @ActorUserID INT,
-  @LeagueID    INT,
-  @NewStatus   TINYINT,
-  @Reason      NVARCHAR(300) = NULL,
-  @SourceIp    NVARCHAR(45) = NULL,
-  @UserAgent   NVARCHAR(300) = NULL
+  @ActorUserID    INT,
+  @LeaguePublicID INT,
+  @NewStatus      TINYINT,
+  @Reason         NVARCHAR(300) = NULL,
+  @SourceIp       NVARCHAR(45) = NULL,
+  @UserAgent      NVARCHAR(300) = NULL
 AS
 BEGIN
   SET NOCOUNT ON;
+
+  -- Resolver LeagueID interno desde LeaguePublicID
+  DECLARE @LeagueID INT;
+  SELECT @LeagueID = LeagueID 
+  FROM league.League 
+  WHERE LeaguePublicID = @LeaguePublicID;
+
+  IF @LeagueID IS NULL
+    THROW 50059, 'Liga no existe.', 1;
 
   IF NOT EXISTS (
     SELECT 1 FROM league.LeagueMember
@@ -1020,7 +1015,7 @@ GO
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_EditLeagueConfig
   @ActorUserID              INT,
-  @LeagueID                 INT,
+  @LeaguePublicID           INT,
   @Name                     NVARCHAR(100) = NULL,
   @Description              NVARCHAR(500) = NULL,
   @TeamSlots                TINYINT = NULL,
@@ -1038,6 +1033,15 @@ AS
 BEGIN
   SET NOCOUNT ON;
 
+  -- Resolver LeagueID interno desde LeaguePublicID
+  DECLARE @LeagueID INT;
+  SELECT @LeagueID = LeagueID 
+  FROM league.League 
+  WHERE LeaguePublicID = @LeaguePublicID;
+
+  IF @LeagueID IS NULL
+    THROW 50069, 'Liga no existe.', 1;
+  
   IF NOT EXISTS (
     SELECT 1 FROM league.LeagueMember
     WHERE LeagueID = @LeagueID AND UserID = @ActorUserID
@@ -1200,15 +1204,27 @@ GO
 -- sp_GetLeagueSummary - VERSIÓN ACTUALIZADA CON LeaguePublicID
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_GetLeagueSummary
-  @LeagueID INT
+  @LeaguePublicID INT
 AS
 BEGIN
   SET NOCOUNT ON;
 
+  -- Resolver LeagueID interno desde LeaguePublicID
+  DECLARE @LeagueID INT;
+  SELECT @LeagueID = LeagueID 
+  FROM league.League 
+  WHERE LeaguePublicID = @LeaguePublicID;
+
+  IF @LeagueID IS NULL
+  BEGIN
+    -- Retornar vacío si no existe
+    SELECT NULL AS LeaguePublicID WHERE 1=0;
+    RETURN;
+  END
+
   -- 1) Información de la liga
   SELECT
-    l.LeagueID, 
-    l.LeaguePublicID,  -- NUEVO
+    l.LeaguePublicID,
     l.Name, 
     l.Description, 
     l.Status,
@@ -2377,10 +2393,23 @@ GO
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_GetUserRolesInLeague
   @UserID    INT,
-  @LeagueID  INT
+  @LeaguePublicID  INT
 AS
 BEGIN
   SET NOCOUNT ON;
+
+  -- Resolver LeagueID interno desde LeaguePublicID
+  DECLARE @LeagueID INT;
+  SELECT @LeagueID = LeagueID 
+  FROM league.League 
+  WHERE LeaguePublicID = @LeaguePublicID;
+
+  IF @LeagueID IS NULL
+  BEGIN
+    -- Retornar vacío si no existe
+    SELECT NULL AS RoleCode WHERE 1=0;
+    RETURN;
+  END
 
   -- Rol explícito del usuario en esta liga
   SELECT 
@@ -2496,8 +2525,7 @@ BEGIN
 
   -- Resultados paginados
   SELECT
-    l.LeagueID,
-    l.LeaguePublicID,  -- NUEVO: Retornar para mostrar al usuario
+    l.LeaguePublicID,
     l.Name,
     l.Description,
     l.TeamSlots,
@@ -2540,7 +2568,7 @@ GO
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_JoinLeague
   @UserID           INT,
-  @LeagueID         INT,
+  @LeaguePublicID         INT,
   @LeaguePassword   NVARCHAR(50),
   @TeamName         NVARCHAR(100),
   @SourceIp         NVARCHAR(45) = NULL,
@@ -2551,6 +2579,15 @@ BEGIN
   SET XACT_ABORT ON;
 
   BEGIN TRY
+    -- Resolver LeagueID interno desde LeaguePublicID
+    DECLARE @LeagueID INT;
+    SELECT @LeagueID = LeagueID 
+    FROM league.League 
+    WHERE LeaguePublicID = @LeaguePublicID;
+
+    IF @LeagueID IS NULL
+      THROW 50300, 'La liga no existe.', 1;
+    
     -- Validaciones
     IF @TeamName IS NULL OR LEN(@TeamName) < 1 OR LEN(@TeamName) > 100
       THROW 50300, 'Nombre de equipo inválido: debe tener entre 1 y 100 caracteres.', 1;
@@ -2639,7 +2676,7 @@ BEGIN
 
     SELECT 
       @TeamID AS TeamID,
-      @LeagueID AS LeagueID,
+      @LeaguePublicID AS LeaguePublicID,
       @TeamName AS TeamName,
       @LeagueName AS LeagueName,
       (@TeamSlots - @CurrentTeams - 1) AS AvailableSlots,
@@ -2665,16 +2702,25 @@ GO
 -- El equipo se marca como inactivo y se remueve al usuario de la liga
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_RemoveTeamFromLeague
-  @ActorUserID   INT,
-  @LeagueID      INT,
-  @TeamID        INT,
-  @Reason        NVARCHAR(300) = NULL,
-  @SourceIp      NVARCHAR(45) = NULL,
-  @UserAgent     NVARCHAR(300) = NULL
+  @ActorUserID      INT,
+  @LeaguePublicID   INT,
+  @TeamID           INT,
+  @Reason           NVARCHAR(300) = NULL,
+  @SourceIp         NVARCHAR(45) = NULL,
+  @UserAgent        NVARCHAR(300) = NULL
 AS
 BEGIN
   SET NOCOUNT ON;
   BEGIN TRY
+    -- Resolver LeagueID interno desde LeaguePublicID
+    DECLARE @LeagueID INT;
+    SELECT @LeagueID = LeagueID 
+    FROM league.League 
+    WHERE LeaguePublicID = @LeaguePublicID;
+
+    IF @LeagueID IS NULL
+      THROW 50319, 'Liga no existe.', 1;
+
     -- Validar que el actor es comisionado de la liga
     IF NOT EXISTS (
       SELECT 1 FROM league.LeagueMember
@@ -2761,15 +2807,24 @@ GO
 -- Permite a un usuario salir voluntariamente de una liga (solo en Pre-Draft)
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_LeaveLeague
-  @UserID        INT,
-  @LeagueID      INT,
-  @SourceIp      NVARCHAR(45) = NULL,
-  @UserAgent     NVARCHAR(300) = NULL
+  @UserID           INT,
+  @LeaguePublicID   INT,
+  @SourceIp         NVARCHAR(45) = NULL,
+  @UserAgent        NVARCHAR(300) = NULL
 AS
 BEGIN
   SET NOCOUNT ON;
 
   BEGIN TRY
+    -- Resolver LeagueID interno desde LeaguePublicID
+    DECLARE @LeagueID INT;
+    SELECT @LeagueID = LeagueID 
+    FROM league.League 
+    WHERE LeaguePublicID = @LeaguePublicID;
+
+    IF @LeagueID IS NULL
+      THROW 50349, 'Liga no existe.', 1;
+
     -- 0) Validar que el usuario NO es el comisionado
     IF EXISTS (
       SELECT 1
@@ -2848,15 +2903,24 @@ GO
 -- Permite al comisionado principal transferir el comisionado a otro miembro
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_TransferCommissioner
-  @ActorUserID      INT,
-  @LeagueID         INT,
-  @NewCommissionerID INT,
-  @SourceIp         NVARCHAR(45) = NULL,
-  @UserAgent        NVARCHAR(300) = NULL
+  @ActorUserID        INT,
+  @LeaguePublicID     INT,
+  @NewCommissionerID  INT,
+  @SourceIp           NVARCHAR(45) = NULL,
+  @UserAgent          NVARCHAR(300) = NULL
 AS
 BEGIN
   SET NOCOUNT ON;
   BEGIN TRY
+    -- Resolver LeagueID interno desde LeaguePublicID
+    DECLARE @LeagueID INT;
+    SELECT @LeagueID = LeagueID 
+    FROM league.League 
+    WHERE LeaguePublicID = @LeaguePublicID;
+
+    IF @LeagueID IS NULL
+      THROW 50359, 'Liga no existe.', 1;
+
     -- Validar que el actor es comisionado de la liga
     IF NOT EXISTS (
       SELECT 1 FROM league.LeagueMember
@@ -2935,7 +2999,7 @@ GO
 -- Útil para verificar antes de mostrar el formulario de unión
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_ValidateLeaguePassword
-  @LeagueID         INT,
+  @LeaguePublicID         INT,
   @LeaguePassword   NVARCHAR(50)
 AS
 BEGIN
@@ -2947,7 +3011,7 @@ BEGIN
     @Hash = LeaguePasswordHash,
     @Salt = LeaguePasswordSalt
   FROM league.League
-  WHERE LeagueID = @LeagueID;
+  WHERE LeaguePublicID = @LeaguePublicID;
 
   IF @Hash IS NULL
   BEGIN

@@ -3,12 +3,12 @@
     /// <summary>
     /// Mapea vw_LeagueSummary
     /// Vista: resumen completo de una liga con todos sus datos configurados
-    /// ACTUALIZADO: Incluye LeaguePublicID
+    /// ⭐ ACTUALIZADO: Solo retorna LeaguePublicID (no LeagueID privado)
     /// </summary>
     public class LeagueSummaryVM
     {
-        public int LeagueID { get; set; }
-        public int LeaguePublicID { get; set; }  // NUEVO
+        // ⭐ ELIMINADO: public int LeagueID { get; set; }
+        public int LeaguePublicID { get; set; }  // ⭐ ÚNICO ID PÚBLICO
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public byte Status { get; set; }
@@ -49,12 +49,12 @@
     /// <summary>
     /// Mapea vw_LeagueDirectory
     /// Vista: directorio público/listado de ligas disponibles
-    /// ACTUALIZADO: Incluye LeaguePublicID
+    /// ⭐ ACTUALIZADO: Solo retorna LeaguePublicID (no LeagueID privado)
     /// </summary>
     public class LeagueDirectoryVM
     {
-        public int LeagueID { get; set; }
-        public int LeaguePublicID { get; set; }  // NUEVO
+        // ⭐ ELIMINADO: public int LeagueID { get; set; }
+        public int LeaguePublicID { get; set; }  // ⭐ ÚNICO ID PÚBLICO
         public string SeasonLabel { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public byte Status { get; set; }
@@ -68,10 +68,11 @@
     /// <summary>
     /// Mapea vw_LeagueMembers
     /// Vista: miembros de una liga con sus roles (tanto de liga como del sistema)
+    /// ⭐ NOTA: No expone LeagueID (se infiere del contexto de la petición)
     /// </summary>
     public class LeagueMemberVM
     {
-        public int LeagueID { get; set; }
+        // ⭐ ELIMINADO: public int LeagueID { get; set; }
         public int UserID { get; set; }
         public string LeagueRoleCode { get; set; } = string.Empty;
         public DateTime JoinedAt { get; set; }
@@ -87,11 +88,12 @@
     /// <summary>
     /// Mapea vw_LeagueTeams
     /// Vista: equipos dentro de una liga con información del owner
+    /// ⭐ NOTA: No expone LeagueID (se infiere del contexto de la petición)
     /// </summary>
     public class LeagueTeamVM
     {
         public int TeamID { get; set; }
-        public int LeagueID { get; set; }
+        // ⭐ ELIMINADO: public int LeagueID { get; set; }
         public string TeamName { get; set; } = string.Empty;
         public int OwnerUserID { get; set; }
         public string OwnerName { get; set; } = string.Empty;
@@ -108,11 +110,13 @@
     /// <summary>
     /// Mapea vw_UserCommissionedLeagues
     /// Vista: ligas donde el usuario es comisionado (principal o co-comisionado)
+    /// ⭐ ACTUALIZADO: Retorna LeaguePublicID en lugar de LeagueID
     /// </summary>
     public class UserCommissionedLeagueVM
     {
         public int UserID { get; set; }
-        public int LeagueID { get; set; }
+        // ⭐ ELIMINADO: public int LeagueID { get; set; }
+        public int LeaguePublicID { get; set; }  // ⭐ NUEVO
         public string LeagueName { get; set; } = string.Empty;
         public byte Status { get; set; }
         public byte TeamSlots { get; set; }
@@ -125,12 +129,14 @@
     /// <summary>
     /// Mapea vw_UserTeams
     /// Vista: equipos del usuario en todas sus ligas
+    /// ⭐ ACTUALIZADO: Retorna LeaguePublicID en lugar de LeagueID
     /// </summary>
     public class UserTeamVM
     {
         public int UserID { get; set; }
         public int TeamID { get; set; }
-        public int LeagueID { get; set; }
+        // ⭐ ELIMINADO: public int LeagueID { get; set; }
+        public int LeaguePublicID { get; set; }  // ⭐ NUEVO
         public string LeagueName { get; set; } = string.Empty;
         public string TeamName { get; set; } = string.Empty;
         public string? TeamImageUrl { get; set; }

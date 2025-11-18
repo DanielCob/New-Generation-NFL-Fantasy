@@ -13,6 +13,7 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
     /// RESPONSABILIDAD: Lógica de negocio y orquestación.
     /// NO construye parámetros SQL (delegado a LeagueDataAccess).
     /// NO ejecuta validaciones directamente (delegado a LeagueValidator).
+    /// ⭐ ACTUALIZADO: Todos los métodos usan LeaguePublicID
     /// </summary>
     public class LeagueService : ILeagueService
     {
@@ -34,6 +35,7 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
         /// Crea una nueva liga de fantasy.
         /// SP: app.sp_CreateLeague
         /// Feature 1.2 - Crear liga
+        /// ⭐ RETORNA: LeaguePublicID (no el LeagueID privado)
         /// </summary>
         public async Task<ApiResponseDTO> CreateLeagueAsync(
             CreateLeagueDTO dto,
@@ -68,10 +70,10 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
                 if (result != null)
                 {
                     _logger.LogInformation(
-                        "User {UserID} created league: {LeagueName} (ID: {LeagueID}) from {IP}",
+                        "User {UserID} created league: {LeagueName} (PublicID: {LeaguePublicID}) from {IP}",
                         creatorUserId,
                         dto.Name,
-                        result.LeagueID,
+                        result.LeaguePublicID,
                         sourceIp
                     );
 
@@ -110,9 +112,10 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
         /// Edita la configuración de una liga.
         /// SP: app.sp_EditLeagueConfig
         /// Feature 1.2 - Editar configuración de liga
+        /// ⭐ RECIBE: LeaguePublicID en lugar de LeagueID
         /// </summary>
         public async Task<ApiResponseDTO> EditLeagueConfigAsync(
-            int leagueId,
+            int leaguePublicId,  // ⭐ CAMBIO: Era leagueId
             EditLeagueConfigDTO dto,
             int actorUserId,
             string? sourceIp = null,
@@ -145,7 +148,7 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
 
                 // EJECUCIÓN: Delegada a DataAccess
                 var message = await _dataAccess.EditLeagueConfigAsync(
-                    leagueId,
+                    leaguePublicId,
                     dto,
                     actorUserId,
                     sourceIp,
@@ -153,9 +156,9 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
                 );
 
                 _logger.LogInformation(
-                    "User {UserID} edited config for league {LeagueID} from {IP}",
+                    "User {UserID} edited config for league PublicID {LeaguePublicID} from {IP}",
                     actorUserId,
-                    leagueId,
+                    leaguePublicId,
                     sourceIp
                 );
 
@@ -165,9 +168,9 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
             {
                 _logger.LogError(
                     ex,
-                    "SQL error al editar configuración: Actor={ActorUserID}, League={LeagueID}",
+                    "SQL error al editar configuración: Actor={ActorUserID}, LeaguePublicID={LeaguePublicID}",
                     actorUserId,
-                    leagueId
+                    leaguePublicId
                 );
                 return ApiResponseDTO.ErrorResponse(ex.Message);
             }
@@ -175,8 +178,8 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
             {
                 _logger.LogError(
                     ex,
-                    "Error al editar configuración de liga: League={LeagueID}",
-                    leagueId
+                    "Error al editar configuración de liga: LeaguePublicID={LeaguePublicID}",
+                    leaguePublicId
                 );
                 return ApiResponseDTO.ErrorResponse($"Error al editar configuración de liga: {ex.Message}");
             }
@@ -190,9 +193,10 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
         /// Cambia el estado de una liga.
         /// SP: app.sp_SetLeagueStatus
         /// Feature 1.2 - Administrar estado de liga
+        /// ⭐ RECIBE: LeaguePublicID en lugar de LeagueID
         /// </summary>
         public async Task<ApiResponseDTO> SetLeagueStatusAsync(
-            int leagueId,
+            int leaguePublicId,  // ⭐ CAMBIO: Era leagueId
             SetLeagueStatusDTO dto,
             int actorUserId,
             string? sourceIp = null,
@@ -209,7 +213,7 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
                 }
 
                 // EJECUCIÓN: Delegada a DataAccess
-                await _dataAccess.SetLeagueStatusAsync(leagueId, dto, actorUserId, sourceIp, userAgent);
+                await _dataAccess.SetLeagueStatusAsync(leaguePublicId, dto, actorUserId, sourceIp, userAgent);
 
                 string statusName = dto.NewStatus switch
                 {
@@ -221,9 +225,9 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
                 };
 
                 _logger.LogInformation(
-                    "User {UserID} changed status of league {LeagueID} to {NewStatus} from {IP}",
+                    "User {UserID} changed status of league PublicID {LeaguePublicID} to {NewStatus} from {IP}",
                     actorUserId,
-                    leagueId,
+                    leaguePublicId,
                     dto.NewStatus,
                     sourceIp
                 );
@@ -234,9 +238,9 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
             {
                 _logger.LogError(
                     ex,
-                    "SQL error al cambiar estado: Actor={ActorUserID}, League={LeagueID}",
+                    "SQL error al cambiar estado: Actor={ActorUserID}, LeaguePublicID={LeaguePublicID}",
                     actorUserId,
-                    leagueId
+                    leaguePublicId
                 );
                 return ApiResponseDTO.ErrorResponse(ex.Message);
             }
@@ -244,8 +248,8 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
             {
                 _logger.LogError(
                     ex,
-                    "Error al cambiar estado de liga: League={LeagueID}",
-                    leagueId
+                    "Error al cambiar estado de liga: LeaguePublicID={LeaguePublicID}",
+                    leaguePublicId
                 );
                 return ApiResponseDTO.ErrorResponse($"Error al cambiar estado de liga: {ex.Message}");
             }
@@ -259,17 +263,19 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
         /// Obtiene resumen completo de una liga.
         /// SP: app.sp_GetLeagueSummary (2 result sets)
         /// Feature 1.2 - Ver liga
+        /// ⭐ RECIBE: LeaguePublicID en lugar de LeagueID
+        /// ⭐ RETORNA: Solo LeaguePublicID (no el LeagueID privado)
         /// </summary>
-        public async Task<LeagueSummaryDTO?> GetLeagueSummaryAsync(int leagueId)
+        public async Task<LeagueSummaryDTO?> GetLeagueSummaryAsync(int leaguePublicId)  // ⭐ CAMBIO: Era leagueId
         {
             try
             {
                 // EJECUCIÓN: Delegada a DataAccess
-                return await _dataAccess.GetLeagueSummaryAsync(leagueId);
+                return await _dataAccess.GetLeagueSummaryAsync(leaguePublicId);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener resumen de liga {LeagueID}", leagueId);
+                _logger.LogError(ex, "Error al obtener resumen de liga PublicID {LeaguePublicID}", leaguePublicId);
                 throw;
             }
         }
@@ -281,6 +287,7 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
         /// <summary>
         /// Busca ligas disponibles para unirse.
         /// SP: app.sp_SearchLeagues
+        /// ⭐ RETORNA: Solo LeaguePublicID (no el LeagueID privado)
         /// </summary>
         public async Task<List<SearchLeaguesResultDTO>> SearchLeaguesAsync(SearchLeaguesRequestDTO request)
         {
@@ -299,6 +306,8 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
         /// <summary>
         /// Une a un usuario a una liga existente.
         /// SP: app.sp_JoinLeague
+        /// ⭐ RECIBE: LeaguePublicID en el request
+        /// ⭐ RETORNA: LeaguePublicID en lugar de LeagueID
         /// </summary>
         public async Task<JoinLeagueResultDTO> JoinLeagueAsync(
             int userId,
@@ -319,9 +328,9 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
                 }
 
                 _logger.LogInformation(
-                    "User {UserID} joined league {LeagueID} from {IP}",
+                    "User {UserID} joined league PublicID {LeaguePublicID} from {IP}",
                     userId,
-                    request.LeagueID,
+                    request.LeaguePublicID,  // ⭐ CAMBIO: Era request.LeagueID
                     sourceIp
                 );
 
@@ -331,9 +340,9 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
             {
                 _logger.LogError(
                     ex,
-                    "Error al unirse a liga: User={UserID}, League={LeagueID}",
+                    "Error al unirse a liga: User={UserID}, LeaguePublicID={LeaguePublicID}",
                     userId,
-                    request.LeagueID
+                    request.LeaguePublicID  // ⭐ CAMBIO: Era request.LeagueID
                 );
                 throw;
             }
@@ -342,6 +351,7 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
         /// <summary>
         /// Valida si una contraseña de liga es correcta.
         /// SP: app.sp_ValidateLeaguePassword
+        /// ⭐ RECIBE: LeaguePublicID en el request
         /// </summary>
         public async Task<ValidateLeaguePasswordResultDTO> ValidateLeaguePasswordAsync(
             ValidateLeaguePasswordRequestDTO request)
@@ -361,8 +371,8 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
             {
                 _logger.LogError(
                     ex,
-                    "Error al validar contraseña de liga {LeagueID}",
-                    request.LeagueID
+                    "Error al validar contraseña de liga PublicID {LeaguePublicID}",
+                    request.LeaguePublicID  // ⭐ CAMBIO: Era request.LeagueID
                 );
                 return new ValidateLeaguePasswordResultDTO
                 {
@@ -379,10 +389,11 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
         /// <summary>
         /// Remueve un equipo de la liga.
         /// SP: app.sp_RemoveTeamFromLeague
+        /// ⭐ RECIBE: LeaguePublicID en lugar de LeagueID
         /// </summary>
         public async Task<ApiResponseDTO> RemoveTeamFromLeagueAsync(
             int actorUserId,
-            int leagueId,
+            int leaguePublicId,  // ⭐ CAMBIO: Era leagueId
             RemoveTeamRequestDTO request,
             string? sourceIp,
             string? userAgent)
@@ -392,17 +403,17 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
                 // EJECUCIÓN: Delegada a DataAccess
                 var result = await _dataAccess.RemoveTeamFromLeagueAsync(
                     actorUserId,
-                    leagueId,
+                    leaguePublicId,
                     request,
                     sourceIp,
                     userAgent
                 );
 
                 _logger.LogInformation(
-                    "User {UserID} removed team {TeamID} from league {LeagueID} from {IP}",
+                    "User {UserID} removed team {TeamID} from league PublicID {LeaguePublicID} from {IP}",
                     actorUserId,
                     request.TeamID,
-                    leagueId,
+                    leaguePublicId,
                     sourceIp
                 );
 
@@ -415,10 +426,10 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
             {
                 _logger.LogError(
                     ex,
-                    "Error al remover equipo: Actor={ActorUserID}, Team={TeamID}, League={LeagueID}",
+                    "Error al remover equipo: Actor={ActorUserID}, Team={TeamID}, LeaguePublicID={LeaguePublicID}",
                     actorUserId,
                     request.TeamID,
-                    leagueId
+                    leaguePublicId
                 );
                 throw;
             }
@@ -427,22 +438,23 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
         /// <summary>
         /// Permite a un usuario salir voluntariamente de una liga.
         /// SP: app.sp_LeaveLeague
+        /// ⭐ RECIBE: LeaguePublicID en lugar de LeagueID
         /// </summary>
         public async Task<ApiResponseDTO> LeaveLeagueAsync(
             int userId,
-            int leagueId,
+            int leaguePublicId,  // ⭐ CAMBIO: Era leagueId
             string? sourceIp,
             string? userAgent)
         {
             try
             {
                 // EJECUCIÓN: Delegada a DataAccess
-                var message = await _dataAccess.LeaveLeagueAsync(userId, leagueId, sourceIp, userAgent);
+                var message = await _dataAccess.LeaveLeagueAsync(userId, leaguePublicId, sourceIp, userAgent);
 
                 _logger.LogInformation(
-                    "User {UserID} left league {LeagueID} from {IP}",
+                    "User {UserID} left league PublicID {LeaguePublicID} from {IP}",
                     userId,
-                    leagueId,
+                    leaguePublicId,
                     sourceIp
                 );
 
@@ -452,9 +464,9 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
             {
                 _logger.LogError(
                     ex,
-                    "Error al salir de liga: User={UserID}, League={LeagueID}",
+                    "Error al salir de liga: User={UserID}, LeaguePublicID={LeaguePublicID}",
                     userId,
-                    leagueId
+                    leaguePublicId
                 );
                 throw;
             }
@@ -463,10 +475,11 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
         /// <summary>
         /// Transfiere el rol de comisionado principal a otro miembro.
         /// SP: app.sp_TransferCommissioner
+        /// ⭐ RECIBE: LeaguePublicID en lugar de LeagueID
         /// </summary>
         public async Task<ApiResponseDTO> TransferCommissionerAsync(
             int actorUserId,
-            int leagueId,
+            int leaguePublicId,  // ⭐ CAMBIO: Era leagueId
             TransferCommissionerRequestDTO request,
             string? sourceIp,
             string? userAgent)
@@ -476,17 +489,17 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
                 // EJECUCIÓN: Delegada a DataAccess
                 var result = await _dataAccess.TransferCommissionerAsync(
                     actorUserId,
-                    leagueId,
+                    leaguePublicId,
                     request,
                     sourceIp,
                     userAgent
                 );
 
                 _logger.LogInformation(
-                    "User {ActorUserID} transferred commissioner role to User {NewCommissionerID} in league {LeagueID} from {IP}",
+                    "User {ActorUserID} transferred commissioner role to User {NewCommissionerID} in league PublicID {LeaguePublicID} from {IP}",
                     actorUserId,
                     request.NewCommissionerID,
-                    leagueId,
+                    leaguePublicId,
                     sourceIp
                 );
 
@@ -503,10 +516,10 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
             {
                 _logger.LogError(
                     ex,
-                    "Error al transferir comisionado: Actor={ActorUserID}, NewCommissioner={NewCommissionerID}, League={LeagueID}",
+                    "Error al transferir comisionado: Actor={ActorUserID}, NewCommissioner={NewCommissionerID}, LeaguePublicID={LeaguePublicID}",
                     actorUserId,
                     request.NewCommissionerID,
-                    leagueId
+                    leaguePublicId
                 );
                 throw;
             }
@@ -519,23 +532,24 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
         /// <summary>
         /// Obtiene todos los roles efectivos de un usuario en una liga.
         /// SP: app.sp_GetUserRolesInLeague
+        /// ⭐ RECIBE: LeaguePublicID en lugar de LeagueID
         /// </summary>
         public async Task<GetUserRolesInLeagueResponseDTO?> GetUserRolesInLeagueAsync(
             int userId,
-            int leagueId)
+            int leaguePublicId)  // ⭐ CAMBIO: Era leagueId
         {
             try
             {
                 // EJECUCIÓN: Delegada a DataAccess
-                return await _dataAccess.GetUserRolesInLeagueAsync(userId, leagueId);
+                return await _dataAccess.GetUserRolesInLeagueAsync(userId, leaguePublicId);
             }
             catch (Exception ex)
             {
                 _logger.LogError(
                     ex,
-                    "Error al obtener roles: User={UserID}, League={LeagueID}",
+                    "Error al obtener roles: User={UserID}, LeaguePublicID={LeaguePublicID}",
                     userId,
-                    leagueId
+                    leaguePublicId
                 );
                 throw;
             }
@@ -548,6 +562,7 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
         /// <summary>
         /// Obtiene el directorio de ligas.
         /// VIEW: vw_LeagueDirectory
+        /// ⭐ RETORNA: Solo LeaguePublicID (no el LeagueID privado)
         /// </summary>
         public async Task<List<LeagueDirectoryVM>> GetLeagueDirectoryAsync()
         {
@@ -566,17 +581,18 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
         /// <summary>
         /// Obtiene miembros de una liga.
         /// VIEW: vw_LeagueMembers
+        /// ⭐ RECIBE: LeaguePublicID en lugar de LeagueID
         /// </summary>
-        public async Task<List<LeagueMemberVM>> GetLeagueMembersAsync(int leagueId)
+        public async Task<List<LeagueMemberVM>> GetLeagueMembersAsync(int leaguePublicId)  // ⭐ CAMBIO: Era leagueId
         {
             try
             {
                 // EJECUCIÓN: Delegada a DataAccess
-                return await _dataAccess.GetLeagueMembersAsync(leagueId);
+                return await _dataAccess.GetLeagueMembersAsync(leaguePublicId);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener miembros de liga {LeagueID}", leagueId);
+                _logger.LogError(ex, "Error al obtener miembros de liga PublicID {LeaguePublicID}", leaguePublicId);
                 throw;
             }
         }
@@ -584,17 +600,18 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
         /// <summary>
         /// Obtiene equipos de una liga.
         /// VIEW: vw_LeagueTeams
+        /// ⭐ RECIBE: LeaguePublicID en lugar de LeagueID
         /// </summary>
-        public async Task<List<LeagueTeamVM>> GetLeagueTeamsAsync(int leagueId)
+        public async Task<List<LeagueTeamVM>> GetLeagueTeamsAsync(int leaguePublicId)  // ⭐ CAMBIO: Era leagueId
         {
             try
             {
                 // EJECUCIÓN: Delegada a DataAccess
-                return await _dataAccess.GetLeagueTeamsAsync(leagueId);
+                return await _dataAccess.GetLeagueTeamsAsync(leaguePublicId);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener equipos de liga {LeagueID}", leagueId);
+                _logger.LogError(ex, "Error al obtener equipos de liga PublicID {LeaguePublicID}", leaguePublicId);
                 throw;
             }
         }
@@ -602,17 +619,19 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
         /// <summary>
         /// Obtiene resumen de liga desde VIEW (versión ligera).
         /// VIEW: vw_LeagueSummary
+        /// ⭐ RECIBE: LeaguePublicID en lugar de LeagueID
+        /// ⭐ RETORNA: Solo LeaguePublicID (no el LeagueID privado)
         /// </summary>
-        public async Task<LeagueSummaryVM?> GetLeagueSummaryViewAsync(int leagueId)
+        public async Task<LeagueSummaryVM?> GetLeagueSummaryViewAsync(int leaguePublicId)  // ⭐ CAMBIO: Era leagueId
         {
             try
             {
                 // EJECUCIÓN: Delegada a DataAccess
-                return await _dataAccess.GetLeagueSummaryViewAsync(leagueId);
+                return await _dataAccess.GetLeagueSummaryViewAsync(leaguePublicId);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al obtener resumen ligero de liga {LeagueID}", leagueId);
+                _logger.LogError(ex, "Error al obtener resumen ligero de liga PublicID {LeaguePublicID}", leaguePublicId);
                 throw;
             }
         }
@@ -620,6 +639,7 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
         /// <summary>
         /// Obtiene ligas donde el usuario es comisionado.
         /// VIEW: vw_UserCommissionedLeagues
+        /// ⭐ RETORNA: Solo LeaguePublicID (no el LeagueID privado)
         /// </summary>
         public async Task<List<UserCommissionedLeagueVM>> GetUserCommissionedLeaguesAsync(int userId)
         {
@@ -638,6 +658,7 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
         /// <summary>
         /// Obtiene equipos del usuario en todas sus ligas.
         /// VIEW: vw_UserTeams
+        /// ⭐ RETORNA: LeaguePublicID en lugar de LeagueID
         /// </summary>
         public async Task<List<UserTeamVM>> GetUserTeamsAsync(int userId)
         {
@@ -654,5 +675,7 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.Fantasy
         }
 
         #endregion
+
+
     }
 }
