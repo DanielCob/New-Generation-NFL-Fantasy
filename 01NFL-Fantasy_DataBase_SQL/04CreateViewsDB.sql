@@ -181,6 +181,7 @@ SELECT
   p.NFLTeamID,
   nt.TeamName AS NFLTeamName,
   nt.City AS NFLTeamCity,
+  p.CurrentDesignation,
   p.InjuryStatus,
   p.InjuryDescription,
   p.PhotoUrl,
@@ -215,6 +216,7 @@ SELECT
   p.NFLTeamID,
   nt.TeamName AS NFLTeamName,
   nt.City AS NFLTeamCity,
+  p.CurrentDesignation,
   p.InjuryStatus,
   p.PhotoThumbnailUrl
 FROM ref.NFLPlayer p
@@ -246,6 +248,7 @@ SELECT
   p.LastName,
   p.FullName,
   p.Position,
+  p.CurrentDesignation,
   p.InjuryStatus,
   p.IsActive AS PlayerIsActive
 FROM ref.NFLTeam nt
@@ -320,6 +323,7 @@ SELECT
   nt.TeamName AS NFLTeamName,
   nt.City AS NFLTeamCity,
   nt.ThumbnailUrl AS NFLTeamLogo,
+  p.CurrentDesignation,
   p.InjuryStatus,
   p.InjuryDescription,
   p.PhotoUrl,
@@ -358,6 +362,7 @@ SELECT
   p.FullName,
   p.Position,
   nt.TeamName AS NFLTeamName,
+  p.CurrentDesignation,
   p.InjuryStatus,
   p.PhotoThumbnailUrl,
   tr.AcquisitionType,
@@ -386,6 +391,7 @@ SELECT
   p.FullName AS PlayerName,
   p.Position,
   nt.TeamName AS NFLTeamName,
+  p.CurrentDesignation,
   p.InjuryStatus,
   tr.AcquisitionType,
   -- Orden lógico de posiciones
@@ -919,6 +925,7 @@ SELECT
   nt.TeamName AS NFLTeamName,
   nt.City AS NFLTeamCity,
   nt.ThumbnailUrl AS NFLTeamLogo,
+  p.CurrentDesignation,
   p.InjuryStatus,
   p.InjuryDescription,
   p.PhotoUrl,
@@ -955,6 +962,7 @@ SELECT
   p.NFLTeamID,
   nt.TeamName AS NFLTeamName,
   nt.City AS NFLTeamCity,
+  p.CurrentDesignation,
   p.InjuryStatus,
   p.InjuryDescription,
   p.PhotoUrl,
@@ -997,6 +1005,7 @@ SELECT
   nt.TeamName AS NFLTeamName,
   nt.City AS NFLTeamCity,
   p.PhotoThumbnailUrl,
+  p.CurrentDesignation,
   p.InjuryStatus
 FROM ref.NFLPlayer p
 JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
@@ -1021,6 +1030,7 @@ SELECT
   p.NFLTeamID,
   nt.TeamName AS NFLTeamName,
   nt.City AS NFLTeamCity,
+  p.CurrentDesignation,
   p.InjuryStatus,
   p.PhotoThumbnailUrl,
   p.IsActive,
@@ -1060,6 +1070,7 @@ SELECT
   p.NFLPlayerID,
   p.FullName AS PlayerName,
   p.Position,
+  p.CurrentDesignation,
   tr.RosterID,
   tr.TeamID,
   t.TeamName,
@@ -1094,6 +1105,7 @@ SELECT
   p.NFLPlayerID,
   p.FullName AS PlayerName,
   p.Position,
+  p.CurrentDesignation,
   p.NFLTeamID,
   nt.TeamName AS NFLTeamName,
   l.LeagueID,

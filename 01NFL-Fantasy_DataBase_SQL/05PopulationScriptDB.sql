@@ -635,6 +635,143 @@ DECLARE @PlayerCount INT = @@ROWCOUNT;
 PRINT N'✓ ' + CAST(@PlayerCount AS NVARCHAR(10)) + N' jugadores NFL insertados/actualizados';
 
 /* ============================================================
+   SECCIÓN 7.5: PLAYER NEWS - Noticias y Designaciones (FEATURE 10.3)
+   ============================================================ */
+PRINT N'Poblando noticias de jugadores NFL...';
+
+-- Obtener IDs de algunos jugadores para crear noticias de ejemplo
+DECLARE
+  @P_MarkAndrews INT  = (SELECT NFLPlayerID FROM ref.NFLPlayer WHERE FirstName = N'Mark' AND LastName = N'Andrews'),
+  @P_TJHockenson INT  = (SELECT NFLPlayerID FROM ref.NFLPlayer WHERE FirstName = N'TJ' AND LastName = N'Hockenson'),
+  @P_NickChubb INT    = (SELECT NFLPlayerID FROM ref.NFLPlayer WHERE FirstName = N'Nick' AND LastName = N'Chubb'),
+  @P_Mahomes INT      = (SELECT NFLPlayerID FROM ref.NFLPlayer WHERE FirstName = N'Patrick' AND LastName = N'Mahomes'),
+  @P_CMC INT          = (SELECT NFLPlayerID FROM ref.NFLPlayer WHERE FirstName = N'Christian' AND LastName = N'McCaffrey');
+
+-- Tabla temporal para noticias
+DECLARE @NewsResults TABLE(NewsID BIGINT, Message NVARCHAR(200));
+
+-- 1. Mark Andrews - OUT (lesión en el tobillo)
+DELETE FROM @NewsResults;
+INSERT INTO @NewsResults
+EXEC app.sp_AddNFLPlayerNews
+  @ActorUserID = @U_Admin,
+  @NFLPlayerID = @P_MarkAndrews,
+  @NewsText = N'Mark Andrews sufrió una lesión en el tobillo durante el entrenamiento y estará fuera por tiempo indefinido.',
+  @IsInjury = 1,
+  @InjurySummary = N'Lesión en tobillo',
+  @Designation = N'O';
+
+PRINT N'✓ Noticia creada: Mark Andrews - OUT';
+
+-- 2. TJ Hockenson - IR (reserva de lesionados - ACL)
+DELETE FROM @NewsResults;
+INSERT INTO @NewsResults
+EXEC app.sp_AddNFLPlayerNews
+  @ActorUserID = @U_Admin,
+  @NFLPlayerID = @P_TJHockenson,
+  @NewsText = N'TJ Hockenson fue colocado en la lista de reserva de lesionados tras cirugía de ACL. Se espera su regreso en 6-8 semanas.',
+  @IsInjury = 1,
+  @InjurySummary = N'Cirugía ACL - Lista IR',
+  @Designation = N'IR';
+
+PRINT N'✓ Noticia creada: TJ Hockenson - IR';
+
+-- 3. Nick Chubb - QUESTIONABLE (cuestionable para el próximo partido)
+DELETE FROM @NewsResults;
+INSERT INTO @NewsResults
+EXEC app.sp_AddNFLPlayerNews
+  @ActorUserID = @U_Admin,
+  @NFLPlayerID = @P_NickChubb,
+  @NewsText = N'Nick Chubb participó limitadamente en la práctica de hoy. Su estatus para el domingo es cuestionable debido a molestias en la rodilla.',
+  @IsInjury = 1,
+  @InjurySummary = N'Molestias en rodilla',
+  @Designation = N'Q';
+
+PRINT N'✓ Noticia creada: Nick Chubb - QUESTIONABLE';
+
+-- 4. Christian McCaffrey - PROBABLE (práctica completa)
+DELETE FROM @NewsResults;
+INSERT INTO @NewsResults
+EXEC app.sp_AddNFLPlayerNews
+  @ActorUserID = @U_Admin,
+  @NFLPlayerID = @P_CMC,
+  @NewsText = N'Christian McCaffrey tuvo participación completa en la práctica de hoy tras superar molestias en el muslo. Probable para el domingo.',
+  @IsInjury = 1,
+  @InjurySummary = N'Recuperación muscular',
+  @Designation = N'P';
+
+PRINT N'✓ Noticia creada: Christian McCaffrey - PROBABLE';
+
+-- 5. Patrick Mahomes - Noticia regular (sin lesión)
+DELETE FROM @NewsResults;
+INSERT INTO @NewsResults
+EXEC app.sp_AddNFLPlayerNews
+  @ActorUserID = @U_Admin,
+  @NFLPlayerID = @P_Mahomes,
+  @NewsText = N'Patrick Mahomes fue nombrado Jugador Ofensivo de la Semana tras su actuación estelar con 4 TDs y 350 yardas.',
+  @IsInjury = 0,
+  @InjurySummary = NULL,
+  @Designation = NULL;
+
+PRINT N'✓ Noticia creada: Patrick Mahomes - Reconocimiento';
+
+-- 6. Ejemplo de noticia antigua para Mark Andrews (para historial)
+-- Simulamos que hace 2 semanas estaba con designación DOUBTFUL
+DELETE FROM @NewsResults;
+INSERT INTO @NewsResults
+EXEC app.sp_AddNFLPlayerNews
+  @ActorUserID = @U_Admin,
+  @NFLPlayerID = @P_MarkAndrews,
+  @NewsText = N'Mark Andrews practicó de forma limitada. Su participación en el próximo juego es muy dudosa según el reporte médico.',
+  @IsInjury = 1,
+  @InjurySummary = N'Práctica limitada',
+  @Designation = N'D';
+
+-- Actualizar fecha de creación para simular que fue hace 2 semanas
+UPDATE ref.NFLPlayerNews
+SET CreatedAt = DATEADD(DAY, -14, SYSUTCDATETIME())
+WHERE NFLPlayerID = @P_MarkAndrews
+  AND InjurySummary = N'Práctica limitada'
+  AND IsDeleted = 0;
+
+PRINT N'✓ Noticia histórica creada: Mark Andrews - DOUBTFUL (hace 2 semanas)';
+
+-- Contar noticias creadas
+DECLARE @NewsCount INT = (SELECT COUNT(*) FROM ref.NFLPlayerNews WHERE IsDeleted = 0);
+PRINT N'✓ Total de ' + CAST(@NewsCount AS NVARCHAR(10)) + N' noticias activas de jugadores';
+
+-- Mostrar designaciones actuales
+PRINT N'';
+PRINT N'📋 Designaciones actuales de jugadores:';
+SELECT 
+  CONCAT(p.FirstName, N' ', p.LastName) AS Jugador,
+  p.CurrentDesignation AS Designación,
+  CASE p.CurrentDesignation
+    WHEN N'O' THEN N'Fuera (OUT)'
+    WHEN N'D' THEN N'Dudoso (DOUBTFUL)'
+    WHEN N'Q' THEN N'Cuestionable (QUESTIONABLE)'
+    WHEN N'P' THEN N'Probable (PROBABLE)'
+    WHEN N'FP' THEN N'Participación Plena (FULL PRACTICE)'
+    WHEN N'IR' THEN N'Reserva de Lesionados (INJURED RESERVE)'
+    WHEN N'PUP' THEN N'Incapaz Físicamente (PUP)'
+    WHEN N'SUS' THEN N'Suspendido (SUSPENDED)'
+    ELSE N'Sin designación'
+  END AS Descripción
+FROM ref.NFLPlayer p
+WHERE p.CurrentDesignation IS NOT NULL
+ORDER BY 
+  CASE p.CurrentDesignation
+    WHEN N'O' THEN 1
+    WHEN N'IR' THEN 2
+    WHEN N'D' THEN 3
+    WHEN N'Q' THEN 4
+    WHEN N'P' THEN 5
+    ELSE 6
+  END;
+
+PRINT N'';
+
+/* ============================================================
    SECCIÓN 8: LEAGUES - Crear ligas demo
    ============================================================ */
 PRINT N'Poblando ligas demo...';
@@ -703,13 +840,6 @@ BEGIN
   VALUES(@L_Prime, @U_Carol, N'Philadelphia Eagles');
   PRINT N'✓ Equipo Philadelphia Eagles agregado (Carol)';
 END
-
--- Activar liga principal
-EXEC app.sp_SetLeagueStatus
-  @ActorUserID = @U_Admin,
-  @LeagueID    = @L_Prime,
-  @NewStatus   = 1,
-  @Reason      = N'Población inicial';
 
 PRINT N'✓ Liga Prime activada';
 
@@ -905,6 +1035,9 @@ SELECT @cnt_leagues = COUNT(*) FROM league.League;
 SELECT @cnt_teams = COUNT(*) FROM league.Team;
 SELECT @cnt_games = COUNT(*) FROM league.NFLGame;
 SELECT @cnt_roster = COUNT(*) FROM league.TeamRoster WHERE IsActive = 1;
+DECLARE @cnt_news INT, @cnt_designations INT;
+SELECT @cnt_news = COUNT(*) FROM ref.NFLPlayerNews WHERE IsDeleted = 0;
+SELECT @cnt_designations = COUNT(*) FROM ref.NFLPlayer WHERE CurrentDesignation IS NOT NULL;
 SELECT @cnt_admins = COUNT(*) FROM auth.UserAccount WHERE SystemRoleCode = N'ADMIN';
 SELECT @cnt_brandmgrs = COUNT(*) FROM auth.UserAccount WHERE SystemRoleCode = N'BRAND_MANAGER';
 SELECT @cnt_regularusers = COUNT(*) FROM auth.UserAccount WHERE SystemRoleCode = N'USER';
@@ -926,6 +1059,8 @@ PRINT N'  ✓ ' + CAST(@cnt_leagues AS NVARCHAR(10)) + N' ligas';
 PRINT N'  ✓ ' + CAST(@cnt_teams AS NVARCHAR(10)) + N' equipos fantasy';
 PRINT N'  ✓ ' + CAST(@cnt_games AS NVARCHAR(10)) + N' partidos NFL programados';
 PRINT N'  ✓ ' + CAST(@cnt_roster AS NVARCHAR(10)) + N' jugadores en rosters activos';
+PRINT N'  ✓ ' + CAST(@cnt_news AS NVARCHAR(10)) + N' noticias de jugadores activas';
+PRINT N'  ✓ ' + CAST(@cnt_designations AS NVARCHAR(10)) + N' jugadores con designación médica/disciplinaria';
 PRINT N'';
 PRINT N'🎮 Usuarios demo (password: Secure123):';
 PRINT N'  • admin@xnfldemo.com (ROL: ADMIN - Comisionado de Prime League)';

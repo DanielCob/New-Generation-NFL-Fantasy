@@ -5,6 +5,7 @@ using NFL_Fantasy_API.Models.DTOs;
 using NFL_Fantasy_API.Models.DTOs.NflDetails;
 using NFL_Fantasy_API.SharedSystems.Validators;
 using NFL_Fantasy_API.SharedSystems.Validators.Images;
+using NFL_Fantasy_API.SharedSystems.Validators.NflDetails;
 
 namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.NflDetails
 {
@@ -600,5 +601,281 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.NflDetai
 
         #endregion
 
+        #region Player News (Feature 10.3)
+
+        /// <summary>
+        /// Agrega una noticia a un jugador NFL.
+        /// SP: app.sp_AddNFLPlayerNews
+        /// </summary>
+        public async Task<ApiResponseDTO> AddPlayerNewsAsync(
+            AddNFLPlayerNewsDTO dto,
+            int actorUserId,
+            string? sourceIp = null,
+            string? userAgent = null)
+        {
+            try
+            {
+                // VALIDACIÓN: Usar validador centralizado
+                var validationErrors = NFLPlayerNewsValidator.ValidateAddNews(dto);
+
+                if (validationErrors.Any())
+                {
+                    return ApiResponseDTO.ErrorResponse(string.Join(" ", validationErrors));
+                }
+
+                // EJECUCIÓN: Delegada a DataAccess
+                var result = await _dataAccess.AddPlayerNewsAsync(
+                    dto,
+                    actorUserId,
+                    sourceIp,
+                    userAgent
+                );
+
+                if (result != null)
+                {
+                    _logger.LogInformation(
+                        "User {ActorUserId} added news {NewsID} to player {NFLPlayerID} - IsInjury={IsInjury}, Designation={Designation}",
+                        actorUserId,
+                        result.NewsID,
+                        dto.NFLPlayerID,
+                        dto.IsInjury,
+                        dto.Designation ?? "N/A"
+                    );
+
+                    return ApiResponseDTO.SuccessResponse(result.Message, result);
+                }
+
+                return ApiResponseDTO.ErrorResponse("Error al agregar noticia de jugador.");
+            }
+            catch (SqlException ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "SQL error al agregar noticia: Actor={ActorUserId}, Player={NFLPlayerID}",
+                    actorUserId,
+                    dto.NFLPlayerID
+                );
+                return ApiResponseDTO.ErrorResponse(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error al agregar noticia: Actor={ActorUserId}, Player={NFLPlayerID}",
+                    actorUserId,
+                    dto.NFLPlayerID
+                );
+                return ApiResponseDTO.ErrorResponse($"Error inesperado: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Elimina una noticia de jugador y revierte su designación.
+        /// SP: app.sp_DeleteNFLPlayerNews
+        /// </summary>
+        public async Task<ApiResponseDTO> DeletePlayerNewsAsync(
+            long newsId,
+            int actorUserId,
+            string? sourceIp = null,
+            string? userAgent = null)
+        {
+            try
+            {
+                // VALIDACIÓN: NewsID debe ser mayor a 0
+                if (newsId <= 0)
+                {
+                    return ApiResponseDTO.ErrorResponse("ID de noticia inválido.");
+                }
+
+                // EJECUCIÓN: Delegada a DataAccess
+                var result = await _dataAccess.DeletePlayerNewsAsync(
+                    newsId,
+                    actorUserId,
+                    sourceIp,
+                    userAgent
+                );
+
+                if (result != null)
+                {
+                    _logger.LogInformation(
+                        "User {ActorUserId} deleted news {NewsID} - Reverted to designation: {RevertedDesignation}",
+                        actorUserId,
+                        newsId,
+                        result.RevertedDesignation ?? "NULL"
+                    );
+
+                    return ApiResponseDTO.SuccessResponse(result.Message, result);
+                }
+
+                return ApiResponseDTO.ErrorResponse("Error al eliminar noticia de jugador.");
+            }
+            catch (SqlException ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "SQL error al eliminar noticia {NewsID}: Actor={ActorUserId}",
+                    newsId,
+                    actorUserId
+                );
+                return ApiResponseDTO.ErrorResponse(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error al eliminar noticia {NewsID}: Actor={ActorUserId}",
+                    newsId,
+                    actorUserId
+                );
+                return ApiResponseDTO.ErrorResponse($"Error inesperado: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Obtiene el feed de noticias de un jugador específico.
+        /// SP: app.sp_GetNFLPlayerNewsFeed
+        /// </summary>
+        public async Task<GetNFLPlayerNewsFeedResponseDTO> GetPlayerNewsFeedAsync(
+            GetNFLPlayerNewsFeedRequestDTO request)
+        {
+            try
+            {
+                // VALIDACIÓN: Delegada a PaginationValidator
+                var (adjustedPageNumber, adjustedPageSize, paginationErrors) =
+                    PaginationValidator.ValidateAndAdjustPagination(
+                        request.PageNumber,
+                        request.PageSize
+                    );
+
+                // Ajuste adicional: El feed de noticias tiene límite de 50
+                if (adjustedPageSize > 50)
+                {
+                    adjustedPageSize = 50;
+                    paginationErrors.Add("El tamaño de página para noticias no puede exceder 50.");
+                }
+
+                if (paginationErrors.Any())
+                {
+                    _logger.LogWarning(
+                        "Parámetros de paginación ajustados en feed de noticias: {Errors}",
+                        string.Join(", ", paginationErrors)
+                    );
+
+                    request.PageNumber = adjustedPageNumber;
+                    request.PageSize = adjustedPageSize;
+                }
+
+                // Validar NFLPlayerID
+                if (request.NFLPlayerID <= 0)
+                {
+                    _logger.LogWarning(
+                        "Intento de obtener feed con NFLPlayerID inválido: {NFLPlayerID}",
+                        request.NFLPlayerID
+                    );
+
+                    return new GetNFLPlayerNewsFeedResponseDTO
+                    {
+                        News = new List<NFLPlayerNewsItemDTO>(),
+                        TotalRecords = 0,
+                        CurrentPage = request.PageNumber,
+                        PageSize = request.PageSize,
+                        TotalPages = 0
+                    };
+                }
+
+                // EJECUCIÓN: Delegada a DataAccess
+                return await _dataAccess.GetPlayerNewsFeedAsync(request);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error al obtener feed de noticias del jugador {NFLPlayerID}",
+                    request.NFLPlayerID
+                );
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Obtiene detalles completos de una noticia específica por ID.
+        /// SP: app.sp_GetNFLPlayerNewsByID
+        /// </summary>
+        public async Task<NFLPlayerNewsDetailsDTO?> GetPlayerNewsByIdAsync(long newsId)
+        {
+            try
+            {
+                // VALIDACIÓN: NewsID debe ser mayor a 0
+                if (newsId <= 0)
+                {
+                    _logger.LogWarning(
+                        "Intento de obtener noticia con ID inválido: {NewsID}",
+                        newsId
+                    );
+                    return null;
+                }
+
+                // EJECUCIÓN: Delegada a DataAccess
+                return await _dataAccess.GetPlayerNewsByIdAsync(newsId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error al obtener detalles de noticia {NewsID}",
+                    newsId
+                );
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Lista jugadores filtrados por designación (IR, OUT, etc.).
+        /// SP: app.sp_GetPlayersByDesignation
+        /// </summary>
+        public async Task<List<PlayerWithDesignationDTO>> GetPlayersByDesignationAsync(
+            GetPlayersByDesignationRequestDTO request)
+        {
+            try
+            {
+                // VALIDACIÓN: Verificar que la designación es válida
+                if (!NFLPlayerNewsValidator.IsValidDesignation(request.Designation))
+                {
+                    _logger.LogWarning(
+                        "Intento de buscar jugadores con designación inválida: {Designation}",
+                        request.Designation
+                    );
+
+                    return new List<PlayerWithDesignationDTO>();
+                }
+
+                // Normalizar designación a mayúsculas
+                request.Designation = request.Designation.ToUpper();
+
+                // EJECUCIÓN: Delegada a DataAccess
+                var result = await _dataAccess.GetPlayersByDesignationAsync(request);
+
+                _logger.LogInformation(
+                    "Retrieved {Count} players with designation {Designation}",
+                    result.Count,
+                    request.Designation
+                );
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error al obtener jugadores por designación: Designation={Designation}, NFLTeamID={NFLTeamID}, Position={Position}",
+                    request.Designation,
+                    request.NFLTeamID,
+                    request.Position
+                );
+                throw;
+            }
+        }
+
+        #endregion
     }
 }

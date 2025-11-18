@@ -478,11 +478,33 @@ app.MapGet("/", () => Results.Ok(new
             addPlayer = "POST /api/team/{id}/roster/add",
             removePlayer = "POST /api/team/roster/{rosterId}/remove"
         },
-        player = new
+        nflplayer = new
         {
-            list = "GET /api/player",
-            available = "GET /api/player/available",
-            byNFLTeam = "GET /api/player/by-nfl-team/{nflTeamId}"
+            // CRUD Básico
+            create = "POST /api/nflplayer",
+            createBatch = "POST /api/nflplayer/batch",
+            list = "GET /api/nflplayer",
+            details = "GET /api/nflplayer/{id}",
+            update = "PUT /api/nflplayer/{id}",
+            deactivate = "POST /api/nflplayer/{id}/deactivate",
+            reactivate = "POST /api/nflplayer/{id}/reactivate",
+
+            // Consultas y Filtros
+            available = "GET /api/nflplayer/available",
+            byNFLTeam = "GET /api/nflplayer/by-nfl-team/{nflTeamId}",
+            active = "GET /api/nflplayer/active",
+            byDesignation = "GET /api/nflplayer/by-designation",
+
+            // Batch Reports
+            createBatchReport = "POST /api/nflplayer/batch-report",
+            listBatchReports = "GET /api/nflplayer/batch-reports",
+            batchReportDetails = "GET /api/nflplayer/batch-report/{id}",
+
+            // Noticias (Feature 10.3)
+            addNews = "POST /api/nflplayer/news",
+            deleteNews = "DELETE /api/nflplayer/news/{newsId}",
+            playerNewsFeed = "GET /api/nflplayer/{playerId}/news",
+            newsDetails = "GET /api/nflplayer/news/{newsId}"
         },
         season = new
         {
@@ -527,6 +549,8 @@ app.MapGet("/", () => Results.Ok(new
         feature_1_2 = "Creacion y administracion de ligas de fantasy",
         feature_3_1 = "Creacion y administracion de equipos fantasy (branding, roster, distribucion)",
         feature_10_1 = "Gestion de Equipos NFL (CRUD completo con validaciones)",
+        feature_10_2 = "Gestion de Jugadores NFL (CRUD, batch imports, reportes)",
+        feature_10_3 = "Estado de Jugador (noticias, lesiones, designaciones IR/OUT/Q/D/P)",
         audit = "Sistema de auditoria completo con captura de IP y UserAgent",
         maintenance = "Limpieza automatica de sesiones y tokens expirados"
     }
