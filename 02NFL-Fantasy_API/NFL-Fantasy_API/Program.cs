@@ -400,6 +400,7 @@ app.UseAuthentication();
 // Este middleware valida el Bearer token y agrega UserID al contexto
 // DEBE ir DESPUES de UseRouting y ANTES de UseAuthorization
 app.UseAuthenticationMiddleware();
+app.UseAuthorizationMiddleware();
 
 // 6. Authorization (si usaras [Authorize] attributes)
 app.UseAuthorization();
