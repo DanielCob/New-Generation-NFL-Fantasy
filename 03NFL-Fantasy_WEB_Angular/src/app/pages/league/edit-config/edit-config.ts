@@ -1,3 +1,4 @@
+// src/app/pages/league/edit-config/edit-config.ts
 import { Component, Input, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
@@ -11,7 +12,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { LeagueService } from '../../../core/services/league-service';
-import { LeagueSummary } from '../../../core/models/league-model';
+import { EditLeagueConfigRequest, LeagueSummary } from '../../../core/models/league-model';
 
 @Component({
   selector: 'app-edit-config',
@@ -25,8 +26,9 @@ import { LeagueSummary } from '../../../core/models/league-model';
   styleUrl: './edit-config.css'
 })
 export class EditConfigForm implements OnInit {
-  @Input() leagueId!: number;
-  @Input() preload = true; // ⬅️ si false, no hace prefill
+  // ✅ CAMBIO: leaguePublicId
+  @Input() leaguePublicId!: number;
+  @Input() preload = true;
 
   private leagues = inject(LeagueService);
   private fb = inject(FormBuilder).nonNullable;
@@ -51,20 +53,31 @@ export class EditConfigForm implements OnInit {
   });
 
   ngOnInit(): void {
-    if (!this.leagueId || this.leagueId <= 0) {
-      this.error.set('LeagueID inválido');
+    console.log('🎯 [EditConfigForm] leaguePublicId:', this.leaguePublicId);
+    
+    if (!this.leaguePublicId || this.leaguePublicId <= 0) {
+      this.error.set('LeaguePublicID inválido');
       return;
     }
-    if (this.preload) this.prefill(this.leagueId);
+    if (this.preload) this.prefill(this.leaguePublicId);
   }
 
   private prefill(id: number): void {
+    console.log('📡 [EditConfigForm] Cargando configuración para LeaguePublicID:', id);
+    
     this.loading.set(true);
     this.error.set(null);
     this.leagues.getSummary(id).subscribe({
       next: (r: any) => {
+        console.log('✅ [EditConfigForm] Summary recibido:', r);
+        
         const s: LeagueSummary | null = (r?.data ?? r?.Data ?? r) as LeagueSummary | null;
-        if (!s) { this.error.set('No se pudo cargar la config'); this.loading.set(false); return; }
+        if (!s) { 
+          this.error.set('No se pudo cargar la config'); 
+          this.loading.set(false); 
+          return; 
+        }
+        
         this.form.patchValue({
           name: s.Name,
           description: s.Description ?? '',
@@ -80,7 +93,8 @@ export class EditConfigForm implements OnInit {
         });
         this.loading.set(false);
       },
-      error: () => {
+      error: (e) => {
+        console.error('❌ [EditConfigForm] Error cargando config:', e);
         this.error.set('No se pudo cargar la config');
         this.loading.set(false);
       }
@@ -88,28 +102,40 @@ export class EditConfigForm implements OnInit {
   }
 
   save(): void {
-    if (this.form.invalid || !this.leagueId) return;
+    if (this.form.invalid || !this.leaguePublicId) return;
+    
+    console.log('💾 [EditConfigForm] Guardando configuración para LeaguePublicID:', this.leaguePublicId);
+    
     this.saving.set(true);
     const v = this.form.getRawValue();
-    this.leagues.editConfig(this.leagueId, {
-      name: v.name!,
-      description: v.description ?? '',
-      teamSlots: v.teamSlots!,
-      positionFormatID: v.positionFormatID!,
-      scoringSchemaID: v.scoringSchemaID!,
-      playoffTeams: v.playoffTeams!,
-      allowDecimals: !!v.allowDecimals,
-      tradeDeadlineEnabled: !!v.tradeDeadlineEnabled,
-      tradeDeadlineDate: v.tradeDeadlineDate || '',
-      maxRosterChangesPerTeam: v.maxRosterChangesPerTeam ?? 0,
-      maxFreeAgentAddsPerTeam: v.maxFreeAgentAddsPerTeam ?? 0,
-    }).subscribe({
+    
+    // ✅ Usar PascalCase para coincidir con el API
+    const payload: EditLeagueConfigRequest = {
+      Name: v.name!,
+      Description: v.description ?? '',
+      TeamSlots: v.teamSlots!,
+      PositionFormatID: v.positionFormatID!,
+      ScoringSchemaID: v.scoringSchemaID!,
+      PlayoffTeams: v.playoffTeams!,
+      AllowDecimals: !!v.allowDecimals,
+      TradeDeadlineEnabled: !!v.tradeDeadlineEnabled,
+      TradeDeadlineDate: v.tradeDeadlineDate || '',
+      MaxRosterChangesPerTeam: v.maxRosterChangesPerTeam ?? 0,
+      MaxFreeAgentAddsPerTeam: v.maxFreeAgentAddsPerTeam ?? 0,
+    };
+    
+    console.log('📤 [EditConfigForm] Payload:', payload);
+    
+    this.leagues.editConfig(this.leaguePublicId, payload).subscribe({
       next: (resp: any) => {
+        console.log('✅ [EditConfigForm] Configuración guardada:', resp);
         const msg = resp?.message ?? resp?.Message ?? 'Configuración guardada';
         this.snack.open(msg, 'OK', { duration: 2600 });
         this.saving.set(false);
       },
       error: (e) => {
+        console.error('❌ [EditConfigForm] Error guardando:', e);
+        console.error('❌ [EditConfigForm] Error body:', e.error);
         const msg = e?.error?.message ?? e?.error?.Message ?? 'Error al guardar';
         this.snack.open(msg, 'OK', { duration: 3200 });
         this.saving.set(false);

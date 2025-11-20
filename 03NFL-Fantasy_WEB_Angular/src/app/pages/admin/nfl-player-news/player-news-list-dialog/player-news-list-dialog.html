@@ -1,0 +1,104 @@
+<!-- 8. player-news-list-dialog.html -->
+<div class="dialog-container">
+  <div class="dialog-header">
+    <div class="player-info">
+      <img [src]="player.ThumbnailUrl || player.PhotoUrl" class="player-thumb" alt="Player">
+      <div>
+        <h2>{{ player.FullName }} - News</h2>
+        <p class="meta">{{ player.Position }} • ID: {{ player.NFLPlayerID }}</p>
+      </div>
+    </div>
+    <button mat-icon-button (click)="close()">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <div class="dialog-content" *ngIf="loading()">
+    <div class="loading-state">
+      <mat-progress-spinner mode="indeterminate" diameter="48"></mat-progress-spinner>
+      <p>Loading news...</p>
+    </div>
+  </div>
+
+  <div class="dialog-content" *ngIf="error()">
+    <div class="error-state">
+      <mat-icon color="warn">error</mat-icon>
+      <p>{{ error() }}</p>
+    </div>
+  </div>
+
+  <div class="dialog-content" *ngIf="!loading() && !error()">
+    <div class="stats-bar">
+      <span>Total News: <strong>{{ total() }}</strong></span>
+      <span class="refresh" (click)="loadNews()">
+        <mat-icon>refresh</mat-icon> Refresh
+      </span>
+    </div>
+
+    <div class="table-wrapper" *ngIf="news().length > 0">
+      <table mat-table [dataSource]="news()" class="news-table">
+        <ng-container matColumnDef="id">
+          <th mat-header-cell *matHeaderCellDef>ID</th>
+          <td mat-cell *matCellDef="let n">#{{ n.NewsID }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="text">
+          <th mat-header-cell *matHeaderCellDef>News Text</th>
+          <td mat-cell *matCellDef="let n">
+            <div class="news-text">{{ n.NewsText }}</div>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="injury">
+          <th mat-header-cell *matHeaderCellDef>Injury</th>
+          <td mat-cell *matCellDef="let n">
+            <mat-chip [color]="n.IsInjury ? 'warn' : 'primary'" selected>
+              {{ n.IsInjury ? 'Yes' : 'No' }}
+            </mat-chip>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="designation">
+          <th mat-header-cell *matHeaderCellDef>Designation</th>
+          <td mat-cell *matCellDef="let n">
+            <span class="designation-badge" 
+                  *ngIf="n.Designation"
+                  [style.background-color]="getDesignationColor(n.Designation)">
+              {{ getDesignationLabel(n.Designation) }}
+            </span>
+            <span *ngIf="!n.Designation" class="no-designation">—</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="summary">
+          <th mat-header-cell *matHeaderCellDef>Summary</th>
+          <td mat-cell *matCellDef="let n">
+            <span class="summary">{{ n.InjurySummary || '—' }}</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="author">
+          <th mat-header-cell *matHeaderCellDef>Author</th>
+          <td mat-cell *matCellDef="let n">{{ n.CreatedByName }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="date">
+          <th mat-header-cell *matHeaderCellDef>Date</th>
+          <td mat-cell *matCellDef="let n">{{ n.CreatedAt | date:'short' }}</td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="['id','text','injury','designation','summary','author','date']"></tr>
+        <tr mat-row *matRowDef="let row; columns: ['id','text','injury','designation','summary','author','date'];"></tr>
+      </table>
+    </div>
+
+    <div class="empty-state" *ngIf="news().length === 0">
+      <mat-icon>info</mat-icon>
+      <p>No news found for this player</p>
+    </div>
+  </div>
+
+  <div class="dialog-actions">
+    <button mat-raised-button color="primary" (click)="close()">Close</button>
+  </div>
+</div>

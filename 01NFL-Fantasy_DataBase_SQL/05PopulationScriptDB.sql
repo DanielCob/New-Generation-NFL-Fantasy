@@ -29,6 +29,7 @@ PRINT N'Poblando roles de liga...';
 MERGE ref.LeagueRole AS T
 USING (VALUES
   (N'COMMISSIONER',     N'Comisionado'),
+  (N'MANAGER',     N'Manager'),
   (N'SPECTATOR',        N'Espectador')
 ) AS S(RoleCode, Display)
 ON (T.RoleCode = S.RoleCode)
@@ -37,7 +38,7 @@ WHEN MATCHED AND T.Display <> S.Display THEN
 WHEN NOT MATCHED BY TARGET THEN
   INSERT(RoleCode, Display) VALUES(S.RoleCode, S.Display);
 
-PRINT N'✓ Roles de liga poblados (COMMISSIONER, SPECTATOR)';
+PRINT N'✓ Roles de liga poblados (COMMISSIONER, MANAGER, SPECTATOR)';
 
 /* ============================================================
    SECCIÓN 2: REF - PositionFormat + PositionSlot (ACTUALIZADO)

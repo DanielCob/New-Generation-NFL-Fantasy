@@ -120,6 +120,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Auth
                     profile.CommissionedLeagues.Add(new UserCommissionedLeagueDTO
                     {
                         LeagueID = reader.GetSafeInt32("LeagueID"),
+                        LeaguePublicID = reader.GetSafeInt32("LeaguePublicID"),
                         LeagueName = reader.GetSafeString("LeagueName"),
                         Status = reader.GetSafeByte("Status"),
                         TeamSlots = reader.GetSafeByte("TeamSlots"),
