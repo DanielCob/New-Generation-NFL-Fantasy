@@ -1,13 +1,23 @@
-﻿using System.Text.RegularExpressions;
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using NFL_Fantasy_API.LogicLayer.GameLogic.Services.Interfaces.Auth;
 
 namespace NFL_Fantasy_API.SharedSystems.Security
 {
     /// <summary>
-    /// Middleware de autenticación basado en Bearer token (SessionID GUID)
-    /// Valida y refresca sesiones automáticamente (sliding expiration)
-    /// Aplica control de acceso basado en rutas
+    /// ============================================
+    /// MIDDLEWARE DE AUTENTICACIÓN (Authentication)
+    /// ============================================
+    /// 
+    /// RESPONSABILIDAD: Determinar "¿QUIÉN eres?"
+    /// 
+    /// Este middleware se encarga ÚNICAMENTE de:
+    /// 1. Verificar si existe un token Bearer válido
+    /// 2. Validar la sesión contra el AuthService
+    /// 3. Establecer la identidad del usuario (ClaimsPrincipal)
+    /// 4. Guardar información del usuario en HttpContext
+    /// 
+    /// NO maneja permisos ni acceso a recursos específicos.
+    /// Eso es responsabilidad del AuthorizationMiddleware.
     /// </summary>
     public class AuthenticationMiddleware
     {
@@ -20,191 +30,122 @@ namespace NFL_Fantasy_API.SharedSystems.Security
             _logger = logger;
         }
 
-        // Rutas públicas que NO requieren autenticación
-        private static readonly HashSet<string> PublicRoutes = new(StringComparer.OrdinalIgnoreCase)
-        {
-            "/api/auth/register",
-            "/api/auth/login",
-            "/api/auth/request-reset",
-            "/api/auth/reset-with-token",
-            "/api/seasons/current",
-            "/api/reference/position-formats",
-            "/api/scoring/schemas"
-        };
-
-        // Patrones regex para rutas públicas GET
-        private static readonly List<Regex> PublicGetPatterns = new()
-        {
-            new Regex(@"^/api/reference/position-formats/\d+/slots$", RegexOptions.IgnoreCase),
-            new Regex(@"^/api/scoring/schemas/\d+/rules$", RegexOptions.IgnoreCase),
-            new Regex(@"^/swagger.*", RegexOptions.IgnoreCase),
-            new Regex(@"^/$", RegexOptions.IgnoreCase) // root
-        };
-
-        // Determina si la ruta requiere ADMIN (según path + método HTTP)
-        private static bool RequiresAdminRole(string path, string method)
-        {
-            // Mutaciones de NFLTeam (POST/PUT/* que no sean GET)
-            if (Regex.IsMatch(path, @"^/api/nflteam($|/)", RegexOptions.IgnoreCase) &&
-                !string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase))
-                return true;
-
-            // Gestión de roles del sistema (cualquier verbo)
-            if (Regex.IsMatch(path, @"^/api/system-roles($|/)", RegexOptions.IgnoreCase))
-                return true;
-
-            // (Opcional) vistas administrativas
-            if (Regex.IsMatch(path, @"^/api/views/.*", RegexOptions.IgnoreCase))
-                return true;
-
-            // Administración de temporadas: TODO menos GET /api/seasons/current
-            if (Regex.IsMatch(path, @"^/api/seasons($|/)", RegexOptions.IgnoreCase))
-            {
-                if (Regex.IsMatch(path, @"^/api/seasons/current$", RegexOptions.IgnoreCase))
-                    return false; // público
-
-                return true; // resto requiere ADMIN
-            }
-
-            return false;
-        }
-
         public async Task InvokeAsync(HttpContext context, IAuthService authService, IUserService userService)
         {
             var path = context.Request.Path.Value ?? string.Empty;
             var method = context.Request.Method;
 
-            // 1) Rutas públicas
-            if (ShouldSkipAuthentication(path, method))
+            // Verificar si la ruta requiere autenticación
+            if (RouteConfiguration.IsPublicRoute(path, method))
             {
+                _logger.LogDebug("Public route accessed: {Method} {Path}", method, path);
                 await _next(context);
                 return;
             }
 
-            // 2) Header Authorization: Bearer {GUID}
+            // ========================================
+            // PASO 1: Extraer y validar formato del token
+            // ========================================
             var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
             if (string.IsNullOrWhiteSpace(authHeader) ||
                 !authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
             {
-                _logger.LogWarning("Request to protected route {Path} without valid Authorization header", path);
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                await context.Response.WriteAsJsonAsync(new
-                {
-                    success = false,
-                    message = "Token de autenticación requerido. Incluya 'Authorization: Bearer {SessionID}' en el header."
-                });
+                _logger.LogWarning("Missing or invalid Authorization header for {Path}", path);
+                await RespondUnauthenticated(context, "Token de autenticación requerido. Incluya 'Authorization: Bearer {SessionID}' en el header.");
                 return;
             }
 
             var token = authHeader.Substring("Bearer ".Length).Trim();
             if (!Guid.TryParse(token, out Guid sessionId))
             {
-                _logger.LogWarning("Invalid token format for route {Path}: {Token}", path, token);
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                await context.Response.WriteAsJsonAsync(new
-                {
-                    success = false,
-                    message = "Formato de token inválido. Debe ser un GUID válido."
-                });
+                _logger.LogWarning("Invalid token format: {Token}", token);
+                await RespondUnauthenticated(context, "Formato de token inválido. Debe ser un GUID válido.");
                 return;
             }
 
-            // 3) Validar sesión (y refrescar sliding expiration)
+            // ========================================
+            // PASO 2: Validar sesión activa
+            // ========================================
             try
             {
                 var validation = await authService.ValidateSessionAsync(sessionId);
                 if (!validation.IsValid || validation.UserID <= 0)
                 {
-                    _logger.LogWarning("Invalid or expired session {SessionID} for route {Path}", sessionId, path);
-                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                    await context.Response.WriteAsJsonAsync(new
-                    {
-                        success = false,
-                        message = "Sesión inválida o expirada. Por favor, inicie sesión nuevamente."
-                    });
+                    _logger.LogWarning("Invalid or expired session: {SessionID}", sessionId);
+                    await RespondUnauthenticated(context, "Sesión inválida o expirada. Por favor, inicie sesión nuevamente.");
                     return;
                 }
 
-                // 4) Cargar rol del usuario para Claims/Policies
-                var basic = await userService.GetUserBasicAsync(validation.UserID);
-                var role = basic?.SystemRoleCode ?? "USER";
-                var email = basic?.Email ?? string.Empty;
+                // ========================================
+                // PASO 3: Obtener información del usuario
+                // ========================================
+                var userBasicInfo = await userService.GetUserBasicAsync(validation.UserID);
+                var userRole = userBasicInfo?.SystemRoleCode ?? "USER";
+                var userEmail = userBasicInfo?.Email ?? string.Empty;
 
-                // 5) Guardar info en HttpContext.Items (compatibilidad con tu código)
-                context.Items["UserID"] = validation.UserID;
-                context.Items["SessionID"] = sessionId;
-                context.Items["IsAuthenticated"] = true;
-                context.Items["SystemRoleCode"] = role;
-
-                // 6) Construir ClaimsPrincipal para [Authorize] y Policies
+                // ========================================
+                // PASO 4: Establecer identidad (ClaimsPrincipal)
+                // ========================================
                 var claims = new List<Claim>
                 {
                     new(ClaimTypes.NameIdentifier, validation.UserID.ToString()),
-                    new(ClaimTypes.Role, role)
+                    new(ClaimTypes.Role, userRole),
+                    new("SessionID", sessionId.ToString())
                 };
-                if (!string.IsNullOrWhiteSpace(email))
-                    claims.Add(new(ClaimTypes.Email, email));
+
+                if (!string.IsNullOrWhiteSpace(userEmail))
+                {
+                    claims.Add(new(ClaimTypes.Email, userEmail));
+                }
 
                 var identity = new ClaimsIdentity(claims, authenticationType: "Session");
                 context.User = new ClaimsPrincipal(identity);
 
-                _logger.LogInformation("User {UserID} ({Role}) authenticated for {Method} {Path}", validation.UserID, role, method, path);
+                // ========================================
+                // PASO 5: Guardar datos en HttpContext.Items
+                // (Para compatibilidad con código legacy)
+                // ========================================
+                context.Items["UserID"] = validation.UserID;
+                context.Items["SessionID"] = sessionId;
+                context.Items["IsAuthenticated"] = true;
+                context.Items["SystemRoleCode"] = userRole;
 
-                // 7) Enforzar ADMIN cuando corresponda
-                if (RequiresAdminRole(path, method) && !string.Equals(role, "ADMIN", StringComparison.OrdinalIgnoreCase))
-                {
-                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                    await context.Response.WriteAsJsonAsync(new
-                    {
-                        success = false,
-                        message = "Acceso denegado. Requiere rol ADMIN."
-                    });
-                    return;
-                }
+                _logger.LogInformation(
+                    "User authenticated successfully - UserID: {UserID}, Role: {Role}, Path: {Path}",
+                    validation.UserID, userRole, path
+                );
+
+                // Usuario autenticado, continuar con el pipeline
+                await _next(context);
             }
             catch (Exception ex)
             {
-                // Si algo falla en la etapa de autenticación, responder aquí
-                _logger.LogError(ex, "Error during authentication for route {Path}", path);
+                _logger.LogError(ex, "Authentication error for route {Path}", path);
                 context.Response.StatusCode = StatusCodes.Status500InternalServerError;
                 await context.Response.WriteAsJsonAsync(new
                 {
                     success = false,
                     message = "Error interno al validar autenticación."
                 });
-                return;
             }
-
-            // 8) Continuar con el pipeline. Cualquier excepción de los controllers/servicios
-            // ya NO será atrapada por este middleware (no se enmascara).
-            await _next(context);
         }
 
         /// <summary>
-        /// Determina si una ruta debe omitir la autenticación.
+        /// Responde con 401 Unauthorized y mensaje descriptivo
         /// </summary>
-        private static bool ShouldSkipAuthentication(string path, string method)
+        private static async Task RespondUnauthenticated(HttpContext context, string message)
         {
-            // Rutas explícitamente públicas
-            if (PublicRoutes.Contains(path))
-                return true;
-
-            // Patrones GET públicos (reference data, swagger, etc.)
-            if (method.Equals("GET", StringComparison.OrdinalIgnoreCase))
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            await context.Response.WriteAsJsonAsync(new
             {
-                foreach (var pattern in PublicGetPatterns)
-                {
-                    if (pattern.IsMatch(path))
-                        return true;
-                }
-            }
-
-            return false;
+                success = false,
+                message
+            });
         }
     }
 
     /// <summary>
-    /// Extension method para registrar el middleware fácilmente en Program.cs
+    /// Extension method para registrar el middleware de autenticación
     /// </summary>
     public static class AuthenticationMiddlewareExtensions
     {

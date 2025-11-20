@@ -46,12 +46,12 @@ namespace NFL_Fantasy_API.Models.DTOs.Fantasy
 
     /// <summary>
     /// Respuesta de creación de liga exitosa
-    /// ⭐ ACTUALIZADO: Incluye LeaguePublicID
+    /// ⭐ ACTUALIZADO: Solo retorna LeaguePublicID (no LeagueID privado)
     /// </summary>
     public class CreateLeagueResponseDTO
     {
-        public int LeagueID { get; set; }
-        public int LeaguePublicID { get; set; }  // NUEVO
+        // ⭐ ELIMINADO: public int LeagueID { get; set; }
+        public int LeaguePublicID { get; set; }  // ⭐ ÚNICO ID PÚBLICO
         public string Name { get; set; } = string.Empty;
         public byte TeamSlots { get; set; }
         public int AvailableSlots { get; set; }
@@ -122,12 +122,12 @@ namespace NFL_Fantasy_API.Models.DTOs.Fantasy
 
     /// <summary>
     /// Resumen completo de una liga (Feature 1.2 - Ver liga)
-    /// ⭐ ACTUALIZADO: Incluye LeaguePublicID
+    /// ⭐ ACTUALIZADO: Solo retorna LeaguePublicID (no LeagueID privado)
     /// </summary>
     public class LeagueSummaryDTO
     {
-        public int LeagueID { get; set; }
-        public int LeaguePublicID { get; set; }  // NUEVO
+        // ⭐ ELIMINADO: public int LeagueID { get; set; }
+        public int LeaguePublicID { get; set; }  // ⭐ ÚNICO ID PÚBLICO
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public byte Status { get; set; }
@@ -182,7 +182,7 @@ namespace NFL_Fantasy_API.Models.DTOs.Fantasy
     /// </summary>
     public class LeagueMemberDTO
     {
-        public int LeagueID { get; set; }
+        // ⭐ NOTA: No incluye LeagueID ni LeaguePublicID (se infiere del contexto)
         public int UserID { get; set; }
         public string RoleCode { get; set; } = string.Empty;
         public DateTime JoinedAt { get; set; }
@@ -193,10 +193,12 @@ namespace NFL_Fantasy_API.Models.DTOs.Fantasy
 
     /// <summary>
     /// Entrada del directorio de ligas (para listados públicos/filtrados)
+    /// ⭐ ACTUALIZADO: Solo retorna LeaguePublicID (no LeagueID privado)
     /// </summary>
     public class LeagueDirectoryEntryDTO
     {
-        public int LeagueID { get; set; }
+        // ⭐ ELIMINADO: public int LeagueID { get; set; }
+        public int LeaguePublicID { get; set; }  // ⭐ ÚNICO ID PÚBLICO
         public string SeasonLabel { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public byte Status { get; set; }
@@ -259,12 +261,12 @@ namespace NFL_Fantasy_API.Models.DTOs.Fantasy
 
     /// <summary>
     /// DTO para resultado de búsqueda de ligas
-    /// ⭐ ACTUALIZADO: Incluye LeaguePublicID
+    /// ⭐ ACTUALIZADO: Solo retorna LeaguePublicID (no LeagueID privado)
     /// </summary>
     public class SearchLeaguesResultDTO
     {
-        public int LeagueID { get; set; }
-        public int LeaguePublicID { get; set; }  // NUEVO
+        // ⭐ ELIMINADO: public int LeagueID { get; set; }
+        public int LeaguePublicID { get; set; }  // ⭐ ÚNICO ID PÚBLICO
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public byte TeamSlots { get; set; }
@@ -288,11 +290,12 @@ namespace NFL_Fantasy_API.Models.DTOs.Fantasy
 
     /// <summary>
     /// DTO para unirse a una liga
+    /// ⭐ ACTUALIZADO: Usa LeaguePublicID en lugar de LeagueID
     /// </summary>
     public class JoinLeagueRequestDTO
     {
-        [Required(ErrorMessage = "LeagueID es requerido")]
-        public int LeagueID { get; set; }
+        [Required(ErrorMessage = "LeaguePublicID es requerido")]
+        public int LeaguePublicID { get; set; }  // ⭐ CAMBIO: Era LeagueID
 
         [Required(ErrorMessage = "La contraseña de la liga es requerida")]
         [StringLength(50, MinimumLength = 1, ErrorMessage = "La contraseña debe tener entre 1 y 50 caracteres")]
@@ -305,11 +308,13 @@ namespace NFL_Fantasy_API.Models.DTOs.Fantasy
 
     /// <summary>
     /// DTO para resultado de unirse a liga
+    /// ⭐ ACTUALIZADO: Retorna LeaguePublicID en lugar de LeagueID
     /// </summary>
     public class JoinLeagueResultDTO
     {
         public int TeamID { get; set; }
-        public int LeagueID { get; set; }
+        // ⭐ ELIMINADO: public int LeagueID { get; set; }
+        public int LeaguePublicID { get; set; }  // ⭐ NUEVO
         public string TeamName { get; set; } = string.Empty;
         public string LeagueName { get; set; } = string.Empty;
         public int AvailableSlots { get; set; }
@@ -362,11 +367,12 @@ namespace NFL_Fantasy_API.Models.DTOs.Fantasy
 
     /// <summary>
     /// DTO para validar contraseña de liga
+    /// ⭐ ACTUALIZADO: Usa LeaguePublicID en lugar de LeagueID
     /// </summary>
     public class ValidateLeaguePasswordRequestDTO
     {
-        [Required(ErrorMessage = "LeagueID es requerido")]
-        public int LeagueID { get; set; }
+        [Required(ErrorMessage = "LeaguePublicID es requerido")]
+        public int LeaguePublicID { get; set; }  // ⭐ CAMBIO: Era LeagueID
 
         [Required(ErrorMessage = "La contraseña es requerida")]
         [StringLength(50, MinimumLength = 1)]

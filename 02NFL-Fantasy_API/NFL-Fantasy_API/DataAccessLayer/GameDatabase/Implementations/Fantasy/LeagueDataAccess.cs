@@ -12,6 +12,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
     /// Capa de acceso a datos para operaciones de ligas.
     /// Responsabilidad: Construcción de parámetros y ejecución de SPs/Views.
     /// NO contiene lógica de negocio.
+    /// ⭐ ACTUALIZADO: Todos los métodos usan LeaguePublicID
     /// </summary>
     public class LeagueDataAccess
     {
@@ -27,6 +28,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
         /// <summary>
         /// Crea una nueva liga de fantasy.
         /// SP: app.sp_CreateLeague
+        /// ⭐ RETORNA: Solo LeaguePublicID (no el LeagueID privado)
         /// </summary>
         public async Task<CreateLeagueResponseDTO?> CreateLeagueAsync(
             CreateLeagueDTO dto,
@@ -34,7 +36,6 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
             string? sourceIp,
             string? userAgent)
         {
-
             var parameters = new SqlParameter[]
             {
                 SqlParameterExtensions.CreateParameter("@CreatorUserID", creatorUserId),
@@ -56,7 +57,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
                 parameters,
                 reader => new CreateLeagueResponseDTO
                 {
-                    LeagueID = reader.GetSafeInt32("LeagueID"),
+                    // ⭐ ELIMINADO: LeagueID ya no se retorna
                     LeaguePublicID = reader.GetSafeInt32("LeaguePublicID"),
                     Name = reader.GetSafeString("Name"),
                     TeamSlots = reader.GetSafeByte("TeamSlots"),
@@ -77,9 +78,10 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
         /// <summary>
         /// Edita la configuración de una liga.
         /// SP: app.sp_EditLeagueConfig
+        /// ⭐ RECIBE: LeaguePublicID en lugar de LeagueID
         /// </summary>
         public async Task<string> EditLeagueConfigAsync(
-            int leagueId,
+            int leaguePublicId,  // ⭐ CAMBIO: Era leagueId
             EditLeagueConfigDTO dto,
             int actorUserId,
             string? sourceIp,
@@ -88,7 +90,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
             var parameters = new SqlParameter[]
             {
                 SqlParameterExtensions.CreateParameter("@ActorUserID", actorUserId),
-                SqlParameterExtensions.CreateParameter("@LeagueID", leagueId),
+                SqlParameterExtensions.CreateParameter("@LeaguePublicID", leaguePublicId),  // ⭐ CAMBIO
                 SqlParameterExtensions.CreateParameter("@Name", dto.Name),
                 SqlParameterExtensions.CreateParameter("@Description", dto.Description),
                 SqlParameterExtensions.CreateParameter("@TeamSlots", dto.TeamSlots),
@@ -117,9 +119,10 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
         /// <summary>
         /// Cambia el estado de una liga.
         /// SP: app.sp_SetLeagueStatus
+        /// ⭐ RECIBE: LeaguePublicID en lugar de LeagueID
         /// </summary>
         public async Task SetLeagueStatusAsync(
-            int leagueId,
+            int leaguePublicId,  // ⭐ CAMBIO: Era leagueId
             SetLeagueStatusDTO dto,
             int actorUserId,
             string? sourceIp,
@@ -128,7 +131,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
             var parameters = new SqlParameter[]
             {
                 SqlParameterExtensions.CreateParameter("@ActorUserID", actorUserId),
-                SqlParameterExtensions.CreateParameter("@LeagueID", leagueId),
+                SqlParameterExtensions.CreateParameter("@LeaguePublicID", leaguePublicId),  // ⭐ CAMBIO
                 SqlParameterExtensions.CreateParameter("@NewStatus", dto.NewStatus),
                 SqlParameterExtensions.CreateParameter("@Reason", dto.Reason),
                 SqlParameterExtensions.CreateParameter("@SourceIp", sourceIp),
@@ -148,12 +151,14 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
         /// <summary>
         /// Obtiene resumen completo de una liga.
         /// SP: app.sp_GetLeagueSummary (retorna 2 result sets)
+        /// ⭐ RECIBE: LeaguePublicID en lugar de LeagueID
+        /// ⭐ RETORNA: Solo LeaguePublicID (no el LeagueID privado)
         /// </summary>
-        public async Task<LeagueSummaryDTO?> GetLeagueSummaryAsync(int leagueId)
+        public async Task<LeagueSummaryDTO?> GetLeagueSummaryAsync(int leaguePublicId)  // ⭐ CAMBIO: Era leagueId
         {
             var parameters = new SqlParameter[]
             {
-                SqlParameterExtensions.CreateParameter("@LeagueID", leagueId)
+                SqlParameterExtensions.CreateParameter("@LeaguePublicID", leaguePublicId)  // ⭐ CAMBIO
             };
 
             LeagueSummaryDTO? summary = null;
@@ -183,7 +188,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
             {
                 summary = new LeagueSummaryDTO
                 {
-                    LeagueID = reader.GetSafeInt32("LeagueID"),
+                    // ⭐ ELIMINADO: LeagueID ya no se retorna
                     LeaguePublicID = reader.GetSafeInt32("LeaguePublicID"),
                     Name = reader.GetSafeString("Name"),
                     Description = reader.GetSafeNullableString("Description"),
@@ -240,6 +245,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
         /// <summary>
         /// Busca ligas disponibles para unirse.
         /// SP: app.sp_SearchLeagues
+        /// ⭐ RETORNA: Solo LeaguePublicID (no el LeagueID privado)
         /// </summary>
         public async Task<List<SearchLeaguesResultDTO>> SearchLeaguesAsync(SearchLeaguesRequestDTO request)
         {
@@ -258,7 +264,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
                 parameters,
                 reader => new SearchLeaguesResultDTO
                 {
-                    LeagueID = reader.GetSafeInt32("LeagueID"),
+                    // ⭐ ELIMINADO: LeagueID ya no se retorna
                     LeaguePublicID = reader.GetSafeInt32("LeaguePublicID"),
                     Name = reader.GetSafeString("Name"),
                     Description = reader.GetSafeString("Description"),
@@ -282,6 +288,8 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
         /// <summary>
         /// Une a un usuario a una liga existente.
         /// SP: app.sp_JoinLeague
+        /// ⭐ RECIBE: LeaguePublicID en el request
+        /// ⭐ RETORNA: LeaguePublicID en lugar de LeagueID
         /// </summary>
         public async Task<JoinLeagueResultDTO?> JoinLeagueAsync(
             int userId,
@@ -292,7 +300,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
             var parameters = new SqlParameter[]
             {
                 SqlParameterExtensions.CreateParameter("@UserID", userId),
-                SqlParameterExtensions.CreateParameter("@LeagueID", request.LeagueID),
+                SqlParameterExtensions.CreateParameter("@LeaguePublicID", request.LeaguePublicID),  // ⭐ CAMBIO
                 SqlParameterExtensions.CreateParameter("@LeaguePassword", request.LeaguePassword),
                 SqlParameterExtensions.CreateParameter("@TeamName", request.TeamName),
                 SqlParameterExtensions.CreateParameter("@SourceIp", sourceIp),
@@ -305,7 +313,8 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
                 reader => new JoinLeagueResultDTO
                 {
                     TeamID = reader.GetSafeInt32("TeamID"),
-                    LeagueID = reader.GetSafeInt32("LeagueID"),
+                    // ⭐ ELIMINADO: LeagueID ya no se retorna
+                    LeaguePublicID = reader.GetSafeInt32("LeaguePublicID"),  // ⭐ NUEVO
                     TeamName = reader.GetSafeString("TeamName"),
                     LeagueName = reader.GetSafeString("LeagueName"),
                     AvailableSlots = reader.GetSafeInt32("AvailableSlots"),
@@ -317,13 +326,14 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
         /// <summary>
         /// Valida si una contraseña de liga es correcta.
         /// SP: app.sp_ValidateLeaguePassword
+        /// ⭐ RECIBE: LeaguePublicID en el request
         /// </summary>
         public async Task<ValidateLeaguePasswordResultDTO?> ValidateLeaguePasswordAsync(
             ValidateLeaguePasswordRequestDTO request)
         {
             var parameters = new SqlParameter[]
             {
-                SqlParameterExtensions.CreateParameter("@LeagueID", request.LeagueID),
+                SqlParameterExtensions.CreateParameter("@LeaguePublicID", request.LeaguePublicID),  // ⭐ CAMBIO
                 SqlParameterExtensions.CreateParameter("@LeaguePassword", request.LeaguePassword)
             };
 
@@ -345,10 +355,11 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
         /// <summary>
         /// Remueve un equipo de la liga.
         /// SP: app.sp_RemoveTeamFromLeague
+        /// ⭐ RECIBE: LeaguePublicID en lugar de LeagueID
         /// </summary>
         public async Task<RemoveTeamResultDTO?> RemoveTeamFromLeagueAsync(
             int actorUserId,
-            int leagueId,
+            int leaguePublicId,  // ⭐ CAMBIO: Era leagueId
             RemoveTeamRequestDTO request,
             string? sourceIp,
             string? userAgent)
@@ -356,7 +367,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
             var parameters = new SqlParameter[]
             {
                 SqlParameterExtensions.CreateParameter("@ActorUserID", actorUserId),
-                SqlParameterExtensions.CreateParameter("@LeagueID", leagueId),
+                SqlParameterExtensions.CreateParameter("@LeaguePublicID", leaguePublicId),  // ⭐ CAMBIO
                 SqlParameterExtensions.CreateParameter("@TeamID", request.TeamID),
                 SqlParameterExtensions.CreateParameter("@Reason", request.Reason),
                 SqlParameterExtensions.CreateParameter("@SourceIp", sourceIp),
@@ -377,17 +388,18 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
         /// <summary>
         /// Permite a un usuario salir voluntariamente de una liga.
         /// SP: app.sp_LeaveLeague
+        /// ⭐ RECIBE: LeaguePublicID en lugar de LeagueID
         /// </summary>
         public async Task<string> LeaveLeagueAsync(
             int userId,
-            int leagueId,
+            int leaguePublicId,  // ⭐ CAMBIO: Era leagueId
             string? sourceIp,
             string? userAgent)
         {
             var parameters = new SqlParameter[]
             {
                 SqlParameterExtensions.CreateParameter("@UserID", userId),
-                SqlParameterExtensions.CreateParameter("@LeagueID", leagueId),
+                SqlParameterExtensions.CreateParameter("@LeaguePublicID", leaguePublicId),  // ⭐ CAMBIO
                 SqlParameterExtensions.CreateParameter("@SourceIp", sourceIp),
                 SqlParameterExtensions.CreateParameter("@UserAgent", userAgent)
             };
@@ -401,10 +413,11 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
         /// <summary>
         /// Transfiere el rol de comisionado principal a otro miembro.
         /// SP: app.sp_TransferCommissioner
+        /// ⭐ RECIBE: LeaguePublicID en lugar de LeagueID
         /// </summary>
         public async Task<TransferCommissionerResultDTO?> TransferCommissionerAsync(
             int actorUserId,
-            int leagueId,
+            int leaguePublicId,  // ⭐ CAMBIO: Era leagueId
             TransferCommissionerRequestDTO request,
             string? sourceIp,
             string? userAgent)
@@ -412,7 +425,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
             var parameters = new SqlParameter[]
             {
                 SqlParameterExtensions.CreateParameter("@ActorUserID", actorUserId),
-                SqlParameterExtensions.CreateParameter("@LeagueID", leagueId),
+                SqlParameterExtensions.CreateParameter("@LeaguePublicID", leaguePublicId),  // ⭐ CAMBIO
                 SqlParameterExtensions.CreateParameter("@NewCommissionerID", request.NewCommissionerID),
                 SqlParameterExtensions.CreateParameter("@SourceIp", sourceIp),
                 SqlParameterExtensions.CreateParameter("@UserAgent", userAgent)
@@ -437,15 +450,16 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
         /// <summary>
         /// Obtiene todos los roles efectivos de un usuario en una liga.
         /// SP: app.sp_GetUserRolesInLeague
+        /// ⭐ RECIBE: LeaguePublicID en lugar de LeagueID
         /// </summary>
         public async Task<GetUserRolesInLeagueResponseDTO?> GetUserRolesInLeagueAsync(
             int userId,
-            int leagueId)
+            int leaguePublicId)  // ⭐ CAMBIO: Era leagueId
         {
             var parameters = new SqlParameter[]
             {
                 SqlParameterExtensions.CreateParameter("@UserID", userId),
-                SqlParameterExtensions.CreateParameter("@LeagueID", leagueId)
+                SqlParameterExtensions.CreateParameter("@LeaguePublicID", leaguePublicId)  // ⭐ CAMBIO
             };
 
             GetUserRolesInLeagueResponseDTO? result = null;
@@ -491,6 +505,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
         /// <summary>
         /// Obtiene el directorio de ligas desde VIEW.
         /// VIEW: vw_LeagueDirectory
+        /// ⭐ RETORNA: Solo LeaguePublicID (no el LeagueID privado)
         /// </summary>
         public async Task<List<LeagueDirectoryVM>> GetLeagueDirectoryAsync()
         {
@@ -498,7 +513,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
                 "vw_LeagueDirectory",
                 reader => new LeagueDirectoryVM
                 {
-                    LeagueID = reader.GetSafeInt32("LeagueID"),
+                    // ⭐ ELIMINADO: LeagueID ya no se retorna
                     LeaguePublicID = reader.GetSafeInt32("LeaguePublicID"),
                     SeasonLabel = reader.GetSafeString("SeasonLabel"),
                     Name = reader.GetSafeString("Name"),
@@ -516,14 +531,33 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
         /// <summary>
         /// Obtiene miembros de una liga desde VIEW.
         /// VIEW: vw_LeagueMembers
+        /// ⭐ RECIBE: LeaguePublicID y lo resuelve internamente a LeagueID
         /// </summary>
-        public async Task<List<LeagueMemberVM>> GetLeagueMembersAsync(int leagueId)
+        public async Task<List<LeagueMemberVM>> GetLeagueMembersAsync(int leaguePublicId)
         {
+            // Resolver LeagueID desde LeaguePublicID usando ExecuteRawQueryAsync
+            var query = "SELECT LeagueID FROM league.League WHERE LeaguePublicID = @LeaguePublicID";
+            var parameters = new SqlParameter[]
+            {
+        SqlParameterExtensions.CreateParameter("@LeaguePublicID", leaguePublicId)
+            };
+
+            var leagueIds = await _db.ExecuteRawQueryAsync(
+                query,
+                reader => reader.GetSafeInt32("LeagueID"),
+                parameters
+            );
+
+            var leagueId = leagueIds.FirstOrDefault();
+            if (leagueId == 0)
+            {
+                return new List<LeagueMemberVM>();
+            }
+
             return await _db.ExecuteViewAsync(
                 "vw_LeagueMembers",
                 reader => new LeagueMemberVM
                 {
-                    LeagueID = reader.GetSafeInt32("LeagueID"),
                     UserID = reader.GetSafeInt32("UserID"),
                     LeagueRoleCode = reader.GetSafeString("LeagueRoleCode"),
                     UserAlias = reader.GetSafeNullableString("UserAlias"),
@@ -542,15 +576,34 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
         /// <summary>
         /// Obtiene equipos de una liga desde VIEW.
         /// VIEW: vw_LeagueTeams
+        /// ⭐ RECIBE: LeaguePublicID y lo resuelve internamente a LeagueID
         /// </summary>
-        public async Task<List<LeagueTeamVM>> GetLeagueTeamsAsync(int leagueId)
+        public async Task<List<LeagueTeamVM>> GetLeagueTeamsAsync(int leaguePublicId)
         {
+            // Resolver LeagueID desde LeaguePublicID usando ExecuteRawQueryAsync
+            var query = "SELECT LeagueID FROM league.League WHERE LeaguePublicID = @LeaguePublicID";
+            var parameters = new SqlParameter[]
+            {
+        SqlParameterExtensions.CreateParameter("@LeaguePublicID", leaguePublicId)
+            };
+
+            var leagueIds = await _db.ExecuteRawQueryAsync(
+                query,
+                reader => reader.GetSafeInt32("LeagueID"),
+                parameters
+            );
+
+            var leagueId = leagueIds.FirstOrDefault();
+            if (leagueId == 0)
+            {
+                return new List<LeagueTeamVM>();
+            }
+
             return await _db.ExecuteViewAsync(
                 "vw_LeagueTeams",
                 reader => new LeagueTeamVM
                 {
                     TeamID = reader.GetSafeInt32("TeamID"),
-                    LeagueID = reader.GetSafeInt32("LeagueID"),
                     TeamName = reader.GetSafeString("TeamName"),
                     OwnerUserID = reader.GetSafeInt32("OwnerUserID"),
                     OwnerName = reader.GetSafeString("OwnerName"),
@@ -570,14 +623,34 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
         /// <summary>
         /// Obtiene resumen de liga desde VIEW (versión ligera).
         /// VIEW: vw_LeagueSummary
+        /// ⭐ RECIBE: LeaguePublicID y lo resuelve internamente a LeagueID
+        /// ⭐ RETORNA: Solo LeaguePublicID (no el LeagueID privado)
         /// </summary>
-        public async Task<LeagueSummaryVM?> GetLeagueSummaryViewAsync(int leagueId)
+        public async Task<LeagueSummaryVM?> GetLeagueSummaryViewAsync(int leaguePublicId)
         {
+            // Resolver LeagueID desde LeaguePublicID usando ExecuteRawQueryAsync
+            var query = "SELECT LeagueID FROM league.League WHERE LeaguePublicID = @LeaguePublicID";
+            var parameters = new SqlParameter[]
+            {
+        SqlParameterExtensions.CreateParameter("@LeaguePublicID", leaguePublicId)
+            };
+
+            var leagueIds = await _db.ExecuteRawQueryAsync(
+                query,
+                reader => reader.GetSafeInt32("LeagueID"),
+                parameters
+            );
+
+            var leagueId = leagueIds.FirstOrDefault();
+            if (leagueId == 0)
+            {
+                return null;
+            }
+
             var results = await _db.ExecuteViewAsync(
                 "vw_LeagueSummary",
                 reader => new LeagueSummaryVM
                 {
-                    LeagueID = reader.GetSafeInt32("LeagueID"),
                     LeaguePublicID = reader.GetSafeInt32("LeaguePublicID"),
                     Name = reader.GetSafeString("Name"),
                     Description = reader.GetSafeNullableString("Description"),
@@ -615,6 +688,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
         /// <summary>
         /// Obtiene ligas donde el usuario es comisionado desde VIEW.
         /// VIEW: vw_UserCommissionedLeagues
+        /// ⭐ RETORNA: LeaguePublicID en lugar de LeagueID
         /// </summary>
         public async Task<List<UserCommissionedLeagueVM>> GetUserCommissionedLeaguesAsync(int userId)
         {
@@ -623,7 +697,8 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
                 reader => new UserCommissionedLeagueVM
                 {
                     UserID = reader.GetSafeInt32("UserID"),
-                    LeagueID = reader.GetSafeInt32("LeagueID"),
+                    // ⭐ ELIMINADO: LeagueID ya no se retorna
+                    LeaguePublicID = reader.GetSafeInt32("LeaguePublicID"),  // ⭐ NUEVO
                     LeagueName = reader.GetSafeString("LeagueName"),
                     Status = reader.GetSafeByte("Status"),
                     TeamSlots = reader.GetSafeByte("TeamSlots"),
@@ -640,6 +715,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
         /// <summary>
         /// Obtiene equipos del usuario en todas sus ligas desde VIEW.
         /// VIEW: vw_UserTeams
+        /// ⭐ RETORNA: LeaguePublicID en lugar de LeagueID
         /// </summary>
         public async Task<List<UserTeamVM>> GetUserTeamsAsync(int userId)
         {
@@ -649,7 +725,8 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
                 {
                     UserID = reader.GetSafeInt32("UserID"),
                     TeamID = reader.GetSafeInt32("TeamID"),
-                    LeagueID = reader.GetSafeInt32("LeagueID"),
+                    // ⭐ ELIMINADO: LeagueID ya no se retorna
+                    LeaguePublicID = reader.GetSafeInt32("LeaguePublicID"),  // ⭐ NUEVO
                     LeagueName = reader.GetSafeString("LeagueName"),
                     TeamName = reader.GetSafeString("TeamName"),
                     TeamImageUrl = reader.GetSafeNullableString("TeamImageUrl"),
@@ -671,6 +748,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
         /// <summary>
         /// Obtiene todas las ligas del sistema.
         /// VIEW: vw_LeagueDirectory
+        /// ⭐ RETORNA: Solo LeaguePublicID (no el LeagueID privado)
         /// </summary>
         public async Task<List<LeagueDirectoryVM>> GetAllLeaguesAsync()
         {
@@ -678,7 +756,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy
                 "vw_LeagueDirectory",
                 reader => new LeagueDirectoryVM
                 {
-                    LeagueID = reader.GetSafeInt32("LeagueID"),
+                    // ⭐ ELIMINADO: LeagueID ya no se retorna
                     LeaguePublicID = reader.GetSafeInt32("LeaguePublicID"),
                     SeasonLabel = reader.GetSafeString("SeasonLabel"),
                     Name = reader.GetSafeString("Name"),

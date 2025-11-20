@@ -148,6 +148,7 @@ namespace NFL_Fantasy_API.Models.DTOs.NflDetails
         public string LastName { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
         public string Position { get; set; } = string.Empty;
+        public string? CurrentDesignation { get; set; }
         public int NFLTeamID { get; set; }
         public string NFLTeamName { get; set; } = string.Empty;
         public string NFLTeamCity { get; set; } = string.Empty;
@@ -172,6 +173,7 @@ namespace NFL_Fantasy_API.Models.DTOs.NflDetails
         public string LastName { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
         public string Position { get; set; } = string.Empty;
+        public string? CurrentDesignation { get; set; }
         public int NFLTeamID { get; set; }
         public string NFLTeamName { get; set; } = string.Empty;
         public string NFLTeamCity { get; set; } = string.Empty;

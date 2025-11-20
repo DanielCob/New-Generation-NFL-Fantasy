@@ -4,9 +4,16 @@ using Microsoft.AspNetCore.Authorization.Policy;
 namespace NFL_Fantasy_API.SharedSystems.Security
 {
     /// <summary>
-    /// Formatea las respuestas de autorización:
-    /// - 401: Token requerido o inválido
-    /// - 403: Requiere rol ADMIN (u otra policy)
+    /// ============================================
+    /// MANEJADOR DE RESULTADOS DE AUTORIZACIÓN
+    /// ============================================
+    /// 
+    /// Formatea las respuestas JSON cuando falla la autorización
+    /// usando atributos [Authorize] o policies de ASP.NET Core.
+    /// 
+    /// Diferencia entre:
+    /// - 401 Unauthorized: Falta autenticación (¿Quién eres?)
+    /// - 403 Forbidden: Falta autorización (No tienes permiso)
     /// </summary>
     public class JsonAuthorizationMiddlewareResultHandler : IAuthorizationMiddlewareResultHandler
     {
@@ -18,9 +25,11 @@ namespace NFL_Fantasy_API.SharedSystems.Security
             AuthorizationPolicy policy,
             PolicyAuthorizationResult authorizeResult)
         {
+            // ========================================
+            // CHALLENGED: No autenticado
+            // ========================================
             if (authorizeResult.Challenged)
             {
-                // No autenticado (no hubo usuario válido)
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 context.Response.ContentType = "application/json";
                 await context.Response.WriteAsJsonAsync(new
@@ -31,19 +40,22 @@ namespace NFL_Fantasy_API.SharedSystems.Security
                 return;
             }
 
+            // ========================================
+            // FORBIDDEN: Autenticado pero sin permisos
+            // ========================================
             if (authorizeResult.Forbidden)
             {
-                // Autenticado pero sin permisos (policy falló, p.ej. AdminOnly)
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 context.Response.ContentType = "application/json";
                 await context.Response.WriteAsJsonAsync(new
                 {
                     success = false,
-                    message = "Acceso denegado. Requiere rol ADMIN."
+                    message = "Acceso denegado. No tiene permisos suficientes para esta operación."
                 });
                 return;
             }
 
+            // Usuario autorizado, continuar normalmente
             await _defaultHandler.HandleAsync(next, context, policy, authorizeResult);
         }
     }

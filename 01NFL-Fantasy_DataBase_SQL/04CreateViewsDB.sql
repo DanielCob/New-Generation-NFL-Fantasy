@@ -181,6 +181,7 @@ SELECT
   p.NFLTeamID,
   nt.TeamName AS NFLTeamName,
   nt.City AS NFLTeamCity,
+  p.CurrentDesignation,
   p.InjuryStatus,
   p.InjuryDescription,
   p.PhotoUrl,
@@ -215,6 +216,7 @@ SELECT
   p.NFLTeamID,
   nt.TeamName AS NFLTeamName,
   nt.City AS NFLTeamCity,
+  p.CurrentDesignation,
   p.InjuryStatus,
   p.PhotoThumbnailUrl
 FROM ref.NFLPlayer p
@@ -246,6 +248,7 @@ SELECT
   p.LastName,
   p.FullName,
   p.Position,
+  p.CurrentDesignation,
   p.InjuryStatus,
   p.IsActive AS PlayerIsActive
 FROM ref.NFLTeam nt
@@ -320,6 +323,7 @@ SELECT
   nt.TeamName AS NFLTeamName,
   nt.City AS NFLTeamCity,
   nt.ThumbnailUrl AS NFLTeamLogo,
+  p.CurrentDesignation,
   p.InjuryStatus,
   p.InjuryDescription,
   p.PhotoUrl,
@@ -358,6 +362,7 @@ SELECT
   p.FullName,
   p.Position,
   nt.TeamName AS NFLTeamName,
+  p.CurrentDesignation,
   p.InjuryStatus,
   p.PhotoThumbnailUrl,
   tr.AcquisitionType,
@@ -386,6 +391,7 @@ SELECT
   p.FullName AS PlayerName,
   p.Position,
   nt.TeamName AS NFLTeamName,
+  p.CurrentDesignation,
   p.InjuryStatus,
   tr.AcquisitionType,
   -- Orden lógico de posiciones
@@ -519,8 +525,7 @@ GO
 CREATE OR ALTER VIEW dbo.vw_LeagueDirectory
 AS
 SELECT
-  l.LeagueID,
-  l.LeaguePublicID,  -- NUEVO
+  l.LeaguePublicID,
   s.Label AS SeasonLabel,
   l.Name,
   l.Status,
@@ -539,12 +544,12 @@ GO
 
 -- ============================================================================
 -- vw_LeagueMembers - VERSIÓN ACTUALIZADA
--- Incluye SystemRoleCode de cada miembro para permisos granulares
+-- Incluye LeagueID para permitir filtrado (pero no se expone en la API)
 -- ============================================================================
 CREATE OR ALTER VIEW dbo.vw_LeagueMembers
 AS
 SELECT
-  lm.LeagueID,
+  lm.LeagueID,  -- DEBE ESTAR PRESENTE (necesaria para filtrar)
   lm.UserID,
   lm.RoleCode AS LeagueRoleCode,
   lm.JoinedAt,
@@ -565,13 +570,13 @@ GO
 
 -- ============================================================================
 -- vw_LeagueTeams - VERSIÓN ACTUALIZADA
--- Incluye SystemRoleCode del dueño del equipo
+-- Incluye LeagueID para permitir filtrado (pero no se expone en la API)
 -- ============================================================================
 CREATE OR ALTER VIEW dbo.vw_LeagueTeams
 AS
 SELECT
   t.TeamID,
-  t.LeagueID,
+  t.LeagueID,  -- AGREGAR ESTA LÍNEA (necesaria para filtrar)
   t.TeamName,
   t.OwnerUserID,
   u.Name AS OwnerName,
@@ -653,7 +658,7 @@ CREATE OR ALTER VIEW dbo.vw_UserCommissionedLeagues
 AS
 SELECT
   lm.UserID,
-  lm.LeagueID,
+  l.LeaguePublicID,
   l.Name        AS LeagueName,
   l.Status,
   l.TeamSlots,
@@ -678,7 +683,7 @@ AS
 SELECT
   t.OwnerUserID AS UserID,
   t.TeamID,
-  t.LeagueID,
+  l.LeaguePublicID,
   l.Name AS LeagueName,
   l.Status AS LeagueStatus,
   t.TeamName,
@@ -705,8 +710,7 @@ GO
 CREATE OR ALTER VIEW dbo.vw_LeagueSummary
 AS
 SELECT
-  l.LeagueID,
-  l.LeaguePublicID,  -- NUEVO
+  l.LeaguePublicID,
   l.Name,
   l.Description,
   l.Status,
@@ -921,6 +925,7 @@ SELECT
   nt.TeamName AS NFLTeamName,
   nt.City AS NFLTeamCity,
   nt.ThumbnailUrl AS NFLTeamLogo,
+  p.CurrentDesignation,
   p.InjuryStatus,
   p.InjuryDescription,
   p.PhotoUrl,
@@ -957,6 +962,7 @@ SELECT
   p.NFLTeamID,
   nt.TeamName AS NFLTeamName,
   nt.City AS NFLTeamCity,
+  p.CurrentDesignation,
   p.InjuryStatus,
   p.InjuryDescription,
   p.PhotoUrl,
@@ -999,6 +1005,7 @@ SELECT
   nt.TeamName AS NFLTeamName,
   nt.City AS NFLTeamCity,
   p.PhotoThumbnailUrl,
+  p.CurrentDesignation,
   p.InjuryStatus
 FROM ref.NFLPlayer p
 JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
@@ -1023,6 +1030,7 @@ SELECT
   p.NFLTeamID,
   nt.TeamName AS NFLTeamName,
   nt.City AS NFLTeamCity,
+  p.CurrentDesignation,
   p.InjuryStatus,
   p.PhotoThumbnailUrl,
   p.IsActive,
@@ -1062,6 +1070,7 @@ SELECT
   p.NFLPlayerID,
   p.FullName AS PlayerName,
   p.Position,
+  p.CurrentDesignation,
   tr.RosterID,
   tr.TeamID,
   t.TeamName,
@@ -1096,6 +1105,7 @@ SELECT
   p.NFLPlayerID,
   p.FullName AS PlayerName,
   p.Position,
+  p.CurrentDesignation,
   p.NFLTeamID,
   nt.TeamName AS NFLTeamName,
   l.LeagueID,
