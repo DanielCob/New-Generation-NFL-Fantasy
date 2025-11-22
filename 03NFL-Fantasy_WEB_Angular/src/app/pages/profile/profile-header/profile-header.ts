@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -13,6 +13,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { UserProfile, EditUserProfileRequest } from '../../../core/models/user-model';
 import { UserService } from '../../../core/services/user-service';
 import { ImageStorageService, UploadResponse } from '../../../core/services/image-storage.service';
+import { Subject, takeUntil } from 'rxjs';
 
 @Component({
   selector: 'app-profile-header',
@@ -38,6 +39,8 @@ export class ProfileHeader implements OnInit {
   private userService = inject(UserService);
   private imageService = inject(ImageStorageService);
   private snack = inject(MatSnackBar);
+  private destroy$ = new Subject<void>();
+  private isLoadingHeader = false;
 
   readonly avatarFallback =
     'data:image/svg+xml;charset=UTF-8,' +
@@ -74,40 +77,57 @@ export class ProfileHeader implements OnInit {
   });
 
   ngOnInit(): void {
-    this.loadHeader();
+    if (!this.isLoadingHeader) {
+      this.loadHeader();
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   private loadHeader(): void {
+    if (this.isLoadingHeader) return;
+    
+    this.isLoadingHeader = true;
     this.loading.set(true);
-    this.userService.getHeader().subscribe({
-      next: (p) => {
-        console.log('Header loaded: ', p);
-        this.profile.set(p);
-        this.patchFormFromProfile(p);
-        this.loading.set(false);
+    
+    this.userService.getHeader()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (p) => {
+          console.log('Header loaded: ', p);
+          this.profile.set(p);
+          this.patchFormFromProfile(p);
+          this.loading.set(false);
+          this.isLoadingHeader = false;
 
-        const noImg = !p.ProfileImageUrl || !String(p.ProfileImageUrl).trim();
-        if (noImg && !this.triedFullProfile) {
-          this.triedFullProfile = true;
-          this.userService.getProfile().subscribe({
-            next: (fp) => {
-              console.log('Full profile loaded: ', fp);
-              if (fp?.ProfileImageUrl) {
-                const curr = this.profile();
-                this.profile.set({ ...(curr || fp), ProfileImageUrl: fp.ProfileImageUrl });
-                this.previewUrl.set(fp.ProfileImageUrl);
-              }
-            },
-            error: () => {}
-          });
+          const noImg = !p.ProfileImageUrl || !String(p.ProfileImageUrl).trim();
+          if (noImg && !this.triedFullProfile) {
+            this.triedFullProfile = true;
+            this.userService.getProfile()
+              .pipe(takeUntil(this.destroy$))
+              .subscribe({
+                next: (fp) => {
+                  console.log('Full profile loaded: ', fp);
+                  if (fp?.ProfileImageUrl) {
+                    const curr = this.profile();
+                    this.profile.set({ ...(curr || fp), ProfileImageUrl: fp.ProfileImageUrl });
+                    this.previewUrl.set(fp.ProfileImageUrl);
+                  }
+                },
+                error: () => {}
+              });
+          }
+        },
+        error: (err) => {
+          console.error('getHeader error:', err);
+          this.snack.open('No se pudo cargar el perfil.', 'Cerrar', { duration: 4000 });
+          this.loading.set(false);
+          this.isLoadingHeader = false;
         }
-      },
-      error: (err) => {
-        console.error('getHeader error:', err);
-        this.snack.open('No se pudo cargar el perfil.', 'Cerrar', { duration: 4000 });
-        this.loading.set(false);
-      }
-    });
+      });
   }
 
   private patchFormFromProfile(p: UserProfile): void {

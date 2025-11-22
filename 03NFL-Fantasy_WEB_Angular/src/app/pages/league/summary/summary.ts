@@ -1,3 +1,4 @@
+// src/app/pages/league/summary/summary.ts
 import { Component, Input, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
@@ -30,25 +31,25 @@ export class Summary implements OnInit {
   private route = inject(ActivatedRoute);
   private snack = inject(MatSnackBar);
 
-  /** Si se usa como popup, se puede pasar leagueId por Input */
-  @Input() leagueId?: number;
+  /** ✅ Ahora recibe LeaguePublicID */
+  @Input() leaguePublicId?: number;
 
-  // estado
   loading = signal(false);
   error = signal<string | null>(null);
   data = signal<LeagueSummary | null>(null);
 
   ngOnInit(): void {
+    // ✅ El ID de la ruta ahora es LeaguePublicID
     const idFromRoute = Number(this.route.snapshot.paramMap.get('id'));
-    const idFromStorage = Number(localStorage.getItem('xnf.currentLeagueId') ?? '0');
-
-    const id = this.leagueId && this.leagueId > 0
-      ? this.leagueId
+    
+    // ✅ Usar LeaguePublicID del input o de la ruta
+    const id = this.leaguePublicId && this.leaguePublicId > 0
+      ? this.leaguePublicId
       : Number.isFinite(idFromRoute) && idFromRoute > 0
         ? idFromRoute
-        : Number.isFinite(idFromStorage) && idFromStorage > 0
-          ? idFromStorage
-          : 0;
+        : 0;
+
+    console.log('🎯 [Summary] LeaguePublicID a cargar:', id);
 
     if (!id) {
       this.error.set('Seleccioná una liga primero');
@@ -59,39 +60,42 @@ export class Summary implements OnInit {
     this.fetch(id);
   }
 
-private fetch(id: number): void {
-  if (this.loading()) return;
-  this.loading.set(true);
-  this.error.set(null);
+  private fetch(leaguePublicId: number): void {
+    if (this.loading()) return;
+    
+    console.log('📡 [Summary] Cargando summary con LeaguePublicID:', leaguePublicId);
+    
+    this.loading.set(true);
+    this.error.set(null);
 
-  this.leagues.getSummary(id).subscribe({
-    next: (raw: any) => {
-      // Normalización local SIN tocar el service
-      const success = raw?.success ?? raw?.Success ?? (raw?.data ?? raw?.Data ? true : false);
-      const message = raw?.message ?? raw?.Message ?? '';
-      const data    = raw?.data    ?? raw?.Data    ?? raw;
+    // ✅ El servicio ahora recibe LeaguePublicID
+    this.leagues.getSummary(leaguePublicId).subscribe({
+      next: (raw: any) => {
+        console.log('✅ [Summary] Respuesta recibida:', raw);
+        
+        const success = raw?.success ?? raw?.Success ?? (raw?.data ?? raw?.Data ? true : false);
+        const message = raw?.message ?? raw?.Message ?? '';
+        const data    = raw?.data    ?? raw?.Data    ?? raw;
 
-      if (!success || !data) {
-        this.error.set(message || 'No se pudo cargar el resumen');
+        if (!success || !data) {
+          this.error.set(message || 'No se pudo cargar el resumen');
+          this.data.set(null);
+        } else {
+          this.data.set(data);
+        }
+        this.loading.set(false);
+      },
+      error: (e) => {
+        console.error('❌ [Summary] Error:', e);
+        const msg = e?.error?.message ?? e?.error?.Message ?? 'No se pudo cargar el resumen';
+        this.error.set(msg);
         this.data.set(null);
-      } else {
-        this.data.set(data);
+        this.loading.set(false);
       }
-      this.loading.set(false);
-    },
-    error: (e) => {
-      const msg = e?.error?.message ?? e?.error?.Message ?? 'No se pudo cargar el resumen';
-      this.error.set(msg);
-      this.data.set(null);
-      this.loading.set(false);
-    }
-  });
-}
+    });
+  }
 
-
-  // helpers UI
   statusLabel(s: number): string {
-    // ajusta según tu enumeración real
     switch (s) {
       case 0: return 'Drafting';
       case 1: return 'Active';

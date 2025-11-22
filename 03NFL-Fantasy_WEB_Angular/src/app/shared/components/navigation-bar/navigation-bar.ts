@@ -78,9 +78,20 @@ export class NavigationBar {
     });
   }
 
-  selectLeague(l: { LeagueID: number; LeagueName: string }): void {
-    this.ctx.setLeague(l.LeagueID); // centralizado
-    this.router.navigate(['/league', l.LeagueID, 'actions']); // sin window.location.href
+  selectLeague(l: { LeagueID: number; LeaguePublicID: number; LeagueName: string }): void {
+    console.log('🎯 [selectLeague] Liga seleccionada:', l);
+    console.log('🎯 [selectLeague] LeagueID:', l.LeagueID);
+    console.log('🎯 [selectLeague] LeaguePublicID:', l.LeaguePublicID);
+    console.log('🎯 [selectLeague] LeagueName:', l.LeagueName);
+    
+    if (!l.LeaguePublicID) {
+      console.error('❌ [selectLeague] LeaguePublicID es undefined!');
+      this.snack.open('Error: LeaguePublicID no disponible', 'OK', { duration: 3000 });
+      return;
+    }
+    
+    this.ctx.setLeague(l.LeagueID);
+    this.router.navigate(['/league', l.LeaguePublicID, 'actions']);
   }
 
   goLeague(path: 'summary'|'edit'|'members'|'teams'): void {
@@ -89,10 +100,12 @@ export class NavigationBar {
     this.router.navigate(['/league', id, path === 'edit' ? 'edit' : path]);
   }
 
-  // ---- gatillos para cargar datos (reutiliza la fachada) ----
   loadMyLeagues(): void {
-    if (!this.leaguesLoading() && !this.leagues().length) {
+    if (!this.leaguesLoading()) {
+      console.log('✅ [NavigationBar] Llamando a facade.loadMyLeagues()');
       this.facade.loadMyLeagues();
+    } else {
+      console.log('⏳ [NavigationBar] Ya está cargando, no se hace nada');
     }
   }
 

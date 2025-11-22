@@ -23,6 +23,7 @@ export interface AuthSession {
   UserID: number;
   Email: string;
   Name: string;
+  SystemRoleCode?: string;
 }
 
   const normalizeApi = <T>(r: any): ApiResponse<T> => ({

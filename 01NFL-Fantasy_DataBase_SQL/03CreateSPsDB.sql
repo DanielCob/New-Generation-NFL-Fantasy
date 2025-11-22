@@ -534,7 +534,7 @@ BEGIN
 
   -- 2) Ligas donde soy comisionado
   SELECT
-    lm.LeagueID, l.Name AS LeagueName, l.Status, l.TeamSlots, l.CreatedAt,
+    lm.LeagueID, l.LeaguePublicID, l.Name AS LeagueName, l.Status, l.TeamSlots, l.CreatedAt,
     lm.RoleCode, lm.JoinedAt
   FROM league.LeagueMember lm
   JOIN league.League l ON l.LeagueID = lm.LeagueID
@@ -2666,6 +2666,16 @@ BEGIN
 
       SET @TeamID = SCOPE_IDENTITY();
 
+      -- Registrar como miembro de liga (MANAGER)
+      IF NOT EXISTS (
+          SELECT 1 FROM league.LeagueMember
+          WHERE LeagueID = @LeagueID AND UserID = @UserID
+      )
+      BEGIN
+          INSERT INTO league.LeagueMember(LeagueID, UserID, RoleCode)
+          VALUES(@LeagueID, @UserID, N'MANAGER');
+      END
+
       -- Auditoría
       INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
       VALUES(
@@ -4220,7 +4230,7 @@ BEGIN
         @TotalRecords AS TotalRecords,
         @PageNumber AS CurrentPage,
         @PageSize AS PageSize,
-        CEILING(CAST(@TotalRecords AS FLOAT) / @PageSize) AS TotalPages
+        CAST(CEILING(CAST(@TotalRecords AS FLOAT) / @PageSize) AS INT) AS TotalPages
       FROM ref.NFLPlayerBatchReport br
       INNER JOIN auth.UserAccount u ON br.ActorUserID = u.UserID
       ORDER BY ' + QUOTENAME(@OrderBy) + N' ' + @SortDirection + N'

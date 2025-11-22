@@ -161,13 +161,6 @@ export const routes: Routes = [
         ]
       },
 
-      // DIRECTORY (existente)
-      {
-        path: 'directory',
-        loadComponent: () => import('./pages/directory/directory').then(m => m.Directory)
-      },
-
-
 
       // Admin-only (si lo usas)
       {
@@ -216,6 +209,20 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./pages/admin/nfl-player-edit/nfl-player-edit.page')
             .then(m => m.NFLPlayerEditPage)
+      },
+      {
+        path: 'admin/batch-reports',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('./pages/admin/batch-reports/batch-reports')  // ✅ SIN .page
+            .then(m => m.BatchReports)  // ✅ Nombre correcto de la clase
+      },
+      {
+        path: 'admin/nfl-player-news',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('./pages/admin/nfl-player-news/nfl-player-news')  // ✅ SIN .page
+            .then(m => m.NflPlayerNews)  // ✅ Nombre correcto de la clase
       },
 
 ]

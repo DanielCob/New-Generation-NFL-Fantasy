@@ -1,3 +1,4 @@
+// src/app/pages/league/league-actions/league-actions.ts
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -13,7 +14,6 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 
 import { LeagueService } from '../../../core/services/league-service';
 
-// Dialog wrappers (uno por acción)
 import { SummaryDialog } from '../summary/summary-dialog/summary-dialog';
 import { EditConfigDialog } from '../edit-config/edit-config-dialog/edit-config-dialog';
 import { MembersDialog } from '../members/members-dialog/members-dialog';
@@ -38,8 +38,9 @@ export class LeagueActionsComponent {
   private leagues = inject(LeagueService);
   private dialog = inject(MatDialog);
 
-  id = Number(this.route.snapshot.paramMap.get('id'));
-  name = localStorage.getItem('xnf.currentLeagueName') ?? `League ${this.id}`;
+  // ✅ Ahora es LeaguePublicID desde la ruta
+  leaguePublicId = Number(this.route.snapshot.paramMap.get('id'));
+  name = localStorage.getItem('xnf.currentLeagueName') ?? `League ${this.leaguePublicId}`;
 
   statusOptions = [
     { value: 0, label: 'Drafting' },
@@ -53,39 +54,42 @@ export class LeagueActionsComponent {
     Reason: this.fb.control('', { validators: [Validators.maxLength(200)] })
   });
 
-  // Navegación (si quieres mantener rutas)
-  go(path: 'edit' | 'members' | 'teams') {
-    this.router.navigate(['/league', this.id, path === 'edit' ? 'edit' : path]);
+  constructor() {
+    console.log('🎯 [LeagueActions] LeaguePublicID:', this.leaguePublicId);
   }
 
-  // Acciones (cada una abre su popup)
+  // ✅ Actualizar para pasar leaguePublicId
   openSummaryDialog(): void {
+    console.log('🔍 [LeagueActions] Abriendo Summary con LeaguePublicID:', this.leaguePublicId);
     this.dialog.open(SummaryDialog, {
-      data: { leagueId: this.id },
+      data: { leaguePublicId: this.leaguePublicId }, // ✅ Cambio: leaguePublicId
       panelClass: 'dlg-auto',
       maxWidth: '100vw',
       maxHeight: '100vh'
     });
   }
+
   openEditDialog(): void {
     this.dialog.open(EditConfigDialog, {
-      data: { leagueId: this.id },
+      data: { leaguePublicId: this.leaguePublicId }, // ✅ Cambio
       panelClass: 'dlg-auto',
       maxWidth: '100vw',
       maxHeight: '100vh'
     });
   }
+
   openMembersDialog(): void {
     this.dialog.open(MembersDialog, {
-      data: { leagueId: this.id },
+      data: { leaguePublicId: this.leaguePublicId }, // ✅ Cambio
       panelClass: 'dlg-auto',
       maxWidth: '100vw',
       maxHeight: '100vh'
     });
   }
+
   openTeamsDialog(): void {
     this.dialog.open(TeamsDialog, {
-      data: { leagueId: this.id },
+      data: { leaguePublicId: this.leaguePublicId }, // ✅ Cambio
       panelClass: 'dlg-auto',
       maxWidth: '100vw',
       maxHeight: '100vh'
@@ -98,7 +102,8 @@ export class LeagueActionsComponent {
       return;
     }
     const v = this.statusForm.getRawValue();
-    this.leagues.setStatus(this.id, { NewStatus: v.NewStatus!, Reason: v.Reason ?? '' })
+    // ✅ Usar leaguePublicId
+    this.leagues.setStatus(this.leaguePublicId, { NewStatus: v.NewStatus!, Reason: v.Reason ?? '' })
       .subscribe({
         next: (r) => this.snack.open(r?.message || 'Status updated', 'OK', { duration: 2500 }),
         error: (e) => this.snack.open(e?.error?.message || 'Failed to update status', 'OK', { duration: 3000 })

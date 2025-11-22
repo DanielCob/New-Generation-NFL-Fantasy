@@ -1,6 +1,8 @@
+<!-- members-dialog.html -->
 <h2 mat-dialog-title>Members</h2>
 <mat-dialog-content class="content">
-  <app-members-list [leagueId]="data.leagueId"></app-members-list>
+  <!-- ✅ CAMBIO: leaguePublicId -->
+  <app-members-list [leaguePublicId]="data.leaguePublicId"></app-members-list>
 </mat-dialog-content>
 <mat-dialog-actions align="end">
   <button mat-stroked-button (click)="ref.close()">Cerrar</button>

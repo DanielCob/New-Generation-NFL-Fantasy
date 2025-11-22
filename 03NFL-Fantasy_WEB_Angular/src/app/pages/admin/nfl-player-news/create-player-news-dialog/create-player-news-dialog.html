@@ -1,0 +1,77 @@
+<!-- 11. create-player-news-dialog.html -->
+<div class="dialog-container">
+  <div class="dialog-header">
+    <h2>
+      <mat-icon>add_circle</mat-icon>
+      Create News for {{ player.FullName }}
+    </h2>
+    <button mat-icon-button (click)="close()" [disabled]="loading()">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <form [formGroup]="form" (ngSubmit)="submit()">
+    <div class="dialog-content">
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>News Text</mat-label>
+        <textarea matInput 
+                  formControlName="NewsText" 
+                  rows="4"
+                  placeholder="Enter news text (10-300 characters)"></textarea>
+        <mat-hint align="end">{{ getCharCount('NewsText') }}</mat-hint>
+        <mat-error *ngIf="form.get('NewsText')?.hasError('required')">
+          News text is required
+        </mat-error>
+        <mat-error *ngIf="form.get('NewsText')?.hasError('minlength')">
+          Minimum 10 characters required
+        </mat-error>
+        <mat-error *ngIf="form.get('NewsText')?.hasError('maxlength')">
+          Maximum 300 characters allowed
+        </mat-error>
+      </mat-form-field>
+
+      <mat-checkbox formControlName="IsInjury" class="injury-checkbox">
+        This is an injury-related news
+      </mat-checkbox>
+
+      <div class="injury-fields" *ngIf="isInjury">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Injury Summary</mat-label>
+          <input matInput 
+                 formControlName="InjurySummary" 
+                 placeholder="Brief summary (max 30 characters)">
+          <mat-hint align="end">{{ getCharCount('InjurySummary') }}</mat-hint>
+          <mat-error *ngIf="form.get('InjurySummary')?.hasError('required')">
+            Injury summary is required for injury news
+          </mat-error>
+          <mat-error *ngIf="form.get('InjurySummary')?.hasError('maxlength')">
+            Maximum 30 characters allowed
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Designation</mat-label>
+          <mat-select formControlName="Designation">
+            <mat-option *ngFor="let d of designations" [value]="d.value">
+              <strong>{{ d.label }}</strong> - {{ d.description }}
+            </mat-option>
+          </mat-select>
+          <mat-error *ngIf="form.get('Designation')?.hasError('required')">
+            Designation is required for injury news
+          </mat-error>
+        </mat-form-field>
+      </div>
+    </div>
+
+    <div class="dialog-actions">
+      <button mat-button type="button" (click)="close()" [disabled]="loading()">
+        Cancel
+      </button>
+      <button mat-raised-button color="primary" type="submit" [disabled]="loading()">
+        <mat-icon *ngIf="!loading()">save</mat-icon>
+        <mat-progress-spinner *ngIf="loading()" mode="indeterminate" diameter="20"></mat-progress-spinner>
+        {{ loading() ? 'Creating...' : 'Create News' }}
+      </button>
+    </div>
+  </form>
+</div>
