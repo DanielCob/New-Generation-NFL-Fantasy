@@ -96,91 +96,25 @@ namespace NFL_Fantasy_API.LogicLayer.StorageLogic.Controllers.Storage
         [HttpPost("upload-images")]
         [Consumes("multipart/form-data")]
         public async Task<ActionResult<ApiResponseDTO>> UploadImages(
-            List<IFormFile> files,
-            string? folder = null)
+        List<IFormFile> files,
+        string? folder = null)
         {
-            if (files == null || files.Count == 0)
+            var userId = this.UserId();
+
+            var result = await _storageService.UploadImagesBatchAsync(
+                files,
+                userId,
+                folder
+            );
+
+            if (result is null)
             {
                 return BadRequest(ApiResponseDTO.ErrorResponse(
-                    "No se proporcionaron imágenes."
+                    "No se pudo procesar la carga de imágenes."
                 ));
             }
 
-            var results = new List<object>();
-            var errors = new List<string>();
-
-            foreach (var file in files)
-            {
-                if (file.Length == 0)
-                {
-                    errors.Add($"Archivo vacío: {file.FileName}");
-                    continue;
-                }
-
-                if (file.Length > MaxFileSizeBytes)
-                {
-                    errors.Add($"{file.FileName}: La imagen no puede superar 5MB.");
-                    continue;
-                }
-
-                if (!AllowedImageMimeTypes.Contains(file.ContentType.ToLower()))
-                {
-                    errors.Add($"{file.FileName}: Solo se permiten imágenes JPEG y PNG.");
-                    continue;
-                }
-
-                var fileExtension = Path.GetExtension(file.FileName).ToLower();
-                if (!AllowedImageExtensions.Contains(fileExtension))
-                {
-                    errors.Add($"{file.FileName}: Extensión de archivo no permitida.");
-                    continue;
-                }
-
-                try
-                {
-                    using var imageStream = file.OpenReadStream();
-
-                    var imageUrl = await _storageService.UploadImageAsync(
-                        imageStream,
-                        file.FileName,
-                        file.ContentType,
-                        folder
-                    );
-
-                    results.Add(new
-                    {
-                        ImageUrl = imageUrl,
-                        FileName = file.FileName,
-                        ContentType = file.ContentType,
-                        Size = file.Length,
-                        Success = true
-                    });
-                }
-                catch (Exception ex)
-                {
-                    errors.Add($"{file.FileName}: {ex.Message}");
-                }
-            }
-
-            var userId = this.UserId();
-            _logger.LogInformation(
-                "User {UserId} uploaded {Count} images with {Errors} errors",
-                userId,
-                results.Count,
-                errors.Count
-            );
-
-            return Ok(ApiResponseDTO.SuccessResponse(
-                $"Proceso completado. {results.Count} imágenes cargadas, {errors.Count} errores.",
-                new
-                {
-                    UploadedImages = results,
-                    Errors = errors,
-                    TotalProcessed = files.Count,
-                    SuccessCount = results.Count,
-                    ErrorCount = errors.Count
-                }
-            ));
+            return result.Success ? Ok(result) : BadRequest(result);
         }
 
         [HttpPost("upload-json")]
@@ -249,91 +183,25 @@ namespace NFL_Fantasy_API.LogicLayer.StorageLogic.Controllers.Storage
         [HttpPost("upload-jsons")]
         [Consumes("multipart/form-data")]
         public async Task<ActionResult<ApiResponseDTO>> UploadJsons(
-            List<IFormFile> files,
-            string? folder = null)
+        List<IFormFile> files,
+        string? folder = null)
         {
-            if (files == null || files.Count == 0)
+            var userId = this.UserId();
+
+            var result = await _storageService.UploadJsonsBatchAsync(
+                files,
+                userId,
+                folder
+            );
+
+            if (result is null)
             {
                 return BadRequest(ApiResponseDTO.ErrorResponse(
-                    "No se proporcionaron archivos JSON."
+                    "No se pudo procesar la carga de archivos JSON."
                 ));
             }
 
-            var results = new List<object>();
-            var errors = new List<string>();
-
-            foreach (var file in files)
-            {
-                if (file.Length == 0)
-                {
-                    errors.Add($"Archivo vacío: {file.FileName}");
-                    continue;
-                }
-
-                if (file.Length > MaxJsonSizeBytes)
-                {
-                    errors.Add($"{file.FileName}: El archivo JSON no puede superar 10MB.");
-                    continue;
-                }
-
-                if (!AllowedJsonMimeTypes.Contains(file.ContentType.ToLower()))
-                {
-                    errors.Add($"{file.FileName}: Solo se permiten archivos JSON.");
-                    continue;
-                }
-
-                var fileExtension = Path.GetExtension(file.FileName).ToLower();
-                if (!AllowedJsonExtensions.Contains(fileExtension))
-                {
-                    errors.Add($"{file.FileName}: Extensión de archivo no permitida. Solo se permite .json");
-                    continue;
-                }
-
-                try
-                {
-                    using var jsonStream = file.OpenReadStream();
-
-                    var jsonUrl = await _storageService.UploadJsonAsync(
-                        jsonStream,
-                        file.FileName,
-                        file.ContentType,
-                        folder
-                    );
-
-                    results.Add(new
-                    {
-                        JsonUrl = jsonUrl,
-                        FileName = file.FileName,
-                        ContentType = file.ContentType,
-                        Size = file.Length,
-                        Success = true
-                    });
-                }
-                catch (Exception ex)
-                {
-                    errors.Add($"{file.FileName}: {ex.Message}");
-                }
-            }
-
-            var userId = this.UserId();
-            _logger.LogInformation(
-                "User {UserId} uploaded {Count} JSON files with {Errors} errors",
-                userId,
-                results.Count,
-                errors.Count
-            );
-
-            return Ok(ApiResponseDTO.SuccessResponse(
-                $"Proceso completado. {results.Count} archivos JSON cargados, {errors.Count} errores.",
-                new
-                {
-                    UploadedJsons = results,
-                    Errors = errors,
-                    TotalProcessed = files.Count,
-                    SuccessCount = results.Count,
-                    ErrorCount = errors.Count
-                }
-            ));
+            return result.Success ? Ok(result) : BadRequest(result);
         }
 
         [HttpDelete("delete-object")]

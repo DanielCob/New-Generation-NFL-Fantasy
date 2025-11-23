@@ -1,4 +1,6 @@
-﻿namespace NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Interfaces.Storage
+﻿using NFL_Fantasy_API.Models.DTOs;
+
+namespace NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Interfaces.Storage
 {
     /// <summary>
     /// Contrato para servicios de almacenamiento de archivos.
@@ -39,6 +41,15 @@
             string? folder = null);
 
         /// <summary>
+        /// Carga múltiples imágenes al almacenamiento (batch).
+        /// Reutiliza UploadImageAsync internamente.
+        /// </summary>
+        Task<ApiResponseDTO> UploadImagesBatchAsync(
+            List<IFormFile> files,
+            int actorUserId,
+            string? folder = null);
+
+        /// <summary>
         /// Carga un objeto de tipo json al almacenamiento.
         /// </summary>
         /// <param name="jsonStream">Stream del json</param>
@@ -50,6 +61,15 @@
             Stream jsonStream,
             string fileName,
             string contentType,
+            string? folder = null);
+
+        /// <summary>
+        /// Carga múltiples archivos JSON al almacenamiento (batch).
+        /// Reutiliza UploadJsonAsync internamente.
+        /// </summary>
+        Task<ApiResponseDTO> UploadJsonsBatchAsync(
+            List<IFormFile> files,
+            int actorUserId,
             string? folder = null);
 
         /// <summary>

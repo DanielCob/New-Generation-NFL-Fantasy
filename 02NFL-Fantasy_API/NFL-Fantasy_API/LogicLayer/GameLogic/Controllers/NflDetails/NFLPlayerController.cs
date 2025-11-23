@@ -124,90 +124,26 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Controllers.NflDetails
         [Authorize(Policy = "AdminOnly")]
         public async Task<ActionResult<ApiResponseDTO>> CreateNFLPlayersBatch([FromBody] List<CreateNFLPlayerDTO> dtos)
         {
-            if (dtos == null || dtos.Count == 0)
-            {
-                return BadRequest(ApiResponseDTO.ErrorResponse(
-                    "No se proporcionaron jugadores para crear."
-                ));
-            }
-
             var actorUserId = this.UserId();
             var sourceIp = this.ClientIp();
             var userAgent = this.UserAgent();
 
-            var results = new List<object>();
-            var errors = new List<string>();
-
-            foreach (var dto in dtos)
-            {
-                try
-                {
-                    var result = await _nflPlayerService.CreateNFLPlayerAsync(
-                        dto,
-                        actorUserId,
-                        sourceIp,
-                        userAgent
-                    );
-
-                    if (result is null)
-                    {
-                        errors.Add($"{dto.FirstName} {dto.LastName}: No se pudo crear el jugador NFL.");
-                        continue;
-                    }
-
-                    if (result.Success)
-                    {
-                        var createdPlayer = (CreateNFLPlayerResponseDTO?)result.Data;
-                        results.Add(new
-                        {
-                            NFLPlayerID = createdPlayer?.NFLPlayerID ?? 0,
-                            PlayerName = $"{dto.FirstName} {dto.LastName}",
-                            Position = dto.Position,
-                            NFLTeamID = dto.NFLTeamID,
-                            Success = true
-                        });
-
-                        _logger.LogInformation(
-                            "User {UserID} created NFL player in batch: {PlayerName}",
-                            actorUserId,
-                            $"{dto.FirstName} {dto.LastName}"
-                        );
-                    }
-                    else
-                    {
-                        errors.Add($"{dto.FirstName} {dto.LastName}: {result.Message}");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    errors.Add($"{dto.FirstName} {dto.LastName}: {ex.Message}");
-                    _logger.LogError(
-                        ex,
-                        "Error creating NFL player in batch: {PlayerName}",
-                        $"{dto.FirstName} {dto.LastName}"
-                    );
-                }
-            }
-
-            _logger.LogInformation(
-                "User {UserID} completed batch creation: {SuccessCount} players created, {ErrorCount} errors from {IP}",
+            var result = await _nflPlayerService.CreateNFLPlayersBatchAsync(
+                dtos,
                 actorUserId,
-                results.Count,
-                errors.Count,
-                sourceIp
+                sourceIp,
+                userAgent
             );
 
-            return Ok(ApiResponseDTO.SuccessResponse(
-                $"Proceso completado. {results.Count} jugadores creados, {errors.Count} errores.",
-                new
-                {
-                    CreatedPlayers = results,
-                    Errors = errors,
-                    TotalProcessed = dtos.Count,
-                    SuccessCount = results.Count,
-                    ErrorCount = errors.Count
-                }
-            ));
+            if (result is null)
+            {
+                return BadRequest(ApiResponseDTO.ErrorResponse(
+                    "No se pudo procesar el batch de jugadores NFL."
+                ));
+            }
+
+            // Si el servicio devuelve ErrorResponse (por ejemplo lista vacía), 400
+            return result.Success ? Ok(result) : BadRequest(result);
         }
 
         /// <summary>
