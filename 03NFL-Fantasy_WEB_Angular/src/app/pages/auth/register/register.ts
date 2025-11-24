@@ -166,8 +166,9 @@ export class Register {
 
     // 1) Registrar
     this.auth.register(req).subscribe({
-      next: (res: SimpleOkResponse) => {
-        if (res.success) {
+    next: (res: SimpleOkResponse) => {
+      if (res.success) {
+        if (this.profileImageFile) {
           // 2) Login silencioso
           const loginPayload = { Email: v.email, Password: v.password };
           this.auth.login(loginPayload as any).subscribe({
@@ -197,7 +198,10 @@ export class Register {
                       error: (err: any) => {
                         console.error('Error updateProfile (register flow):', err);
                         this.profileImageUploading.set(false);
-                        this.snackBar.open('Usuario registrado pero no se pudo asignar la imagen.', 'Cerrar', { duration: 5000, panelClass: ['error-snackbar'] });
+                        this.snackBar.open('Usuario registrado pero no se pudo asignar la imagen.', 'Cerrar', {
+                          duration: 5000,
+                          panelClass: ['error-snackbar']
+                        });
                         // intentar limpiar sesión local
                         this.auth.logout().subscribe({
                           next: () => { this.isLoading.set(false); this.router.navigateByUrl('/'); },
@@ -209,7 +213,10 @@ export class Register {
                   error: (err: any) => {
                     console.error('Error uploading image after silent login:', err);
                     this.profileImageUploading.set(false);
-                    this.snackBar.open('Registro correcto pero error al subir la imagen.', 'Cerrar', { duration: 5000, panelClass: ['error-snackbar'] });
+                    this.snackBar.open('Registro correcto pero error al subir la imagen.', 'Cerrar', {
+                      duration: 5000,
+                      panelClass: ['error-snackbar']
+                    });
                     // cleanup session
                     this.auth.logout().subscribe({
                       next: () => { this.isLoading.set(false); this.router.navigateByUrl('/'); },
@@ -222,7 +229,10 @@ export class Register {
                 this.auth.logout().subscribe({
                   next: () => {
                     this.isLoading.set(false);
-                    this.snackBar.open('Registro completado.', 'Cerrar', { duration: 2000, panelClass: ['success-snackbar'] });
+                    this.snackBar.open('Registro completado.', 'Cerrar', {
+                      duration: 2000,
+                      panelClass: ['success-snackbar']
+                    });
                     this.router.navigateByUrl('/');
                   },
                   error: () => {
@@ -235,22 +245,41 @@ export class Register {
             error: (err: any) => {
               console.error('Silent login failed:', err);
               this.isLoading.set(false);
-              this.snackBar.open('Registro completado. Inicia sesión para agregar tu imagen.', 'Cerrar', { duration: 5000, panelClass: ['info-snackbar'] });
+              this.snackBar.open(
+                'Registro completado. Inicia sesión para agregar tu imagen.',
+                'Cerrar',
+                { duration: 5000, panelClass: ['info-snackbar'] }
+              );
               this.router.navigateByUrl('/login');
             }
-          });
+          }); // <-- FALTABA ESTE CIERRE
         } else {
-          this.snackBar.open(res.message || 'No se pudo completar el registro.', 'Cerrar', { duration: 4500, panelClass: ['error-snackbar'] });
+          // No hay imagen: solo desloguear y redirigir
           this.isLoading.set(false);
+          this.snackBar.open('Registro completado.', 'Cerrar', {
+            duration: 2000,
+            panelClass: ['success-snackbar']
+          });
+          this.router.navigateByUrl('/');
         }
-      },
-      error: (err: any) => {
-        console.error('Register error:', err);
-        const msg = this.extractApiError(err);
-        this.snackBar.open(msg || 'No se pudo completar el registro.', 'Cerrar', { duration: 6000, panelClass: ['error-snackbar'] });
+      } else {
+        this.snackBar.open(res.message || 'No se pudo completar el registro.', 'Cerrar', {
+          duration: 4500,
+          panelClass: ['error-snackbar']
+        });
         this.isLoading.set(false);
       }
-    });
+    },
+    error: (err: any) => {
+      console.error('Register error:', err);
+      const msg = this.extractApiError(err);
+      this.snackBar.open(msg || 'No se pudo completar el registro.', 'Cerrar', {
+        duration: 6000,
+        panelClass: ['error-snackbar']
+      });
+      this.isLoading.set(false);
+    }
+  });
   }
 
   private finalizeAfterProfileAssign(): void {
