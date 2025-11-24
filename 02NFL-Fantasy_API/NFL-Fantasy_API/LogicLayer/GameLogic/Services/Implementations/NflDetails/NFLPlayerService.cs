@@ -105,6 +105,105 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.NflDetai
             }
         }
 
+
+        /// <summary>
+        /// Crea múltiples jugadores NFL mediante batch.
+        /// Reutiliza CreateNFLPlayerAsync para cada jugador y agrega logging y resumen.
+        /// </summary>
+        public async Task<ApiResponseDTO> CreateNFLPlayersBatchAsync(
+            List<CreateNFLPlayerDTO> dtos,
+            int actorUserId,
+            string? sourceIp = null,
+            string? userAgent = null)
+        {
+            if (dtos == null || dtos.Count == 0)
+            {
+                return ApiResponseDTO.ErrorResponse(
+                    "No se proporcionaron jugadores para crear."
+                );
+            }
+
+            var results = new List<object>();
+            var errors = new List<string>();
+
+            foreach (var dto in dtos)
+            {
+                try
+                {
+                    var result = await CreateNFLPlayerAsync(
+                        dto,
+                        actorUserId,
+                        sourceIp,
+                        userAgent
+                    );
+
+                    if (result is null)
+                    {
+                        errors.Add($"{dto.FirstName} {dto.LastName}: No se pudo crear el jugador NFL.");
+                        continue;
+                    }
+
+                    if (result.Success)
+                    {
+                        var createdPlayer = result.Data as CreateNFLPlayerResponseDTO;
+
+                        results.Add(new
+                        {
+                            NFLPlayerID = createdPlayer?.NFLPlayerID ?? 0,
+                            PlayerName = $"{dto.FirstName} {dto.LastName}",
+                            Position = dto.Position,
+                            NFLTeamID = dto.NFLTeamID,
+                            Success = true
+                        });
+
+                        _logger.LogInformation(
+                            "User {ActorUserId} created NFL player in batch: {PlayerName}",
+                            actorUserId,
+                            $"{dto.FirstName} {dto.LastName}"
+                        );
+                    }
+                    else
+                    {
+                        errors.Add($"{dto.FirstName} {dto.LastName}: {result.Message}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"{dto.FirstName} {dto.LastName}: {ex.Message}");
+
+                    _logger.LogError(
+                        ex,
+                        "Error creating NFL player in batch: {PlayerName}",
+                        $"{dto.FirstName} {dto.LastName}"
+                    );
+                }
+            }
+
+            _logger.LogInformation(
+                "User {ActorUserId} completed batch creation: {SuccessCount} players created, {ErrorCount} errors from {IP}",
+                actorUserId,
+                results.Count,
+                errors.Count,
+                sourceIp
+            );
+
+            var summary = new
+            {
+                CreatedPlayers = results,
+                Errors = errors,
+                TotalProcessed = dtos.Count,
+                SuccessCount = results.Count,
+                ErrorCount = errors.Count
+            };
+
+            // Siempre devolvemos SuccessResponse a nivel de servicio (el proceso como tal se completó),
+            // el controller se encarga solo de mapear a HTTP.
+            return ApiResponseDTO.SuccessResponse(
+                $"Proceso completado. {results.Count} jugadores creados, {errors.Count} errores.",
+                summary
+            );
+        }
+
         #endregion
 
         #region List NFL Players

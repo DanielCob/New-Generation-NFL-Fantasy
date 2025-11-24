@@ -39,6 +39,19 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Interfaces.NflDetails
         /// </summary>
         Task<ApiResponseDTO> CreateNFLPlayerAsync(CreateNFLPlayerDTO dto, int actorUserId, string? sourceIp = null, string? userAgent = null);
 
+
+        /// <summary>
+        //// Crea múltiples jugadores NFL mediante batch.
+        /// Internamente reutiliza CreateNFLPlayerAsync para cada jugador.
+        /// Feature: Crear jugadores NFL en batch
+        /// </summary>
+        Task<ApiResponseDTO> CreateNFLPlayersBatchAsync(
+            List<CreateNFLPlayerDTO> dtos,
+            int actorUserId,
+            string? sourceIp = null,
+            string? userAgent = null);
+
+
         /// <summary>
         /// Lista jugadores NFL con paginación y filtros
         /// SP: app.sp_ListNFLPlayers
