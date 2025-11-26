@@ -1,3 +1,4 @@
+<!-- 2. admin-nfl-player-actions.html -->
 <div class="wrapper">
   <h1 class="title">
     <mat-icon>sports_football</mat-icon>
@@ -36,6 +37,29 @@
         </div>
       </div>
       <button mat-raised-button color="primary">Batch</button>
+    </mat-card>
+
+    <!-- ✅ NUEVA FILA -->
+    <mat-card class="action-card reports" (click)="goTo('reports')">
+      <div class="card-content">
+        <mat-icon class="icon">assessment</mat-icon>
+        <div class="text">
+          <h2>Batch Reports</h2>
+          <p>Historial de cargas masivas y reportes de errores.</p>
+        </div>
+      </div>
+      <button mat-raised-button color="primary">Reports</button>
+    </mat-card>
+
+    <mat-card class="action-card news" (click)="goTo('news')">
+      <div class="card-content">
+        <mat-icon class="icon">newspaper</mat-icon>
+        <div class="text">
+          <h2>Player News</h2>
+          <p>Noticias y actualizaciones de jugadores NFL.</p>
+        </div>
+      </div>
+      <button mat-raised-button color="primary">News</button>
     </mat-card>
   </div>
 </div>

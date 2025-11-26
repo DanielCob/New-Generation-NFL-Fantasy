@@ -1,0 +1,99 @@
+<!-- 14. delete-player-news-dialog.html -->
+<div class="dialog-container">
+  <div class="dialog-header">
+    <h2>
+      <mat-icon>delete</mat-icon>
+      Delete News for {{ player.FullName }}
+    </h2>
+    <button mat-icon-button (click)="close()" [disabled]="deleting()">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <div class="dialog-content" *ngIf="loadingNews()">
+    <div class="loading-state">
+      <mat-progress-spinner mode="indeterminate" diameter="48"></mat-progress-spinner>
+      <p>Loading news...</p>
+    </div>
+  </div>
+
+  <div class="dialog-content" *ngIf="error()">
+    <div class="error-state">
+      <mat-icon color="warn">error</mat-icon>
+      <p>{{ error() }}</p>
+    </div>
+  </div>
+
+  <div class="dialog-content" *ngIf="!loadingNews() && !error()">
+    <div class="warning-banner">
+      <mat-icon>warning</mat-icon>
+      <div>
+        <strong>Warning:</strong> Deleting a news will revert the player's designation to the previous state according to history.
+        This action cannot be undone.
+      </div>
+    </div>
+
+    <div class="news-list" *ngIf="news().length > 0" [formGroup]="form">
+      <p class="instruction">Select a news to delete:</p>
+      
+      <mat-radio-group formControlName="selectedNewsId" class="news-radio-group">
+        <mat-card class="news-card" *ngFor="let item of news()" [class.selected]="selectedNewsId === item.NewsID">
+          <mat-radio-button [value]="item.NewsID">
+            <div class="news-card-content">
+              <div class="news-header">
+                <span class="news-id">ID #{{ item.NewsID }}</span>
+                <span class="news-date">{{ item.CreatedAt | date:'short' }}</span>
+              </div>
+              
+              <div class="news-text">{{ item.NewsText }}</div>
+              
+              <div class="news-metadata">
+                <div class="metadata-item" *ngIf="item.IsInjury">
+                  <mat-icon class="injury-icon">medical_services</mat-icon>
+                  <span>Injury</span>
+                </div>
+                
+                <div class="metadata-item" *ngIf="item.Designation">
+                  <span class="designation-badge" 
+                        [style.background-color]="getDesignationColor(item.Designation)">
+                    {{ getDesignationLabel(item.Designation) }}
+                  </span>
+                </div>
+                
+                <div class="metadata-item" *ngIf="item.InjurySummary">
+                  <mat-icon>notes</mat-icon>
+                  <span class="summary">{{ item.InjurySummary }}</span>
+                </div>
+              </div>
+              
+              <div class="news-author">
+                <mat-icon>person</mat-icon>
+                <span>{{ item.CreatedByName }}</span>
+              </div>
+            </div>
+          </mat-radio-button>
+        </mat-card>
+      </mat-radio-group>
+    </div>
+
+    <div class="empty-state" *ngIf="news().length === 0">
+      <mat-icon>info</mat-icon>
+      <p>No news found for this player</p>
+      <p class="hint">There are no news to delete.</p>
+    </div>
+  </div>
+
+  <div class="dialog-actions">
+    <button mat-button (click)="close()" [disabled]="deleting()">
+      Cancel
+    </button>
+    <button mat-raised-button 
+            color="warn" 
+            (click)="deleteNews()" 
+            [disabled]="deleting() || loadingNews() || news().length === 0 || !selectedNewsId">
+      <mat-icon *ngIf="!deleting()">delete_forever</mat-icon>
+      <mat-progress-spinner *ngIf="deleting()" mode="indeterminate" diameter="20"></mat-progress-spinner>
+      {{ deleting() ? 'Deleting...' : 'Delete News' }}
+    </button>
+  </div>
+</div>

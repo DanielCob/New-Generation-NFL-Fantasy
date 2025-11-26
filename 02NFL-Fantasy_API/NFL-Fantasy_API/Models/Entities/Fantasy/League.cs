@@ -8,14 +8,20 @@ namespace NFL_Fantasy_API.Models.Entities.Fantasy
     /// <summary>
     /// Entidad que refleja la tabla league.League
     /// Ligas de fantasy creadas por usuarios
+    /// ⭐ ACTUALIZADO: LeagueID ahora es IDENTITY(1,1), LeaguePublicID es el ID público
     /// </summary>
     [Table("League", Schema = "league")]
     public class League
     {
+        /// <summary>
+        /// ID interno autoincremental (privado, no se expone en API)
+        /// </summary>
         [Key]
         public int LeagueID { get; set; }
 
-        // NUEVO: ID público para búsquedas
+        /// <summary>
+        /// ID público pseudoaleatorio (se usa en todas las operaciones de API)
+        /// </summary>
         [Required]
         public int LeaguePublicID { get; set; }
 

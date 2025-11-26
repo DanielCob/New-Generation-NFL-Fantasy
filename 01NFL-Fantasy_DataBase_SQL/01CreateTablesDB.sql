@@ -409,7 +409,7 @@ GO
 IF OBJECT_ID('league.League','U') IS NULL
 BEGIN
   CREATE TABLE league.League(
-    LeagueID INT NOT NULL CONSTRAINT PK_League PRIMARY KEY,
+    LeagueID INT NOT NULL IDENTITY(1,1) CONSTRAINT PK_League PRIMARY KEY,
     LeaguePublicID INT NOT NULL CONSTRAINT UQ_League_PublicID UNIQUE,
     SeasonID INT NOT NULL,
     Name NVARCHAR(100) NOT NULL,
@@ -534,64 +534,135 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_Team_IsActive' AND objec
 GO
 
 -- Jugadores oficiales de la NFL
-IF OBJECT_ID('ref.NFLPlayer','U') IS NULL
-BEGIN
-  CREATE TABLE ref.NFLPlayer(
-    NFLPlayerID INT IDENTITY(1,1) CONSTRAINT PK_NFLPlayer PRIMARY KEY,
-    FirstName NVARCHAR(50) NOT NULL,
-    LastName NVARCHAR(50) NOT NULL,
-    FullName AS (FirstName + N' ' + LastName) PERSISTED,
-    Position NVARCHAR(20) NOT NULL,
-    NFLTeamID INT NOT NULL,
-    InjuryStatus NVARCHAR(50) NULL,
-    InjuryDescription NVARCHAR(300) NULL,
-    PhotoUrl NVARCHAR(400) NULL,
-    PhotoWidth SMALLINT NULL,
-    PhotoHeight SMALLINT NULL,
-    PhotoBytes INT NULL,
-    PhotoThumbnailUrl NVARCHAR(400) NULL,
-    ThumbnailWidth SMALLINT NULL,
-    ThumbnailHeight SMALLINT NULL,
-    ThumbnailBytes INT NULL,
-    IsActive BIT NOT NULL CONSTRAINT DF_NFLPlayer_IsActive DEFAULT(1),
-    CreatedByUserID INT NULL,
-    CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_NFLPlayer_CreatedAt DEFAULT(SYSUTCDATETIME()),
-    UpdatedByUserID INT NULL,
-    UpdatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_NFLPlayer_UpdatedAt DEFAULT(SYSUTCDATETIME()),
-    CONSTRAINT UQ_NFLPlayer_Name_NFLTeam UNIQUE(FirstName, LastName, NFLTeamID),
-    CONSTRAINT CK_NFLPlayer_PhotoDims CHECK (
-      (PhotoWidth IS NULL OR (PhotoWidth BETWEEN 300 AND 1024)) AND
-      (PhotoHeight IS NULL OR (PhotoHeight BETWEEN 300 AND 1024))
-    ),
-    CONSTRAINT CK_NFLPlayer_PhotoSize CHECK (PhotoBytes IS NULL OR PhotoBytes <= 5242880),
-    CONSTRAINT CK_NFLPlayer_ThumbnailDims CHECK (
-      (ThumbnailWidth IS NULL OR (ThumbnailWidth BETWEEN 300 AND 1024)) AND
-      (ThumbnailHeight IS NULL OR (ThumbnailHeight BETWEEN 300 AND 1024))
-    ),
-    CONSTRAINT CK_NFLPlayer_ThumbnailSize CHECK (ThumbnailBytes IS NULL OR ThumbnailBytes <= 5242880)
-  );
-END
+IF OBJECT_ID('ref.NFLPlayer','U') IS NOT NULL
+  DROP TABLE ref.NFLPlayer;
 GO
+
+CREATE TABLE ref.NFLPlayer(
+  NFLPlayerID INT IDENTITY(1,1) CONSTRAINT PK_NFLPlayer PRIMARY KEY,
+  FirstName NVARCHAR(50) NOT NULL,
+  LastName NVARCHAR(50) NOT NULL,
+  FullName AS (FirstName + N' ' + LastName) PERSISTED,
+  Position NVARCHAR(20) NOT NULL,
+  NFLTeamID INT NOT NULL,
+  CurrentDesignation NVARCHAR(10) NULL,
+  InjuryStatus NVARCHAR(50) NULL,
+  InjuryDescription NVARCHAR(300) NULL,
+  PhotoUrl NVARCHAR(400) NULL,
+  PhotoWidth SMALLINT NULL,
+  PhotoHeight SMALLINT NULL,
+  PhotoBytes INT NULL,
+  PhotoThumbnailUrl NVARCHAR(400) NULL,
+  ThumbnailWidth SMALLINT NULL,
+  ThumbnailHeight SMALLINT NULL,
+  ThumbnailBytes INT NULL,
+  IsActive BIT NOT NULL CONSTRAINT DF_NFLPlayer_IsActive DEFAULT(1),
+  CreatedByUserID INT NULL,
+  CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_NFLPlayer_CreatedAt DEFAULT(SYSUTCDATETIME()),
+  UpdatedByUserID INT NULL,
+  UpdatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_NFLPlayer_UpdatedAt DEFAULT(SYSUTCDATETIME()),
+  CONSTRAINT UQ_NFLPlayer_Name_NFLTeam UNIQUE(FirstName, LastName, NFLTeamID),
+  CONSTRAINT CK_NFLPlayer_Designation CHECK (CurrentDesignation IS NULL OR CurrentDesignation IN (N'O',N'D',N'Q',N'P',N'FP',N'IR',N'PUP',N'SUS')),
+  CONSTRAINT CK_NFLPlayer_PhotoDims CHECK (
+    (PhotoWidth IS NULL OR (PhotoWidth BETWEEN 300 AND 1024)) AND
+    (PhotoHeight IS NULL OR (PhotoHeight BETWEEN 300 AND 1024))
+  ),
+  CONSTRAINT CK_NFLPlayer_PhotoSize CHECK (PhotoBytes IS NULL OR PhotoBytes <= 5242880),
+  CONSTRAINT CK_NFLPlayer_ThumbnailDims CHECK (
+    (ThumbnailWidth IS NULL OR (ThumbnailWidth BETWEEN 300 AND 1024)) AND
+    (ThumbnailHeight IS NULL OR (ThumbnailHeight BETWEEN 300 AND 1024))
+  ),
+  CONSTRAINT CK_NFLPlayer_ThumbnailSize CHECK (ThumbnailBytes IS NULL OR ThumbnailBytes <= 5242880)
+);
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLPlayer_NFLTeam')
   ALTER TABLE ref.NFLPlayer ADD CONSTRAINT FK_NFLPlayer_NFLTeam FOREIGN KEY(NFLTeamID) REFERENCES ref.NFLTeam(NFLTeamID) ON DELETE NO ACTION;
 GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLPlayer_Creator')
   ALTER TABLE ref.NFLPlayer ADD CONSTRAINT FK_NFLPlayer_Creator FOREIGN KEY(CreatedByUserID) REFERENCES auth.UserAccount(UserID) ON DELETE NO ACTION;
 GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLPlayer_Updater')
   ALTER TABLE ref.NFLPlayer ADD CONSTRAINT FK_NFLPlayer_Updater FOREIGN KEY(UpdatedByUserID) REFERENCES auth.UserAccount(UserID) ON DELETE NO ACTION;
 GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayer_Position' AND object_id=OBJECT_ID('ref.NFLPlayer'))
   CREATE NONCLUSTERED INDEX IX_NFLPlayer_Position ON ref.NFLPlayer(Position);
 GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayer_NFLTeam' AND object_id=OBJECT_ID('ref.NFLPlayer'))
   CREATE NONCLUSTERED INDEX IX_NFLPlayer_NFLTeam ON ref.NFLPlayer(NFLTeamID);
 GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayer_LastName' AND object_id=OBJECT_ID('ref.NFLPlayer'))
   CREATE NONCLUSTERED INDEX IX_NFLPlayer_LastName ON ref.NFLPlayer(LastName);
 GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayer_IsActive' AND object_id=OBJECT_ID('ref.NFLPlayer'))
   CREATE NONCLUSTERED INDEX IX_NFLPlayer_IsActive ON ref.NFLPlayer(IsActive);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayer_CurrentDesignation' AND object_id=OBJECT_ID('ref.NFLPlayer'))
+  CREATE NONCLUSTERED INDEX IX_NFLPlayer_CurrentDesignation ON ref.NFLPlayer(CurrentDesignation) WHERE CurrentDesignation IS NOT NULL;
+GO
+
+
+-- Noticias y designaciones de jugadores NFL
+IF OBJECT_ID('ref.NFLPlayerNews','U') IS NULL
+BEGIN
+  CREATE TABLE ref.NFLPlayerNews(
+    NewsID BIGINT IDENTITY(1,1) CONSTRAINT PK_NFLPlayerNews PRIMARY KEY,
+    NFLPlayerID INT NOT NULL,
+    NewsText NVARCHAR(300) NOT NULL,
+    IsInjury BIT NOT NULL CONSTRAINT DF_NFLPlayerNews_IsInjury DEFAULT(0),
+    InjurySummary NVARCHAR(30) NULL,
+    Designation NVARCHAR(10) NULL,
+    CreatedByUserID INT NOT NULL,
+    CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_NFLPlayerNews_CreatedAt DEFAULT(SYSUTCDATETIME()),
+    IsDeleted BIT NOT NULL CONSTRAINT DF_NFLPlayerNews_IsDeleted DEFAULT(0),
+    DeletedByUserID INT NULL,
+    DeletedAt DATETIME2(0) NULL,
+    SourceIp NVARCHAR(45) NULL,
+    UserAgent NVARCHAR(300) NULL,
+    CONSTRAINT CK_NFLPlayerNews_TextLength CHECK (LEN(NewsText) BETWEEN 10 AND 300),
+    CONSTRAINT CK_NFLPlayerNews_InjurySummaryLength CHECK (InjurySummary IS NULL OR LEN(InjurySummary) <= 30),
+    CONSTRAINT CK_NFLPlayerNews_InjuryLogic CHECK (
+      (IsInjury = 0 AND InjurySummary IS NULL AND Designation IS NULL) OR
+      (IsInjury = 1 AND InjurySummary IS NOT NULL AND Designation IS NOT NULL)
+    ),
+    CONSTRAINT CK_NFLPlayerNews_Designation CHECK (Designation IS NULL OR Designation IN (N'O',N'D',N'Q',N'P',N'FP',N'IR',N'PUP',N'SUS')),
+    CONSTRAINT CK_NFLPlayerNews_DeletedLogic CHECK (
+      (IsDeleted = 0 AND DeletedByUserID IS NULL AND DeletedAt IS NULL) OR
+      (IsDeleted = 1 AND DeletedByUserID IS NOT NULL AND DeletedAt IS NOT NULL)
+    )
+  );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLPlayerNews_Player')
+  ALTER TABLE ref.NFLPlayerNews ADD CONSTRAINT FK_NFLPlayerNews_Player FOREIGN KEY(NFLPlayerID) REFERENCES ref.NFLPlayer(NFLPlayerID) ON DELETE CASCADE;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLPlayerNews_Creator')
+  ALTER TABLE ref.NFLPlayerNews ADD CONSTRAINT FK_NFLPlayerNews_Creator FOREIGN KEY(CreatedByUserID) REFERENCES auth.UserAccount(UserID) ON DELETE NO ACTION;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLPlayerNews_Deleter')
+  ALTER TABLE ref.NFLPlayerNews ADD CONSTRAINT FK_NFLPlayerNews_Deleter FOREIGN KEY(DeletedByUserID) REFERENCES auth.UserAccount(UserID) ON DELETE NO ACTION;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayerNews_Player_CreatedAt' AND object_id=OBJECT_ID('ref.NFLPlayerNews'))
+  CREATE NONCLUSTERED INDEX IX_NFLPlayerNews_Player_CreatedAt ON ref.NFLPlayerNews(NFLPlayerID, CreatedAt DESC) WHERE IsDeleted = 0;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayerNews_Player_Designation' AND object_id=OBJECT_ID('ref.NFLPlayerNews'))
+  CREATE NONCLUSTERED INDEX IX_NFLPlayerNews_Player_Designation ON ref.NFLPlayerNews(NFLPlayerID, CreatedAt DESC) WHERE IsDeleted = 0 AND Designation IS NOT NULL;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayerNews_CreatedBy_Date' AND object_id=OBJECT_ID('ref.NFLPlayerNews'))
+  CREATE NONCLUSTERED INDEX IX_NFLPlayerNews_CreatedBy_Date ON ref.NFLPlayerNews(CreatedByUserID, CreatedAt DESC);
 GO
 
 
@@ -619,6 +690,46 @@ IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLPlayerChangeLog_
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayerChangeLog_Player_At' AND object_id=OBJECT_ID('ref.NFLPlayerChangeLog'))
   CREATE NONCLUSTERED INDEX IX_NFLPlayerChangeLog_Player_At ON ref.NFLPlayerChangeLog(NFLPlayerID, ChangedAt DESC);
+GO
+
+/* ================================================
+   TABLA DE REPORTES DE IMPORTACIÓN BATCH
+   ================================================ */
+-- Registro de reportes generados por importaciones batch de jugadores NFL
+IF OBJECT_ID('ref.NFLPlayerBatchReport','U') IS NULL
+BEGIN
+  CREATE TABLE ref.NFLPlayerBatchReport(
+    BatchReportID INT IDENTITY(1,1) CONSTRAINT PK_NFLPlayerBatchReport PRIMARY KEY,
+    ReportUrl NVARCHAR(400) NOT NULL,
+    TotalProcessed INT NOT NULL CONSTRAINT DF_NFLPlayerBatchReport_Total DEFAULT(0),
+    SuccessCount INT NOT NULL CONSTRAINT DF_NFLPlayerBatchReport_Success DEFAULT(0),
+    ErrorCount INT NOT NULL CONSTRAINT DF_NFLPlayerBatchReport_Error DEFAULT(0),
+    ActorUserID INT NOT NULL,
+    SourceIp NVARCHAR(45) NULL,
+    UserAgent NVARCHAR(300) NULL,
+    CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_NFLPlayerBatchReport_CreatedAt DEFAULT(SYSUTCDATETIME()),
+    CONSTRAINT CK_NFLPlayerBatchReport_Counts CHECK (TotalProcessed = SuccessCount + ErrorCount)
+  );
+END
+GO
+
+-- Llave foránea hacia el usuario que ejecutó la importación
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLPlayerBatchReport_Actor')
+  ALTER TABLE ref.NFLPlayerBatchReport 
+    ADD CONSTRAINT FK_NFLPlayerBatchReport_Actor 
+      FOREIGN KEY(ActorUserID) REFERENCES auth.UserAccount(UserID) ON DELETE NO ACTION;
+GO
+
+-- Índice para búsqueda por usuario y fecha
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayerBatchReport_Actor_Date' AND object_id=OBJECT_ID('ref.NFLPlayerBatchReport'))
+  CREATE NONCLUSTERED INDEX IX_NFLPlayerBatchReport_Actor_Date 
+    ON ref.NFLPlayerBatchReport(ActorUserID, CreatedAt DESC);
+GO
+
+-- Índice para búsqueda por fecha
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayerBatchReport_CreatedAt' AND object_id=OBJECT_ID('ref.NFLPlayerBatchReport'))
+  CREATE NONCLUSTERED INDEX IX_NFLPlayerBatchReport_CreatedAt 
+    ON ref.NFLPlayerBatchReport(CreatedAt DESC);
 GO
 
 -- Relacion entre equipos y jugadores (roster)

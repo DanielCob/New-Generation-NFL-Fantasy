@@ -534,7 +534,7 @@ BEGIN
 
   -- 2) Ligas donde soy comisionado
   SELECT
-    lm.LeagueID, l.Name AS LeagueName, l.Status, l.TeamSlots, l.CreatedAt,
+    lm.LeagueID, l.LeaguePublicID, l.Name AS LeagueName, l.Status, l.TeamSlots, l.CreatedAt,
     lm.RoleCode, lm.JoinedAt
   FROM league.LeagueMember lm
   JOIN league.League l ON l.LeagueID = lm.LeagueID
@@ -841,7 +841,7 @@ BEGIN
   DECLARE @PwdBytes VARBINARY(4000) = CONVERT(VARBINARY(4000), @LeaguePassword);
   DECLARE @Hash VARBINARY(64) = HASHBYTES('SHA2_256', @PwdBytes + @Salt);
 
-  -- GENERAR IDs ALEATORIOS ÚNICOS
+  -- GENERAR SOLO LeaguePublicID ALEATORIO ÚNICO (LeagueID será IDENTITY)
   DECLARE @LeagueID INT;
   DECLARE @LeaguePublicID INT;
   DECLARE @MaxAttempts INT = 100;
@@ -865,29 +865,12 @@ BEGIN
                N'Ligas activas desactivadas automáticamente al crear nueva liga', @SourceIp, @UserAgent);
       END
 
-      -- GENERAR LeagueID ÚNICO
-      WHILE @Attempt < @MaxAttempts
-      BEGIN
-        SET @LeagueID = dbo.fn_GenerateRandomInt();
-        
-        IF NOT EXISTS (SELECT 1 FROM league.League WHERE LeagueID = @LeagueID)
-          BREAK;
-        
-        SET @Attempt = @Attempt + 1;
-      END
-
-      IF @Attempt >= @MaxAttempts
-        THROW 50055, 'No se pudo generar un LeagueID único después de múltiples intentos.', 1;
-
-      -- GENERAR LeaguePublicID ÚNICO (diferente del LeagueID)
-      SET @Attempt = 0;
+      -- GENERAR SOLO LeaguePublicID ÚNICO (pseudoaleatorio)
       WHILE @Attempt < @MaxAttempts
       BEGIN
         SET @LeaguePublicID = dbo.fn_GenerateRandomInt();
         
-        -- Debe ser diferente del LeagueID y no existir en la tabla
-        IF @LeaguePublicID <> @LeagueID 
-           AND NOT EXISTS (SELECT 1 FROM league.League WHERE LeaguePublicID = @LeaguePublicID)
+        IF NOT EXISTS (SELECT 1 FROM league.League WHERE LeaguePublicID = @LeaguePublicID)
           BREAK;
         
         SET @Attempt = @Attempt + 1;
@@ -896,9 +879,9 @@ BEGIN
       IF @Attempt >= @MaxAttempts
         THROW 50056, 'No se pudo generar un LeaguePublicID único después de múltiples intentos.', 1;
 
-      -- Crear la liga con IDs aleatorios
+      -- Crear la liga (LeagueID se genera automáticamente con IDENTITY)
       INSERT INTO league.League
-      (LeagueID, LeaguePublicID, SeasonID, Name, Description, TeamSlots,
+      (LeaguePublicID, SeasonID, Name, Description, TeamSlots,
        LeaguePasswordHash, LeaguePasswordSalt,
        Status, AllowDecimals, PlayoffTeams,
        TradeDeadlineEnabled, TradeDeadlineDate,
@@ -906,13 +889,16 @@ BEGIN
        PositionFormatID, ScoringSchemaID,
        CreatedByUserID)
       VALUES
-      (@LeagueID, @LeaguePublicID, @SeasonID, @Name, @Description, @TeamSlots,
+      (@LeaguePublicID, @SeasonID, @Name, @Description, @TeamSlots,
        @Hash, @Salt,
        0, @AllowDecimals, @PlayoffTeams,
        0, NULL,
        NULL, NULL,
        @PositionFormatID, @ScoringSchemaID,
        @CreatorUserID);
+
+      -- Obtener el LeagueID autogenerado
+      SET @LeagueID = SCOPE_IDENTITY();
 
       -- Miembro: comisionado principal
       INSERT INTO league.LeagueMember(LeagueID, UserID, RoleCode)
@@ -933,7 +919,7 @@ BEGIN
     -- Result set esperado por el backend
     SELECT
       l.LeagueID, 
-      l.LeaguePublicID,  -- NUEVO: Incluir en respuesta
+      l.LeaguePublicID,
       l.Name, 
       l.TeamSlots,
       (l.TeamSlots - (SELECT COUNT(*) FROM league.Team t WHERE t.LeagueID = l.LeagueID)) AS AvailableSlots,
@@ -958,15 +944,24 @@ GO
 -- sp_SetLeagueStatus
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_SetLeagueStatus
-  @ActorUserID INT,
-  @LeagueID    INT,
-  @NewStatus   TINYINT,
-  @Reason      NVARCHAR(300) = NULL,
-  @SourceIp    NVARCHAR(45) = NULL,
-  @UserAgent   NVARCHAR(300) = NULL
+  @ActorUserID    INT,
+  @LeaguePublicID INT,
+  @NewStatus      TINYINT,
+  @Reason         NVARCHAR(300) = NULL,
+  @SourceIp       NVARCHAR(45) = NULL,
+  @UserAgent      NVARCHAR(300) = NULL
 AS
 BEGIN
   SET NOCOUNT ON;
+
+  -- Resolver LeagueID interno desde LeaguePublicID
+  DECLARE @LeagueID INT;
+  SELECT @LeagueID = LeagueID 
+  FROM league.League 
+  WHERE LeaguePublicID = @LeaguePublicID;
+
+  IF @LeagueID IS NULL
+    THROW 50059, 'Liga no existe.', 1;
 
   IF NOT EXISTS (
     SELECT 1 FROM league.LeagueMember
@@ -1020,7 +1015,7 @@ GO
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_EditLeagueConfig
   @ActorUserID              INT,
-  @LeagueID                 INT,
+  @LeaguePublicID           INT,
   @Name                     NVARCHAR(100) = NULL,
   @Description              NVARCHAR(500) = NULL,
   @TeamSlots                TINYINT = NULL,
@@ -1038,6 +1033,15 @@ AS
 BEGIN
   SET NOCOUNT ON;
 
+  -- Resolver LeagueID interno desde LeaguePublicID
+  DECLARE @LeagueID INT;
+  SELECT @LeagueID = LeagueID 
+  FROM league.League 
+  WHERE LeaguePublicID = @LeaguePublicID;
+
+  IF @LeagueID IS NULL
+    THROW 50069, 'Liga no existe.', 1;
+  
   IF NOT EXISTS (
     SELECT 1 FROM league.LeagueMember
     WHERE LeagueID = @LeagueID AND UserID = @ActorUserID
@@ -1200,15 +1204,27 @@ GO
 -- sp_GetLeagueSummary - VERSIÓN ACTUALIZADA CON LeaguePublicID
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_GetLeagueSummary
-  @LeagueID INT
+  @LeaguePublicID INT
 AS
 BEGIN
   SET NOCOUNT ON;
 
+  -- Resolver LeagueID interno desde LeaguePublicID
+  DECLARE @LeagueID INT;
+  SELECT @LeagueID = LeagueID 
+  FROM league.League 
+  WHERE LeaguePublicID = @LeaguePublicID;
+
+  IF @LeagueID IS NULL
+  BEGIN
+    -- Retornar vacío si no existe
+    SELECT NULL AS LeaguePublicID WHERE 1=0;
+    RETURN;
+  END
+
   -- 1) Información de la liga
   SELECT
-    l.LeagueID, 
-    l.LeaguePublicID,  -- NUEVO
+    l.LeaguePublicID,
     l.Name, 
     l.Description, 
     l.Status,
@@ -1963,6 +1979,7 @@ BEGIN
     p.FullName,
     p.Position,
     p.NFLTeamID,
+    p.CurrentDesignation,
     p.InjuryStatus,
     p.IsActive
   FROM ref.NFLPlayer p
@@ -2154,6 +2171,7 @@ BEGIN
     p.Position,
     nt.TeamName AS NFLTeamName,
     nt.City AS NFLTeamCity,
+    p.CurrentDesignation,
     p.InjuryStatus,
     p.InjuryDescription,
     p.PhotoUrl,
@@ -2377,10 +2395,23 @@ GO
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_GetUserRolesInLeague
   @UserID    INT,
-  @LeagueID  INT
+  @LeaguePublicID  INT
 AS
 BEGIN
   SET NOCOUNT ON;
+
+  -- Resolver LeagueID interno desde LeaguePublicID
+  DECLARE @LeagueID INT;
+  SELECT @LeagueID = LeagueID 
+  FROM league.League 
+  WHERE LeaguePublicID = @LeaguePublicID;
+
+  IF @LeagueID IS NULL
+  BEGIN
+    -- Retornar vacío si no existe
+    SELECT NULL AS RoleCode WHERE 1=0;
+    RETURN;
+  END
 
   -- Rol explícito del usuario en esta liga
   SELECT 
@@ -2496,8 +2527,7 @@ BEGIN
 
   -- Resultados paginados
   SELECT
-    l.LeagueID,
-    l.LeaguePublicID,  -- NUEVO: Retornar para mostrar al usuario
+    l.LeaguePublicID,
     l.Name,
     l.Description,
     l.TeamSlots,
@@ -2540,7 +2570,7 @@ GO
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_JoinLeague
   @UserID           INT,
-  @LeagueID         INT,
+  @LeaguePublicID         INT,
   @LeaguePassword   NVARCHAR(50),
   @TeamName         NVARCHAR(100),
   @SourceIp         NVARCHAR(45) = NULL,
@@ -2551,6 +2581,15 @@ BEGIN
   SET XACT_ABORT ON;
 
   BEGIN TRY
+    -- Resolver LeagueID interno desde LeaguePublicID
+    DECLARE @LeagueID INT;
+    SELECT @LeagueID = LeagueID 
+    FROM league.League 
+    WHERE LeaguePublicID = @LeaguePublicID;
+
+    IF @LeagueID IS NULL
+      THROW 50300, 'La liga no existe.', 1;
+    
     -- Validaciones
     IF @TeamName IS NULL OR LEN(@TeamName) < 1 OR LEN(@TeamName) > 100
       THROW 50300, 'Nombre de equipo inválido: debe tener entre 1 y 100 caracteres.', 1;
@@ -2627,6 +2666,16 @@ BEGIN
 
       SET @TeamID = SCOPE_IDENTITY();
 
+      -- Registrar como miembro de liga (MANAGER)
+      IF NOT EXISTS (
+          SELECT 1 FROM league.LeagueMember
+          WHERE LeagueID = @LeagueID AND UserID = @UserID
+      )
+      BEGIN
+          INSERT INTO league.LeagueMember(LeagueID, UserID, RoleCode)
+          VALUES(@LeagueID, @UserID, N'MANAGER');
+      END
+
       -- Auditoría
       INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
       VALUES(
@@ -2639,7 +2688,7 @@ BEGIN
 
     SELECT 
       @TeamID AS TeamID,
-      @LeagueID AS LeagueID,
+      @LeaguePublicID AS LeaguePublicID,
       @TeamName AS TeamName,
       @LeagueName AS LeagueName,
       (@TeamSlots - @CurrentTeams - 1) AS AvailableSlots,
@@ -2665,16 +2714,25 @@ GO
 -- El equipo se marca como inactivo y se remueve al usuario de la liga
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_RemoveTeamFromLeague
-  @ActorUserID   INT,
-  @LeagueID      INT,
-  @TeamID        INT,
-  @Reason        NVARCHAR(300) = NULL,
-  @SourceIp      NVARCHAR(45) = NULL,
-  @UserAgent     NVARCHAR(300) = NULL
+  @ActorUserID      INT,
+  @LeaguePublicID   INT,
+  @TeamID           INT,
+  @Reason           NVARCHAR(300) = NULL,
+  @SourceIp         NVARCHAR(45) = NULL,
+  @UserAgent        NVARCHAR(300) = NULL
 AS
 BEGIN
   SET NOCOUNT ON;
   BEGIN TRY
+    -- Resolver LeagueID interno desde LeaguePublicID
+    DECLARE @LeagueID INT;
+    SELECT @LeagueID = LeagueID 
+    FROM league.League 
+    WHERE LeaguePublicID = @LeaguePublicID;
+
+    IF @LeagueID IS NULL
+      THROW 50319, 'Liga no existe.', 1;
+
     -- Validar que el actor es comisionado de la liga
     IF NOT EXISTS (
       SELECT 1 FROM league.LeagueMember
@@ -2761,15 +2819,24 @@ GO
 -- Permite a un usuario salir voluntariamente de una liga (solo en Pre-Draft)
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_LeaveLeague
-  @UserID        INT,
-  @LeagueID      INT,
-  @SourceIp      NVARCHAR(45) = NULL,
-  @UserAgent     NVARCHAR(300) = NULL
+  @UserID           INT,
+  @LeaguePublicID   INT,
+  @SourceIp         NVARCHAR(45) = NULL,
+  @UserAgent        NVARCHAR(300) = NULL
 AS
 BEGIN
   SET NOCOUNT ON;
 
   BEGIN TRY
+    -- Resolver LeagueID interno desde LeaguePublicID
+    DECLARE @LeagueID INT;
+    SELECT @LeagueID = LeagueID 
+    FROM league.League 
+    WHERE LeaguePublicID = @LeaguePublicID;
+
+    IF @LeagueID IS NULL
+      THROW 50349, 'Liga no existe.', 1;
+
     -- 0) Validar que el usuario NO es el comisionado
     IF EXISTS (
       SELECT 1
@@ -2848,15 +2915,24 @@ GO
 -- Permite al comisionado principal transferir el comisionado a otro miembro
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_TransferCommissioner
-  @ActorUserID      INT,
-  @LeagueID         INT,
-  @NewCommissionerID INT,
-  @SourceIp         NVARCHAR(45) = NULL,
-  @UserAgent        NVARCHAR(300) = NULL
+  @ActorUserID        INT,
+  @LeaguePublicID     INT,
+  @NewCommissionerID  INT,
+  @SourceIp           NVARCHAR(45) = NULL,
+  @UserAgent          NVARCHAR(300) = NULL
 AS
 BEGIN
   SET NOCOUNT ON;
   BEGIN TRY
+    -- Resolver LeagueID interno desde LeaguePublicID
+    DECLARE @LeagueID INT;
+    SELECT @LeagueID = LeagueID 
+    FROM league.League 
+    WHERE LeaguePublicID = @LeaguePublicID;
+
+    IF @LeagueID IS NULL
+      THROW 50359, 'Liga no existe.', 1;
+
     -- Validar que el actor es comisionado de la liga
     IF NOT EXISTS (
       SELECT 1 FROM league.LeagueMember
@@ -2935,7 +3011,7 @@ GO
 -- Útil para verificar antes de mostrar el formulario de unión
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_ValidateLeaguePassword
-  @LeagueID         INT,
+  @LeaguePublicID         INT,
   @LeaguePassword   NVARCHAR(50)
 AS
 BEGIN
@@ -2947,7 +3023,7 @@ BEGIN
     @Hash = LeaguePasswordHash,
     @Salt = LeaguePasswordSalt
   FROM league.League
-  WHERE LeagueID = @LeagueID;
+  WHERE LeaguePublicID = @LeaguePublicID;
 
   IF @Hash IS NULL
   BEGIN
@@ -3499,6 +3575,7 @@ BEGIN
 
       INSERT INTO ref.NFLPlayer(
         FirstName, LastName, Position, NFLTeamID,
+        CurrentDesignation,
         InjuryStatus, InjuryDescription,
         PhotoUrl, PhotoWidth, PhotoHeight, PhotoBytes,
         PhotoThumbnailUrl, ThumbnailWidth, ThumbnailHeight, ThumbnailBytes,
@@ -3506,6 +3583,7 @@ BEGIN
       )
       VALUES(
         @FirstName, @LastName, @Position, @NFLTeamID,
+        NULL,  -- Los jugadores nuevos inician sin designación
         @InjuryStatus, @InjuryDescription,
         @PhotoUrl, @PhotoWidth, @PhotoHeight, @PhotoBytes,
         @PhotoThumbnailUrl, @ThumbnailWidth, @ThumbnailHeight, @ThumbnailBytes,
@@ -3901,6 +3979,7 @@ BEGIN
     p.NFLTeamID,
     nt.TeamName AS NFLTeamName,
     nt.City AS NFLTeamCity,
+    p.CurrentDesignation,
     p.InjuryStatus,
     p.InjuryDescription,
     p.PhotoUrl,
@@ -3947,6 +4026,7 @@ BEGIN
     p.NFLTeamID,
     nt.TeamName AS NFLTeamName,
     nt.City AS NFLTeamCity,
+    p.CurrentDesignation,
     p.InjuryStatus,
     p.InjuryDescription,
     p.PhotoUrl,
@@ -4005,6 +4085,620 @@ END
 GO
 
 GRANT EXECUTE ON OBJECT::app.sp_GetNFLPlayerDetails TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_CreateNFLPlayerBatchReport
+-- Solo ADMIN puede crear reportes de batch de jugadores NFL
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_CreateNFLPlayerBatchReport
+  @ActorUserID      INT,
+  @ReportUrl        NVARCHAR(400),
+  @TotalProcessed   INT,
+  @SuccessCount     INT,
+  @ErrorCount       INT,
+  @SourceIp         NVARCHAR(45) = NULL,
+  @UserAgent        NVARCHAR(300) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+  BEGIN TRY
+    -- Validar que el actor es ADMIN
+    DECLARE @ActorRole NVARCHAR(20);
+    SELECT @ActorRole = SystemRoleCode FROM auth.UserAccount WHERE UserID = @ActorUserID;
+
+    IF @ActorRole IS NULL
+      THROW 50600, 'Usuario actor no existe.', 1;
+
+    IF @ActorRole <> N'ADMIN'
+      THROW 50601, 'Solo un ADMIN puede crear reportes de batch de jugadores NFL.', 1;
+
+    -- Validaciones de campos requeridos
+    IF @ReportUrl IS NULL OR LEN(@ReportUrl) < 1 OR LEN(@ReportUrl) > 400
+      THROW 50602, 'URL de reporte inválida: debe tener entre 1 y 400 caracteres.', 1;
+
+    IF @TotalProcessed IS NULL OR @TotalProcessed < 0
+      THROW 50603, 'Total procesado inválido: debe ser mayor o igual a 0.', 1;
+
+    IF @SuccessCount IS NULL OR @SuccessCount < 0
+      THROW 50604, 'Cantidad de éxitos inválida: debe ser mayor o igual a 0.', 1;
+
+    IF @ErrorCount IS NULL OR @ErrorCount < 0
+      THROW 50605, 'Cantidad de errores inválida: debe ser mayor o igual a 0.', 1;
+
+    -- Validar que TotalProcessed = SuccessCount + ErrorCount
+    IF @TotalProcessed <> (@SuccessCount + @ErrorCount)
+      THROW 50606, 'Total procesado debe ser igual a la suma de éxitos y errores.', 1;
+
+    DECLARE @BatchReportID INT;
+
+    BEGIN TRAN;
+
+      INSERT INTO ref.NFLPlayerBatchReport(
+        ReportUrl, TotalProcessed, SuccessCount, ErrorCount,
+        ActorUserID, SourceIp, UserAgent
+      )
+      VALUES(
+        @ReportUrl, @TotalProcessed, @SuccessCount, @ErrorCount,
+        @ActorUserID, @SourceIp, @UserAgent
+      );
+
+      SET @BatchReportID = SCOPE_IDENTITY();
+
+      INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+      VALUES(@ActorUserID, N'NFL_PLAYER_BATCH_REPORT', CAST(@BatchReportID AS NVARCHAR(50)), N'CREATE',
+             CONCAT(N'Reporte de batch creado: ', @SuccessCount, N' éxitos, ', @ErrorCount, N' errores de ', @TotalProcessed, N' total'), 
+             @SourceIp, @UserAgent);
+
+    COMMIT;
+
+    SELECT 
+      @BatchReportID AS BatchReportID,
+      @ReportUrl AS ReportUrl,
+      @TotalProcessed AS TotalProcessed,
+      @SuccessCount AS SuccessCount,
+      @ErrorCount AS ErrorCount,
+      N'Reporte de batch creado exitosamente.' AS Message;
+  END TRY
+  BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK;
+    THROW;
+  END CATCH
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_CreateNFLPlayerBatchReport TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_GetAllNFLPlayerBatchReports
+-- Solo ADMIN puede obtener todos los reportes de batch
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_GetAllNFLPlayerBatchReports
+  @ActorUserID    INT,
+  @PageNumber     INT = 1,
+  @PageSize       INT = 50,
+  @OrderBy        NVARCHAR(20) = 'CreatedAt',
+  @SortDirection  NVARCHAR(4) = 'DESC'
+AS
+BEGIN
+  SET NOCOUNT ON;
+  BEGIN TRY
+    -- Validar que el actor es ADMIN
+    DECLARE @ActorRole NVARCHAR(20);
+    SELECT @ActorRole = SystemRoleCode FROM auth.UserAccount WHERE UserID = @ActorUserID;
+
+    IF @ActorRole IS NULL
+      THROW 50610, 'Usuario actor no existe.', 1;
+
+    IF @ActorRole <> N'ADMIN'
+      THROW 50611, 'Solo un ADMIN puede obtener reportes de batch de jugadores NFL.', 1;
+
+    -- Validar parámetros de paginación
+    IF @PageNumber < 1
+      SET @PageNumber = 1;
+
+    IF @PageSize < 1 OR @PageSize > 100
+      SET @PageSize = 50;
+
+    IF @OrderBy NOT IN ('BatchReportID', 'CreatedAt', 'TotalProcessed', 'SuccessCount', 'ErrorCount')
+      SET @OrderBy = 'CreatedAt';
+
+    IF @SortDirection NOT IN ('ASC', 'DESC')
+      SET @SortDirection = 'DESC';
+
+    DECLARE @Offset INT = (@PageNumber - 1) * @PageSize;
+
+    -- Obtener total de registros
+    DECLARE @TotalRecords INT;
+    SELECT @TotalRecords = COUNT(*) FROM ref.NFLPlayerBatchReport;
+
+    -- Query dinámico para ordenamiento
+    DECLARE @SQL NVARCHAR(MAX) = N'
+      SELECT 
+        br.BatchReportID,
+        br.ReportUrl,
+        br.TotalProcessed,
+        br.SuccessCount,
+        br.ErrorCount,
+        br.ActorUserID,
+        u.Name AS ActorName,
+        u.Email AS ActorEmail,
+        br.SourceIp,
+        br.UserAgent,
+        br.CreatedAt,
+        @TotalRecords AS TotalRecords,
+        @PageNumber AS CurrentPage,
+        @PageSize AS PageSize,
+        CAST(CEILING(CAST(@TotalRecords AS FLOAT) / @PageSize) AS INT) AS TotalPages
+      FROM ref.NFLPlayerBatchReport br
+      INNER JOIN auth.UserAccount u ON br.ActorUserID = u.UserID
+      ORDER BY ' + QUOTENAME(@OrderBy) + N' ' + @SortDirection + N'
+      OFFSET @Offset ROWS
+      FETCH NEXT @PageSize ROWS ONLY;
+    ';
+
+    EXEC sp_executesql @SQL,
+      N'@TotalRecords INT, @PageNumber INT, @PageSize INT, @Offset INT',
+      @TotalRecords, @PageNumber, @PageSize, @Offset;
+
+    -- Registrar auditoría
+    INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+    VALUES(@ActorUserID, N'NFL_PLAYER_BATCH_REPORT', N'ALL', N'READ',
+           CONCAT(N'Consulta de reportes de batch - Página ', @PageNumber), NULL, NULL);
+
+  END TRY
+  BEGIN CATCH
+    THROW;
+  END CATCH
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_GetAllNFLPlayerBatchReports TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_GetNFLPlayerBatchReportById
+-- Solo ADMIN puede obtener un reporte específico de batch
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_GetNFLPlayerBatchReportById
+  @ActorUserID     INT,
+  @BatchReportID   INT
+AS
+BEGIN
+  SET NOCOUNT ON;
+  BEGIN TRY
+    -- Validar que el actor es ADMIN
+    DECLARE @ActorRole NVARCHAR(20);
+    SELECT @ActorRole = SystemRoleCode FROM auth.UserAccount WHERE UserID = @ActorUserID;
+
+    IF @ActorRole IS NULL
+      THROW 50620, 'Usuario actor no existe.', 1;
+
+    IF @ActorRole <> N'ADMIN'
+      THROW 50621, 'Solo un ADMIN puede obtener reportes de batch de jugadores NFL.', 1;
+
+    -- Validar que el BatchReportID existe
+    IF NOT EXISTS (SELECT 1 FROM ref.NFLPlayerBatchReport WHERE BatchReportID = @BatchReportID)
+      THROW 50622, 'Reporte de batch no existe.', 1;
+
+    -- Obtener el reporte
+    SELECT 
+      br.BatchReportID,
+      br.ReportUrl,
+      br.TotalProcessed,
+      br.SuccessCount,
+      br.ErrorCount,
+      br.ActorUserID,
+      u.Name AS ActorName,
+      u.Email AS ActorEmail,
+      u.SystemRoleCode AS ActorRole,
+      br.SourceIp,
+      br.UserAgent,
+      br.CreatedAt
+    FROM ref.NFLPlayerBatchReport br
+    INNER JOIN auth.UserAccount u ON br.ActorUserID = u.UserID
+    WHERE br.BatchReportID = @BatchReportID;
+
+    -- Registrar auditoría
+    INSERT INTO audit.UserActionLog(ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent)
+    VALUES(@ActorUserID, N'NFL_PLAYER_BATCH_REPORT', CAST(@BatchReportID AS NVARCHAR(50)), N'READ',
+           N'Consulta de reporte de batch específico', NULL, NULL);
+
+  END TRY
+  BEGIN CATCH
+    THROW;
+  END CATCH
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_GetNFLPlayerBatchReportById TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_AddNFLPlayerNews
+-- Solo ADMIN puede agregar noticias de jugador (US 1 - Feature 10.3)
+-- Actualiza CurrentDesignation si es noticia de lesión
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_AddNFLPlayerNews
+  @ActorUserID        INT,
+  @NFLPlayerID        INT,
+  @NewsText           NVARCHAR(300),
+  @IsInjury           BIT,
+  @InjurySummary      NVARCHAR(30) = NULL,
+  @Designation        NVARCHAR(10) = NULL,
+  @SourceIp           NVARCHAR(45) = NULL,
+  @UserAgent          NVARCHAR(300) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+  BEGIN TRY
+    -- Validar que el actor es ADMIN
+    DECLARE @ActorRole NVARCHAR(20);
+    SELECT @ActorRole = SystemRoleCode FROM auth.UserAccount WHERE UserID = @ActorUserID;
+
+    IF @ActorRole IS NULL
+      THROW 50700, 'Usuario actor no existe.', 1;
+
+    IF @ActorRole <> N'ADMIN'
+      THROW 50701, 'Solo un ADMIN puede agregar noticias de jugador.', 1;
+
+    -- Validar que el jugador existe y está activo
+    DECLARE @PlayerName NVARCHAR(101);
+    SELECT @PlayerName = CONCAT(FirstName, N' ', LastName)
+    FROM ref.NFLPlayer
+    WHERE NFLPlayerID = @NFLPlayerID AND IsActive = 1;
+
+    IF @PlayerName IS NULL
+      THROW 50702, 'Jugador no existe o no está activo.', 1;
+
+    -- Validar longitud del texto
+    IF @NewsText IS NULL OR LEN(@NewsText) < 10 OR LEN(@NewsText) > 300
+      THROW 50703, 'El texto de la noticia debe tener entre 10 y 300 caracteres.', 1;
+
+    -- Validaciones específicas para noticias de lesión
+    IF @IsInjury = 1
+    BEGIN
+      IF @InjurySummary IS NULL OR LEN(@InjurySummary) = 0
+        THROW 50704, 'El resumen de lesión es obligatorio para noticias de lesión.', 1;
+
+      IF LEN(@InjurySummary) > 30
+        THROW 50705, 'El resumen de lesión no puede exceder 30 caracteres.', 1;
+
+      IF @Designation IS NULL
+        THROW 50706, 'La designación es obligatoria para noticias de lesión.', 1;
+
+      IF @Designation NOT IN (N'O', N'D', N'Q', N'P', N'FP', N'IR', N'PUP', N'SUS')
+        THROW 50707, 'Designación inválida. Valores permitidos: O, D, Q, P, FP, IR, PUP, SUS.', 1;
+    END
+    ELSE
+    BEGIN
+      -- Si no es lesión, estos campos deben ser NULL
+      IF @InjurySummary IS NOT NULL OR @Designation IS NOT NULL
+        THROW 50708, 'Para noticias que no son de lesión, InjurySummary y Designation deben ser NULL.', 1;
+    END
+
+    DECLARE @NewsID BIGINT;
+    DECLARE @OldDesignation NVARCHAR(10);
+
+    BEGIN TRAN;
+
+      -- Obtener designación actual antes de modificar
+      SELECT @OldDesignation = CurrentDesignation
+      FROM ref.NFLPlayer
+      WHERE NFLPlayerID = @NFLPlayerID;
+
+      -- Insertar la noticia
+      INSERT INTO ref.NFLPlayerNews(
+        NFLPlayerID, NewsText, IsInjury, InjurySummary, Designation,
+        CreatedByUserID, SourceIp, UserAgent
+      )
+      VALUES(
+        @NFLPlayerID, @NewsText, @IsInjury, @InjurySummary, @Designation,
+        @ActorUserID, @SourceIp, @UserAgent
+      );
+
+      SET @NewsID = SCOPE_IDENTITY();
+
+      -- Si es noticia de lesión, actualizar CurrentDesignation del jugador
+      IF @IsInjury = 1
+      BEGIN
+        UPDATE ref.NFLPlayer
+           SET CurrentDesignation = @Designation,
+               UpdatedByUserID = @ActorUserID,
+               UpdatedAt = SYSUTCDATETIME()
+         WHERE NFLPlayerID = @NFLPlayerID;
+
+        -- Registrar cambio de designación en ChangeLog
+        INSERT INTO ref.NFLPlayerChangeLog(
+          NFLPlayerID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent
+        )
+        VALUES(
+          @NFLPlayerID, @ActorUserID, N'CurrentDesignation', 
+          @OldDesignation, @Designation, @SourceIp, @UserAgent
+        );
+      END
+
+      -- Auditoría
+      INSERT INTO audit.UserActionLog(
+        ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent
+      )
+      VALUES(
+        @ActorUserID, N'NFL_PLAYER_NEWS', CAST(@NewsID AS NVARCHAR(50)), N'CREATE',
+        CONCAT(N'Noticia agregada a jugador: ', @PlayerName, 
+               CASE WHEN @IsInjury = 1 THEN CONCAT(N' - Designación: ', @Designation) ELSE N'' END),
+        @SourceIp, @UserAgent
+      );
+
+    COMMIT;
+
+    SELECT 
+      @NewsID AS NewsID,
+      N'Noticia agregada exitosamente.' AS Message;
+  END TRY
+  BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK;
+    THROW;
+  END CATCH
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_AddNFLPlayerNews TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_DeleteNFLPlayerNews
+-- Solo ADMIN puede eliminar noticias de jugador (US 2 - Feature 10.3)
+-- Revierte CurrentDesignation al estado previo según historial
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_DeleteNFLPlayerNews
+  @ActorUserID   INT,
+  @NewsID        BIGINT,
+  @SourceIp      NVARCHAR(45) = NULL,
+  @UserAgent     NVARCHAR(300) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+  BEGIN TRY
+    -- Validar que el actor es ADMIN
+    DECLARE @ActorRole NVARCHAR(20);
+    SELECT @ActorRole = SystemRoleCode FROM auth.UserAccount WHERE UserID = @ActorUserID;
+
+    IF @ActorRole IS NULL
+      THROW 50710, 'Usuario actor no existe.', 1;
+
+    IF @ActorRole <> N'ADMIN'
+      THROW 50711, 'Solo un ADMIN puede eliminar noticias de jugador.', 1;
+
+    -- Validar que la noticia existe y no está eliminada
+    DECLARE @NFLPlayerID INT, @IsInjury BIT, @Designation NVARCHAR(10);
+    
+    SELECT 
+      @NFLPlayerID = NFLPlayerID,
+      @IsInjury = IsInjury,
+      @Designation = Designation
+    FROM ref.NFLPlayerNews
+    WHERE NewsID = @NewsID AND IsDeleted = 0;
+
+    IF @NFLPlayerID IS NULL
+      THROW 50712, 'Noticia no existe o ya fue eliminada.', 1;
+
+    DECLARE @PlayerName NVARCHAR(101);
+    SELECT @PlayerName = CONCAT(FirstName, N' ', LastName)
+    FROM ref.NFLPlayer
+    WHERE NFLPlayerID = @NFLPlayerID;
+
+    DECLARE @PreviousDesignation NVARCHAR(10) = NULL;
+
+    BEGIN TRAN;
+
+      -- Marcar la noticia como eliminada
+      UPDATE ref.NFLPlayerNews
+         SET IsDeleted = 1,
+             DeletedByUserID = @ActorUserID,
+             DeletedAt = SYSUTCDATETIME()
+       WHERE NewsID = @NewsID;
+
+      -- Si la noticia eliminada tenía designación, buscar la designación previa
+      IF @IsInjury = 1 AND @Designation IS NOT NULL
+      BEGIN
+        -- Buscar la designación previa en el historial de noticias (no eliminadas)
+        -- Obtener la noticia de lesión más reciente ANTES de la que estamos eliminando
+        SELECT TOP 1 @PreviousDesignation = Designation
+        FROM ref.NFLPlayerNews
+        WHERE NFLPlayerID = @NFLPlayerID
+          AND IsDeleted = 0
+          AND IsInjury = 1
+          AND Designation IS NOT NULL
+          AND NewsID <> @NewsID
+          AND CreatedAt < (SELECT CreatedAt FROM ref.NFLPlayerNews WHERE NewsID = @NewsID)
+        ORDER BY CreatedAt DESC;
+
+        -- Actualizar CurrentDesignation del jugador (NULL si no hay previa)
+        UPDATE ref.NFLPlayer
+           SET CurrentDesignation = @PreviousDesignation,
+               UpdatedByUserID = @ActorUserID,
+               UpdatedAt = SYSUTCDATETIME()
+         WHERE NFLPlayerID = @NFLPlayerID;
+
+        -- Registrar cambio de designación en ChangeLog
+        INSERT INTO ref.NFLPlayerChangeLog(
+          NFLPlayerID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent
+        )
+        VALUES(
+          @NFLPlayerID, @ActorUserID, N'CurrentDesignation', 
+          @Designation, @PreviousDesignation, @SourceIp, @UserAgent
+        );
+      END
+
+      -- Auditoría
+      INSERT INTO audit.UserActionLog(
+        ActorUserID, EntityType, EntityID, ActionCode, Details, SourceIp, UserAgent
+      )
+      VALUES(
+        @ActorUserID, N'NFL_PLAYER_NEWS', CAST(@NewsID AS NVARCHAR(50)), N'DELETE',
+        CONCAT(N'Noticia eliminada de jugador: ', @PlayerName,
+               CASE WHEN @IsInjury = 1 
+                    THEN CONCAT(N' - Designación revertida a: ', ISNULL(@PreviousDesignation, N'Sin designación'))
+                    ELSE N'' END),
+        @SourceIp, @UserAgent
+      );
+
+    COMMIT;
+
+    SELECT 
+      N'Noticia eliminada exitosamente.' AS Message,
+      @PreviousDesignation AS RevertedDesignation;
+  END TRY
+  BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK;
+    THROW;
+  END CATCH
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_DeleteNFLPlayerNews TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_GetNFLPlayerNewsFeed
+-- Obtiene el feed de noticias de un jugador en orden cronológico inverso
+-- Accesible por cualquier usuario autenticado
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_GetNFLPlayerNewsFeed
+  @NFLPlayerID   INT,
+  @PageNumber    INT = 1,
+  @PageSize      INT = 20
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  -- Validar que el jugador existe
+  IF NOT EXISTS (SELECT 1 FROM ref.NFLPlayer WHERE NFLPlayerID = @NFLPlayerID)
+    THROW 50720, 'Jugador no existe.', 1;
+
+  -- Validar paginación
+  IF @PageNumber < 1 SET @PageNumber = 1;
+  IF @PageSize < 1 OR @PageSize > 50 SET @PageSize = 20;
+
+  DECLARE @Offset INT = (@PageNumber - 1) * @PageSize;
+
+  -- Total de noticias activas
+  DECLARE @TotalRecords INT;
+  SELECT @TotalRecords = COUNT(*)
+  FROM ref.NFLPlayerNews
+  WHERE NFLPlayerID = @NFLPlayerID AND IsDeleted = 0;
+
+  -- Obtener noticias paginadas
+  SELECT
+    n.NewsID,
+    n.NFLPlayerID,
+    n.NewsText,
+    n.IsInjury,
+    n.InjurySummary,
+    n.Designation,
+    n.CreatedByUserID,
+    u.Name AS CreatedByName,
+    n.CreatedAt,
+    @TotalRecords AS TotalRecords,
+    @PageNumber AS CurrentPage,
+    @PageSize AS PageSize,
+    (@TotalRecords + @PageSize - 1) / @PageSize AS TotalPages
+  FROM ref.NFLPlayerNews n
+  JOIN auth.UserAccount u ON u.UserID = n.CreatedByUserID
+  WHERE n.NFLPlayerID = @NFLPlayerID
+    AND n.IsDeleted = 0
+  ORDER BY n.CreatedAt DESC
+  OFFSET @Offset ROWS
+  FETCH NEXT @PageSize ROWS ONLY;
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_GetNFLPlayerNewsFeed TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_GetNFLPlayerNewsByID
+-- Obtiene una noticia específica por su ID
+-- Accesible por cualquier usuario autenticado
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_GetNFLPlayerNewsByID
+  @NewsID BIGINT
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  SELECT
+    n.NewsID,
+    n.NFLPlayerID,
+    p.FirstName AS PlayerFirstName,
+    p.LastName AS PlayerLastName,
+    p.FullName AS PlayerFullName,
+    n.NewsText,
+    n.IsInjury,
+    n.InjurySummary,
+    n.Designation,
+    n.CreatedByUserID,
+    creator.Name AS CreatedByName,
+    n.CreatedAt,
+    n.IsDeleted,
+    n.DeletedByUserID,
+    deleter.Name AS DeletedByName,
+    n.DeletedAt
+  FROM ref.NFLPlayerNews n
+  JOIN ref.NFLPlayer p ON p.NFLPlayerID = n.NFLPlayerID
+  JOIN auth.UserAccount creator ON creator.UserID = n.CreatedByUserID
+  LEFT JOIN auth.UserAccount deleter ON deleter.UserID = n.DeletedByUserID
+  WHERE n.NewsID = @NewsID;
+
+  IF @@ROWCOUNT = 0
+    THROW 50730, 'Noticia no existe.', 1;
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_GetNFLPlayerNewsByID TO app_executor;
+GO
+
+-- ============================================================================
+-- sp_GetPlayersByDesignation
+-- Lista jugadores filtrados por designación (IR, OUT, etc.)
+-- Útil para validaciones de lineups y reportes
+-- ============================================================================
+CREATE OR ALTER PROCEDURE app.sp_GetPlayersByDesignation
+  @Designation    NVARCHAR(10),
+  @NFLTeamID      INT = NULL,
+  @Position       NVARCHAR(20) = NULL
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  -- Validar designación
+  IF @Designation NOT IN (N'O', N'D', N'Q', N'P', N'FP', N'IR', N'PUP', N'SUS')
+    THROW 50740, 'Designación inválida. Valores permitidos: O, D, Q, P, FP, IR, PUP, SUS.', 1;
+
+  SELECT
+    p.NFLPlayerID,
+    p.FirstName,
+    p.LastName,
+    p.FullName,
+    p.Position,
+    p.NFLTeamID,
+    nt.TeamName AS NFLTeamName,
+    nt.City AS NFLTeamCity,
+    p.CurrentDesignation,
+    p.PhotoThumbnailUrl,
+    p.UpdatedAt AS DesignationUpdatedAt
+  FROM ref.NFLPlayer p
+  JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
+  WHERE p.CurrentDesignation = @Designation
+    AND p.IsActive = 1
+    AND (@NFLTeamID IS NULL OR p.NFLTeamID = @NFLTeamID)
+    AND (@Position IS NULL OR p.Position = @Position)
+  ORDER BY p.LastName, p.FirstName;
+END
+GO
+
+GRANT EXECUTE ON OBJECT::app.sp_GetPlayersByDesignation TO app_executor;
 GO
 
 GRANT EXECUTE ON SCHEMA::app TO app_executor;

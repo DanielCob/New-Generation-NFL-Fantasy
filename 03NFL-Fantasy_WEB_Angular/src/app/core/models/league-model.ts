@@ -22,17 +22,17 @@ export interface CreateLeagueRequest {
 
 // PUT /api/League/{id}/config
 export interface EditLeagueConfigRequest {
-  name: string;
-  description: string;
-  teamSlots: number;
-  positionFormatID: number;
-  scoringSchemaID: number;
-  playoffTeams: number;
-  allowDecimals: boolean;
-  tradeDeadlineEnabled: boolean;
-  tradeDeadlineDate: string;          // ISO string
-  maxRosterChangesPerTeam: number;
-  maxFreeAgentAddsPerTeam: number;
+  Name: string;                    // ✅ PascalCase
+  Description: string;             // ✅ PascalCase
+  TeamSlots: number;               // ✅ PascalCase
+  PositionFormatID: number;        // ✅ PascalCase
+  ScoringSchemaID: number;         // ✅ PascalCase
+  PlayoffTeams: number;            // ✅ PascalCase
+  AllowDecimals: boolean;          // ✅ PascalCase
+  TradeDeadlineEnabled: boolean;   // ✅ PascalCase
+  TradeDeadlineDate: string;       // ✅ PascalCase
+  MaxRosterChangesPerTeam: number; // ✅ PascalCase
+  MaxFreeAgentAddsPerTeam: number; // ✅ PascalCase
 }
 
 
@@ -42,7 +42,7 @@ export interface UpdateLeagueStatusRequest {
 }
 
 export interface JoinLeagueRequest {
-  LeagueID: number;
+  LeaguePublicID: number;  // ✅ CAMBIO: antes era LeagueID
   LeaguePassword: string;
   TeamName: string;
 }

@@ -162,26 +162,42 @@ export class LeagueDirectoryComponent implements OnInit, OnChanges {
     return this.rows();
   });
 
+  // 3. ACTUALIZAR MÉTODO join() EN directory.ts
   join(row: LeagueDirectoryItem) {
-    const ref = this.dialog.open<JoinLeagueDialogComponent, {leagueId:number, leagueName:string}, JoinLeagueDialogResult>(
+    const ref = this.dialog.open<JoinLeagueDialogComponent, {leaguePublicId:number, leagueName:string}, JoinLeagueDialogResult>(
       JoinLeagueDialogComponent,
-      { width: '420px', data: { leagueId: row.LeagueID, leagueName: row.Name } }
+      { 
+        width: '420px', 
+        data: { 
+          leaguePublicId: row.LeaguePublicID,  // ✅ Cambiado de LeagueID a LeaguePublicID
+          leagueName: row.Name 
+        } 
+      }
     );
 
     ref.afterClosed().subscribe(result => {
       if (!result) return;
+      
+      console.log('🎯 Intentando unirse a liga:', {
+        LeaguePublicID: result.leaguePublicId,
+        TeamName: result.teamName
+      });
+      
       this.svc.joinLeague({
-        LeagueID: result.leagueId,
+        LeaguePublicID: result.leaguePublicId,  // ✅ Cambiado
         LeaguePassword: result.password,
         TeamName: result.teamName
       }).subscribe({
         next: (res) => {
+          console.log('✅ Unido exitosamente:', res);
           this.snack.open(res.message || 'Joined league successfully', 'OK', { duration: 3000 });
-          this.load(); // actualiza AvailableSlots
+          this.load();
         },
         error: (e) => {
-          console.error(e);
-          this.snack.open('Could not join league', 'Dismiss', { duration: 3500 });
+          console.error('❌ Error al unirse:', e);
+          console.error('❌ Detalles del error:', e.error);
+          const errorMsg = e.error?.message || e.error?.Message || 'Could not join league';
+          this.snack.open(errorMsg, 'Dismiss', { duration: 3500 });
         }
       });
     });

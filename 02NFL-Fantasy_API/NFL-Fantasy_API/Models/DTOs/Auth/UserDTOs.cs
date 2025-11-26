@@ -63,6 +63,7 @@ namespace NFL_Fantasy_API.Models.DTOs.Auth
     public class UserCommissionedLeagueDTO
     {
         public int LeagueID { get; set; }
+        public int LeaguePublicID { get; set; }
         public string LeagueName { get; set; } = string.Empty;
         public byte Status { get; set; }
         public byte TeamSlots { get; set; }

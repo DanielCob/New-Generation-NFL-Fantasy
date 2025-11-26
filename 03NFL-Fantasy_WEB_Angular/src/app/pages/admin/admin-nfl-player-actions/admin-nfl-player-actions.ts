@@ -1,3 +1,4 @@
+// 1. admin-nfl-player-actions.ts
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
@@ -17,34 +18,32 @@ export class NFLPlayerActionsPage {
   private router = inject(Router);
   private snack = inject(MatSnackBar);
 
-  /**
-   * Redirige según la acción seleccionada
-   * @param action 'create' | 'list' | 'edit'
-   */
-  goTo(action: 'create' | 'list' | 'edit' | 'batch'): void {
-  let route = '';
-  let queryParams: any = null;
+  goTo(action: 'create' | 'list' | 'batch' | 'reports' | 'news'): void {
+    let route = '';
 
-  switch (action) {
-    case 'create':
-      route = '/admin/nfl-player-create';
-      break;
+    switch (action) {
+      case 'create':
+        route = '/admin/nfl-player-create';
+        break;
+      case 'list':
+        route = '/admin/nfl-player-list';
+        break;
+      case 'batch':
+        route = '/admin/nfl-player-batch-upload';
+        break;
+      case 'reports':
+        route = '/admin/batch-reports';
+        break;
+      case 'news':
+        route = '/admin/nfl-player-news';
+        break;
+    }
 
-    case 'list':
-      route = '/admin/nfl-player-list';
-      break;
-    case 'batch':
-      route = '/admin/nfl-player-batch-upload';
-      break;
+    this.snack.open('Loading section...', 'OK', { duration: 1000 });
+
+    this.router.navigate([route]).catch(err => {
+      console.error('Navigation error:', err);
+      this.snack.open('Error while navigating', 'OK', { duration: 3000 });
+    });
   }
-
-  this.snack.open('Loading section...', 'OK', { duration: 1000 });
-
-  // ✅ navegación segura
-  this.router.navigate([route], { queryParams }).catch(err => {
-    console.error('Navigation error:', err);
-    this.snack.open('Error while navigating', 'OK', { duration: 3000 });
-  });
-}
-
 }

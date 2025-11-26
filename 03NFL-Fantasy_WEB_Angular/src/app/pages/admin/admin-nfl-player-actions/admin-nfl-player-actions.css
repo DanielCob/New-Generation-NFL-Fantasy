@@ -100,3 +100,19 @@ button[mat-raised-button] {
   border-radius: 20px;
   padding: 8px 24px;
 }
+
+/* 3. admin-nfl-player-actions.css - AGREGAR AL FINAL */
+.batch {
+  background: linear-gradient(135deg, rgba(255, 152, 0, 0.25), rgba(255, 193, 7, 0.25));
+  border-left: 8px solid #ff9800;
+}
+
+.reports {
+  background: linear-gradient(135deg, rgba(76, 175, 80, 0.25), rgba(139, 195, 74, 0.25));
+  border-left: 8px solid #4caf50;
+}
+
+.news {
+  background: linear-gradient(135deg, rgba(233, 30, 99, 0.25), rgba(244, 67, 54, 0.25));
+  border-left: 8px solid #e91e63;
+}

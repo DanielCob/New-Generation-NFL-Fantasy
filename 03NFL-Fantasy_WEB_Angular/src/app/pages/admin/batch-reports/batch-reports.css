@@ -1,0 +1,88 @@
+/* 9. batch-reports.css */
+.card { 
+  max-width: 1400px; 
+  margin: 20px auto; 
+  padding: 18px; 
+  border-radius: 16px; 
+}
+
+.header { 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  margin-bottom: 10px; 
+}
+
+.header h2 { 
+  display: flex; 
+  gap: 10px; 
+  align-items: center; 
+  margin: 0; 
+}
+
+.pager { 
+  display: flex; 
+  align-items: center; 
+  gap: 8px; 
+}
+
+.muted { 
+  color: #666; 
+  margin-right: 6px; 
+}
+
+.table-wrapper { 
+  position: relative; 
+  margin-top: 12px; 
+}
+
+.loading { 
+  display: flex; 
+  align-items: center; 
+  gap: 10px; 
+  padding: 12px; 
+  color: #666; 
+}
+
+.empty { 
+  padding: 12px; 
+  color: #666; 
+  text-align: center;
+}
+
+.stats {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.stat {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.stat.success {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.stat.error {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.stat.total {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.actor-info .name {
+  font-weight: 500;
+  color: #333;
+}
+
+.actor-info .email {
+  font-size: 12px;
+  color: #666;
+}

@@ -30,6 +30,8 @@ namespace NFL_Fantasy_API.Models.Entities.NflDetails
         [Required]
         [MaxLength(20)]
         public string Position { get; set; } = string.Empty;
+        [MaxLength(10)]
+        public string? CurrentDesignation { get; set; }
 
         [Required]
         public int NFLTeamID { get; set; }

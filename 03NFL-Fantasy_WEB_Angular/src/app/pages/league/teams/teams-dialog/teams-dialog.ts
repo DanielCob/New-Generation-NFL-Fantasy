@@ -1,3 +1,4 @@
+// src/app/pages/league/teams/teams-dialog/teams-dialog.ts
 import { Component, Inject } from '@angular/core';
 import { MatDialogModule, MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -12,7 +13,10 @@ import { TeamsList } from '../teams-list';
 })
 export class TeamsDialog {
   constructor(
-    @Inject(MAT_DIALOG_DATA) public data: { leagueId: number },
+    // ✅ CAMBIO: leaguePublicId
+    @Inject(MAT_DIALOG_DATA) public data: { leaguePublicId: number },
     public ref: MatDialogRef<TeamsDialog>
-  ) {}
+  ) {
+    console.log('🔍 [TeamsDialog] Recibido leaguePublicId:', data.leaguePublicId);
+  }
 }

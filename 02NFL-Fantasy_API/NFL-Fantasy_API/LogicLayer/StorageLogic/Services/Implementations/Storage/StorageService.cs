@@ -1,5 +1,7 @@
-﻿using NFL_Fantasy_API.DataAccessLayer.StorageDatabase.Implementations;
+﻿using NFL_Fantasy_API.Models.DTOs;
+using NFL_Fantasy_API.DataAccessLayer.StorageDatabase.Implementations;
 using NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Interfaces.Storage;
+using NFL_Fantasy_API.SharedSystems.Validators.Storage;
 
 namespace NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Implementations.Storage
 {
@@ -7,14 +9,14 @@ namespace NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Implementations.Stora
     /// Implementación del servicio de almacenamiento usando MinIO.
     /// 
     /// RESPONSABILIDAD:
-    /// - Lógica de negocio para manejo de imágenes
+    /// - Lógica de negocio para manejo de imágenes/JSON
     /// - Generación de nombres únicos de archivos
     /// - Organización en carpetas
     /// - Orquestación de operaciones
     /// 
     /// NO contiene:
     /// - Operaciones directas con MinIO (delegadas a DataAccess)
-    /// - Validaciones de archivos (están en Controller)
+    /// - Reglas de validación de archivos (delegadas a StorageFileValidator)
     /// - Configuración (está en MinIOSettings)
     /// </summary>
     public class StorageService : IStorageService
@@ -43,10 +45,8 @@ namespace NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Implementations.Stora
         {
             try
             {
-                // Generar nombre único para evitar colisiones
                 var uniqueObjectName = GenerateUniqueObjectName(fileName, folder);
 
-                // EJECUCIÓN: Delegada a DataAccess
                 var publicUrl = await _dataAccess.UploadObjectAsync(
                     imageStream,
                     uniqueObjectName,
@@ -72,37 +72,249 @@ namespace NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Implementations.Stora
             }
         }
 
+        /// <summary>
+        /// Carga múltiples imágenes al almacenamiento (batch).
+        /// Reutiliza UploadImageAsync internamente.
+        /// </summary>
+        public async Task<ApiResponseDTO> UploadImagesBatchAsync(
+            List<IFormFile> files,
+            int actorUserId,
+            string? folder = null)
+        {
+            if (files == null || files.Count == 0)
+            {
+                return ApiResponseDTO.ErrorResponse(
+                    "No se proporcionaron imágenes."
+                );
+            }
+
+            var results = new List<object>();
+            var errors = new List<string>();
+
+            foreach (var file in files)
+            {
+                // VALIDACIÓN: delegada a StorageFileValidator
+                var validationErrors = StorageFileValidator.ValidateImageFile(file);
+
+                if (validationErrors.Any())
+                {
+                    var fileName = file?.FileName ?? "(sin nombre)";
+                    foreach (var error in validationErrors)
+                    {
+                        errors.Add($"{fileName}: {error}");
+                    }
+                    continue;
+                }
+
+                try
+                {
+                    using var imageStream = file!.OpenReadStream();
+
+                    var imageUrl = await UploadImageAsync(
+                        imageStream,
+                        file.FileName,
+                        file.ContentType,
+                        folder
+                    );
+
+                    results.Add(new
+                    {
+                        ImageUrl = imageUrl,
+                        FileName = file.FileName,
+                        ContentType = file.ContentType,
+                        Size = file.Length,
+                        Success = true
+                    });
+                }
+                catch (Exception ex)
+                {
+                    var fileName = file?.FileName ?? "(sin nombre)";
+                    errors.Add($"{fileName}: {ex.Message}");
+
+                    _logger.LogError(
+                        ex,
+                        "Error al cargar imagen en batch: {FileName}",
+                        fileName
+                    );
+                }
+            }
+
+            _logger.LogInformation(
+                "User {UserId} uploaded {SuccessCount} images with {ErrorCount} errors",
+                actorUserId,
+                results.Count,
+                errors.Count
+            );
+
+            var payload = new
+            {
+                UploadedImages = results,
+                Errors = errors,
+                TotalProcessed = files.Count,
+                SuccessCount = results.Count,
+                ErrorCount = errors.Count
+            };
+
+            return ApiResponseDTO.SuccessResponse(
+                $"Proceso completado. {results.Count} imágenes cargadas, {errors.Count} errores.",
+                payload
+            );
+        }
+
         #endregion
 
-        #region Delete Image
+        #region Upload JSON
 
-        /// <summary>
-        /// Elimina una imagen del almacenamiento.
-        /// </summary>
-        public async Task<bool> DeleteImageAsync(string imageUrl)
+        public async Task<string> UploadJsonAsync(
+            Stream jsonStream,
+            string fileName,
+            string contentType,
+            string? folder = null)
         {
             try
             {
-                // Extraer nombre del objeto desde la URL
-                var objectName = _dataAccess.ExtractObjectNameFromUrl(imageUrl);
+                var uniqueObjectName = GenerateUniqueObjectName(fileName, folder);
+
+                var publicUrl = await _dataAccess.UploadObjectAsync(
+                    jsonStream,
+                    uniqueObjectName,
+                    contentType
+                );
+
+                _logger.LogInformation(
+                    "JSON cargado: {FileName} -> {Url}",
+                    fileName,
+                    publicUrl
+                );
+
+                return publicUrl;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error al cargar JSON: {FileName}",
+                    fileName
+                );
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Carga múltiples archivos JSON al almacenamiento (batch).
+        /// Reutiliza UploadJsonAsync internamente.
+        /// </summary>
+        public async Task<ApiResponseDTO> UploadJsonsBatchAsync(
+            List<IFormFile> files,
+            int actorUserId,
+            string? folder = null)
+        {
+            if (files == null || files.Count == 0)
+            {
+                return ApiResponseDTO.ErrorResponse(
+                    "No se proporcionaron archivos JSON."
+                );
+            }
+
+            var results = new List<object>();
+            var errors = new List<string>();
+
+            foreach (var file in files)
+            {
+                // VALIDACIÓN: delegada a StorageFileValidator
+                var validationErrors = StorageFileValidator.ValidateJsonFile(file);
+
+                if (validationErrors.Any())
+                {
+                    var fileName = file?.FileName ?? "(sin nombre)";
+                    foreach (var error in validationErrors)
+                    {
+                        errors.Add($"{fileName}: {error}");
+                    }
+                    continue;
+                }
+
+                try
+                {
+                    using var jsonStream = file!.OpenReadStream();
+
+                    var jsonUrl = await UploadJsonAsync(
+                        jsonStream,
+                        file.FileName,
+                        file.ContentType,
+                        folder
+                    );
+
+                    results.Add(new
+                    {
+                        JsonUrl = jsonUrl,
+                        FileName = file.FileName,
+                        ContentType = file.ContentType,
+                        Size = file.Length,
+                        Success = true
+                    });
+                }
+                catch (Exception ex)
+                {
+                    var fileName = file?.FileName ?? "(sin nombre)";
+                    errors.Add($"{fileName}: {ex.Message}");
+
+                    _logger.LogError(
+                        ex,
+                        "Error al cargar JSON en batch: {FileName}",
+                        fileName
+                    );
+                }
+            }
+
+            _logger.LogInformation(
+                "User {UserId} uploaded {SuccessCount} JSON files with {ErrorCount} errors",
+                actorUserId,
+                results.Count,
+                errors.Count
+            );
+
+            var payload = new
+            {
+                UploadedJsons = results,
+                Errors = errors,
+                TotalProcessed = files.Count,
+                SuccessCount = results.Count,
+                ErrorCount = errors.Count
+            };
+
+            return ApiResponseDTO.SuccessResponse(
+                $"Proceso completado. {results.Count} archivos JSON cargados, {errors.Count} errores.",
+                payload
+            );
+        }
+
+        #endregion
+
+        #region Delete Object
+
+        public async Task<bool> DeleteObjectAsync(string objectUrl)
+        {
+            try
+            {
+                var objectName = _dataAccess.ExtractObjectNameFromUrl(objectUrl);
 
                 if (string.IsNullOrWhiteSpace(objectName))
                 {
                     _logger.LogWarning(
                         "No se pudo extraer object name de URL: {Url}",
-                        imageUrl
+                        objectUrl
                     );
                     return false;
                 }
 
-                // EJECUCIÓN: Delegada a DataAccess
                 var deleted = await _dataAccess.DeleteObjectAsync(objectName);
 
                 if (deleted)
                 {
                     _logger.LogInformation(
-                        "Imagen eliminada: {Url}",
-                        imageUrl
+                        "Objeto eliminado: {Url}",
+                        objectUrl
                     );
                 }
 
@@ -112,8 +324,8 @@ namespace NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Implementations.Stora
             {
                 _logger.LogError(
                     ex,
-                    "Error al eliminar imagen: {Url}",
-                    imageUrl
+                    "Error al eliminar objeto: {Url}",
+                    objectUrl
                 );
                 return false;
             }
@@ -121,31 +333,27 @@ namespace NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Implementations.Stora
 
         #endregion
 
-        #region Image Exists
+        #region Object Exists
 
-        /// <summary>
-        /// Verifica si una imagen existe.
-        /// </summary>
-        public async Task<bool> ImageExistsAsync(string imageUrl)
+        public async Task<bool> ObjectExistsAsync(string objectUrl)
         {
             try
             {
-                var objectName = _dataAccess.ExtractObjectNameFromUrl(imageUrl);
+                var objectName = _dataAccess.ExtractObjectNameFromUrl(objectUrl);
 
                 if (string.IsNullOrWhiteSpace(objectName))
                 {
                     return false;
                 }
 
-                // EJECUCIÓN: Delegada a DataAccess
                 return await _dataAccess.ObjectExistsAsync(objectName);
             }
             catch (Exception ex)
             {
                 _logger.LogError(
                     ex,
-                    "Error al verificar existencia de imagen: {Url}",
-                    imageUrl
+                    "Error al verificar existencia de objeto: {Url}",
+                    objectUrl
                 );
                 return false;
             }

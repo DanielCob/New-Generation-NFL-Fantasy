@@ -1,0 +1,97 @@
+<!-- 5. batch-report-details-dialog.html -->
+<div class="dialog-container">
+  <div class="dialog-header">
+    <h2>
+      <mat-icon>description</mat-icon>
+      Batch Report Details
+    </h2>
+    <button mat-icon-button (click)="close()">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <div class="dialog-content" *ngIf="loading()">
+    <div class="loading-state">
+      <mat-progress-spinner mode="indeterminate" diameter="48"></mat-progress-spinner>
+      <p>Loading details...</p>
+    </div>
+  </div>
+
+  <div class="dialog-content" *ngIf="error()">
+    <div class="error-state">
+      <mat-icon color="warn">error</mat-icon>
+      <p>{{ error() }}</p>
+    </div>
+  </div>
+
+  <div class="dialog-content" *ngIf="!loading() && !error() && details()">
+    <mat-card class="detail-card">
+      <div class="detail-row">
+        <span class="label">Report ID:</span>
+        <span class="value">#{{ details()!.BatchReportID }}</span>
+      </div>
+      
+      <div class="detail-row status-row">
+        <span class="label">Status:</span>
+        <span class="status-badge" [style.background-color]="getStatusColor()">
+          {{ getStatusText() }}
+        </span>
+      </div>
+
+      <div class="detail-row">
+        <span class="label">Total Processed:</span>
+        <span class="value">{{ details()!.TotalProcessed }}</span>
+      </div>
+
+      <div class="detail-row">
+        <span class="label">Success Count:</span>
+        <span class="value success">{{ details()!.SuccessCount }}</span>
+      </div>
+
+      <div class="detail-row">
+        <span class="label">Error Count:</span>
+        <span class="value error">{{ details()!.ErrorCount }}</span>
+      </div>
+
+      <div class="detail-row">
+        <span class="label">Actor:</span>
+        <span class="value">{{ details()!.ActorName }} ({{ details()!.ActorRole }})</span>
+      </div>
+
+      <div class="detail-row">
+        <span class="label">Email:</span>
+        <span class="value">{{ details()!.ActorEmail }}</span>
+      </div>
+
+      <div class="detail-row">
+        <span class="label">Source IP:</span>
+        <span class="value mono">{{ details()!.SourceIp }}</span>
+      </div>
+
+      <div class="detail-row">
+        <span class="label">User Agent:</span>
+        <span class="value small">{{ details()!.UserAgent }}</span>
+      </div>
+
+      <div class="detail-row">
+        <span class="label">Created At:</span>
+        <span class="value">{{ details()!.CreatedAt | date:'medium' }}</span>
+      </div>
+
+      <div class="detail-row">
+        <span class="label">Report URL:</span>
+        <a [href]="details()!.ReportUrl" target="_blank" class="link">
+          Open JSON <mat-icon>open_in_new</mat-icon>
+        </a>
+      </div>
+    </mat-card>
+  </div>
+
+  <div class="dialog-actions">
+    <button mat-button (click)="close()">Close</button>
+    <button mat-raised-button color="primary" (click)="openJson()" [disabled]="!details()">
+      <mat-icon>open_in_new</mat-icon>
+      Open JSON Report
+    </button>
+  </div>
+</div>
