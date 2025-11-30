@@ -1979,10 +1979,11 @@ BEGIN
     p.FullName,
     p.Position,
     p.NFLTeamID,
-    p.CurrentDesignation,
+    pd.DesignationCode AS CurrentDesignation,  -- ⭐ TRADUCCIÓN AQUÍ
     p.InjuryStatus,
     p.IsActive
   FROM ref.NFLPlayer p
+  LEFT JOIN ref.PlayerDesignation pd ON pd.DesignationID = p.CurrentDesignationID  -- ⭐ JOIN A LA TABLA DE DESIGNACIONES
   WHERE p.NFLTeamID = @NFLTeamID
     AND p.IsActive = 1
   ORDER BY p.Position, p.LastName;
@@ -2171,7 +2172,7 @@ BEGIN
     p.Position,
     nt.TeamName AS NFLTeamName,
     nt.City AS NFLTeamCity,
-    p.CurrentDesignation,
+    pd.DesignationCode AS CurrentDesignation,  -- ⭐ TRADUCCIÓN AQUÍ
     p.InjuryStatus,
     p.InjuryDescription,
     p.PhotoUrl,
@@ -2182,6 +2183,7 @@ BEGIN
   FROM league.TeamRoster tr
   JOIN ref.NFLPlayer p ON p.NFLPlayerID = tr.NFLPlayerID
   LEFT JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
+  LEFT JOIN ref.PlayerDesignation pd ON pd.DesignationID = p.CurrentDesignationID  -- ⭐ JOIN A LA TABLA DE DESIGNACIONES
   WHERE tr.TeamID = @TeamID
     AND tr.IsActive = 1
     AND (@FilterPosition IS NULL OR p.Position = @FilterPosition)
@@ -3575,7 +3577,7 @@ BEGIN
 
       INSERT INTO ref.NFLPlayer(
         FirstName, LastName, Position, NFLTeamID,
-        CurrentDesignation,
+        CurrentDesignationID,  -- ⭐ CAMBIO: CurrentDesignation → CurrentDesignationID
         InjuryStatus, InjuryDescription,
         PhotoUrl, PhotoWidth, PhotoHeight, PhotoBytes,
         PhotoThumbnailUrl, ThumbnailWidth, ThumbnailHeight, ThumbnailBytes,
@@ -3979,7 +3981,7 @@ BEGIN
     p.NFLTeamID,
     nt.TeamName AS NFLTeamName,
     nt.City AS NFLTeamCity,
-    p.CurrentDesignation,
+    pd.DesignationCode AS CurrentDesignation,  -- ⭐ TRADUCCIÓN AQUÍ
     p.InjuryStatus,
     p.InjuryDescription,
     p.PhotoUrl,
@@ -3993,6 +3995,7 @@ BEGIN
     (@TotalRecords + @PageSize - 1) / @PageSize AS TotalPages
   FROM ref.NFLPlayer p
   JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
+  LEFT JOIN ref.PlayerDesignation pd ON pd.DesignationID = p.CurrentDesignationID  -- ⭐ JOIN A LA TABLA DE DESIGNACIONES
   WHERE (@SearchTerm IS NULL OR (p.FirstName LIKE N'%' + @SearchTerm + N'%' OR p.LastName LIKE N'%' + @SearchTerm + N'%' OR p.FullName LIKE N'%' + @SearchTerm + N'%'))
     AND (@FilterPosition IS NULL OR p.Position = @FilterPosition)
     AND (@FilterNFLTeamID IS NULL OR p.NFLTeamID = @FilterNFLTeamID)
@@ -4026,7 +4029,7 @@ BEGIN
     p.NFLTeamID,
     nt.TeamName AS NFLTeamName,
     nt.City AS NFLTeamCity,
-    p.CurrentDesignation,
+    pd.DesignationCode AS CurrentDesignation,  -- ⭐ TRADUCCIÓN AQUÍ
     p.InjuryStatus,
     p.InjuryDescription,
     p.PhotoUrl,
@@ -4044,6 +4047,7 @@ BEGIN
     updater.Name AS UpdatedByName
   FROM ref.NFLPlayer p
   JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
+  LEFT JOIN ref.PlayerDesignation pd ON pd.DesignationID = p.CurrentDesignationID  -- ⭐ JOIN A LA TABLA DE DESIGNACIONES
   LEFT JOIN auth.UserAccount creator ON creator.UserID = p.CreatedByUserID
   LEFT JOIN auth.UserAccount updater ON updater.UserID = p.UpdatedByUserID
   WHERE p.NFLPlayerID = @NFLPlayerID;
@@ -4318,7 +4322,7 @@ GO
 -- ============================================================================
 -- sp_AddNFLPlayerNews
 -- Solo ADMIN puede agregar noticias de jugador (US 1 - Feature 10.3)
--- Actualiza CurrentDesignation si es noticia de lesión
+-- Actualiza CurrentDesignationID si es noticia de lesión
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_AddNFLPlayerNews
   @ActorUserID        INT,
@@ -4326,7 +4330,7 @@ CREATE OR ALTER PROCEDURE app.sp_AddNFLPlayerNews
   @NewsText           NVARCHAR(300),
   @IsInjury           BIT,
   @InjurySummary      NVARCHAR(30) = NULL,
-  @Designation        NVARCHAR(10) = NULL,
+  @Designation        NVARCHAR(10) = NULL,  -- ⭐ SIGUE SIENDO STRING PARA NO CAMBIAR EL INPUT
   @SourceIp           NVARCHAR(45) = NULL,
   @UserAgent          NVARCHAR(300) = NULL
 AS
@@ -4356,6 +4360,9 @@ BEGIN
     IF @NewsText IS NULL OR LEN(@NewsText) < 10 OR LEN(@NewsText) > 300
       THROW 50703, 'El texto de la noticia debe tener entre 10 y 300 caracteres.', 1;
 
+    -- ⭐ DECLARAR VARIABLE PARA EL ID DE DESIGNACIÓN
+    DECLARE @DesignationID TINYINT = NULL;
+
     -- Validaciones específicas para noticias de lesión
     IF @IsInjury = 1
     BEGIN
@@ -4368,7 +4375,12 @@ BEGIN
       IF @Designation IS NULL
         THROW 50706, 'La designación es obligatoria para noticias de lesión.', 1;
 
-      IF @Designation NOT IN (N'O', N'D', N'Q', N'P', N'FP', N'IR', N'PUP', N'SUS')
+      -- ⭐ TRADUCIR CÓDIGO A ID Y VALIDAR QUE EXISTE
+      SELECT @DesignationID = DesignationID
+      FROM ref.PlayerDesignation
+      WHERE DesignationCode = @Designation;
+
+      IF @DesignationID IS NULL
         THROW 50707, 'Designación inválida. Valores permitidos: O, D, Q, P, FP, IR, PUP, SUS.', 1;
     END
     ELSE
@@ -4379,32 +4391,32 @@ BEGIN
     END
 
     DECLARE @NewsID BIGINT;
-    DECLARE @OldDesignation NVARCHAR(10);
+    DECLARE @OldDesignationID TINYINT;
 
     BEGIN TRAN;
 
       -- Obtener designación actual antes de modificar
-      SELECT @OldDesignation = CurrentDesignation
+      SELECT @OldDesignationID = CurrentDesignationID
       FROM ref.NFLPlayer
       WHERE NFLPlayerID = @NFLPlayerID;
 
       -- Insertar la noticia
       INSERT INTO ref.NFLPlayerNews(
-        NFLPlayerID, NewsText, IsInjury, InjurySummary, Designation,
+        NFLPlayerID, NewsText, IsInjury, InjurySummary, DesignationID,  -- ⭐ CAMBIO: Designation → DesignationID
         CreatedByUserID, SourceIp, UserAgent
       )
       VALUES(
-        @NFLPlayerID, @NewsText, @IsInjury, @InjurySummary, @Designation,
+        @NFLPlayerID, @NewsText, @IsInjury, @InjurySummary, @DesignationID,  -- ⭐ USAR @DesignationID
         @ActorUserID, @SourceIp, @UserAgent
       );
 
       SET @NewsID = SCOPE_IDENTITY();
 
-      -- Si es noticia de lesión, actualizar CurrentDesignation del jugador
+      -- Si es noticia de lesión, actualizar CurrentDesignationID del jugador
       IF @IsInjury = 1
       BEGIN
         UPDATE ref.NFLPlayer
-           SET CurrentDesignation = @Designation,
+           SET CurrentDesignationID = @DesignationID,  -- ⭐ CAMBIO: CurrentDesignation → CurrentDesignationID
                UpdatedByUserID = @ActorUserID,
                UpdatedAt = SYSUTCDATETIME()
          WHERE NFLPlayerID = @NFLPlayerID;
@@ -4414,8 +4426,8 @@ BEGIN
           NFLPlayerID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent
         )
         VALUES(
-          @NFLPlayerID, @ActorUserID, N'CurrentDesignation', 
-          @OldDesignation, @Designation, @SourceIp, @UserAgent
+          @NFLPlayerID, @ActorUserID, N'CurrentDesignationID',  -- ⭐ CAMBIO: CurrentDesignation → CurrentDesignationID
+          CAST(@OldDesignationID AS NVARCHAR(50)), CAST(@DesignationID AS NVARCHAR(50)), @SourceIp, @UserAgent
         );
       END
 
@@ -4449,7 +4461,7 @@ GO
 -- ============================================================================
 -- sp_DeleteNFLPlayerNews
 -- Solo ADMIN puede eliminar noticias de jugador (US 2 - Feature 10.3)
--- Revierte CurrentDesignation al estado previo según historial
+-- Revierte CurrentDesignationID al estado previo según historial
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_DeleteNFLPlayerNews
   @ActorUserID   INT,
@@ -4471,12 +4483,12 @@ BEGIN
       THROW 50711, 'Solo un ADMIN puede eliminar noticias de jugador.', 1;
 
     -- Validar que la noticia existe y no está eliminada
-    DECLARE @NFLPlayerID INT, @IsInjury BIT, @Designation NVARCHAR(10);
+    DECLARE @NFLPlayerID INT, @IsInjury BIT, @DesignationID TINYINT;  -- ⭐ CAMBIO: Designation → DesignationID
     
     SELECT 
       @NFLPlayerID = NFLPlayerID,
       @IsInjury = IsInjury,
-      @Designation = Designation
+      @DesignationID = DesignationID  -- ⭐ CAMBIO: Designation → DesignationID
     FROM ref.NFLPlayerNews
     WHERE NewsID = @NewsID AND IsDeleted = 0;
 
@@ -4488,7 +4500,8 @@ BEGIN
     FROM ref.NFLPlayer
     WHERE NFLPlayerID = @NFLPlayerID;
 
-    DECLARE @PreviousDesignation NVARCHAR(10) = NULL;
+    DECLARE @PreviousDesignationID TINYINT = NULL;  -- ⭐ CAMBIO: PreviousDesignation → PreviousDesignationID
+    DECLARE @PreviousDesignationCode NVARCHAR(10) = NULL;  -- ⭐ PARA MOSTRAR EN OUTPUT
 
     BEGIN TRAN;
 
@@ -4500,23 +4513,31 @@ BEGIN
        WHERE NewsID = @NewsID;
 
       -- Si la noticia eliminada tenía designación, buscar la designación previa
-      IF @IsInjury = 1 AND @Designation IS NOT NULL
+      IF @IsInjury = 1 AND @DesignationID IS NOT NULL
       BEGIN
         -- Buscar la designación previa en el historial de noticias (no eliminadas)
         -- Obtener la noticia de lesión más reciente ANTES de la que estamos eliminando
-        SELECT TOP 1 @PreviousDesignation = Designation
+        SELECT TOP 1 @PreviousDesignationID = DesignationID  -- ⭐ CAMBIO: Designation → DesignationID
         FROM ref.NFLPlayerNews
         WHERE NFLPlayerID = @NFLPlayerID
           AND IsDeleted = 0
           AND IsInjury = 1
-          AND Designation IS NOT NULL
+          AND DesignationID IS NOT NULL  -- ⭐ CAMBIO: Designation → DesignationID
           AND NewsID <> @NewsID
           AND CreatedAt < (SELECT CreatedAt FROM ref.NFLPlayerNews WHERE NewsID = @NewsID)
         ORDER BY CreatedAt DESC;
 
-        -- Actualizar CurrentDesignation del jugador (NULL si no hay previa)
+        -- ⭐ TRADUCIR EL ID PREVIO A CÓDIGO PARA EL OUTPUT
+        IF @PreviousDesignationID IS NOT NULL
+        BEGIN
+          SELECT @PreviousDesignationCode = DesignationCode
+          FROM ref.PlayerDesignation
+          WHERE DesignationID = @PreviousDesignationID;
+        END
+
+        -- Actualizar CurrentDesignationID del jugador (NULL si no hay previa)
         UPDATE ref.NFLPlayer
-           SET CurrentDesignation = @PreviousDesignation,
+           SET CurrentDesignationID = @PreviousDesignationID,  -- ⭐ CAMBIO: CurrentDesignation → CurrentDesignationID
                UpdatedByUserID = @ActorUserID,
                UpdatedAt = SYSUTCDATETIME()
          WHERE NFLPlayerID = @NFLPlayerID;
@@ -4526,8 +4547,8 @@ BEGIN
           NFLPlayerID, ChangedByUserID, FieldName, OldValue, NewValue, SourceIp, UserAgent
         )
         VALUES(
-          @NFLPlayerID, @ActorUserID, N'CurrentDesignation', 
-          @Designation, @PreviousDesignation, @SourceIp, @UserAgent
+          @NFLPlayerID, @ActorUserID, N'CurrentDesignationID',  -- ⭐ CAMBIO: CurrentDesignation → CurrentDesignationID
+          CAST(@DesignationID AS NVARCHAR(50)), CAST(@PreviousDesignationID AS NVARCHAR(50)), @SourceIp, @UserAgent
         );
       END
 
@@ -4539,7 +4560,7 @@ BEGIN
         @ActorUserID, N'NFL_PLAYER_NEWS', CAST(@NewsID AS NVARCHAR(50)), N'DELETE',
         CONCAT(N'Noticia eliminada de jugador: ', @PlayerName,
                CASE WHEN @IsInjury = 1 
-                    THEN CONCAT(N' - Designación revertida a: ', ISNULL(@PreviousDesignation, N'Sin designación'))
+                    THEN CONCAT(N' - Designación revertida a: ', ISNULL(@PreviousDesignationCode, N'Sin designación'))
                     ELSE N'' END),
         @SourceIp, @UserAgent
       );
@@ -4548,7 +4569,7 @@ BEGIN
 
     SELECT 
       N'Noticia eliminada exitosamente.' AS Message,
-      @PreviousDesignation AS RevertedDesignation;
+      @PreviousDesignationCode AS RevertedDesignation;  -- ⭐ DEVOLVER EL CÓDIGO, NO EL ID
   END TRY
   BEGIN CATCH
     IF @@TRANCOUNT > 0 ROLLBACK;
@@ -4596,7 +4617,7 @@ BEGIN
     n.NewsText,
     n.IsInjury,
     n.InjurySummary,
-    n.Designation,
+    pd.DesignationCode AS Designation,  -- ⭐ TRADUCCIÓN AQUÍ
     n.CreatedByUserID,
     u.Name AS CreatedByName,
     n.CreatedAt,
@@ -4606,6 +4627,7 @@ BEGIN
     (@TotalRecords + @PageSize - 1) / @PageSize AS TotalPages
   FROM ref.NFLPlayerNews n
   JOIN auth.UserAccount u ON u.UserID = n.CreatedByUserID
+  LEFT JOIN ref.PlayerDesignation pd ON pd.DesignationID = n.DesignationID  -- ⭐ JOIN A LA TABLA DE DESIGNACIONES
   WHERE n.NFLPlayerID = @NFLPlayerID
     AND n.IsDeleted = 0
   ORDER BY n.CreatedAt DESC
@@ -4637,7 +4659,7 @@ BEGIN
     n.NewsText,
     n.IsInjury,
     n.InjurySummary,
-    n.Designation,
+    pd.DesignationCode AS Designation,  -- ⭐ TRADUCCIÓN AQUÍ
     n.CreatedByUserID,
     creator.Name AS CreatedByName,
     n.CreatedAt,
@@ -4647,6 +4669,7 @@ BEGIN
     n.DeletedAt
   FROM ref.NFLPlayerNews n
   JOIN ref.NFLPlayer p ON p.NFLPlayerID = n.NFLPlayerID
+  LEFT JOIN ref.PlayerDesignation pd ON pd.DesignationID = n.DesignationID  -- ⭐ JOIN A LA TABLA DE DESIGNACIONES
   JOIN auth.UserAccount creator ON creator.UserID = n.CreatedByUserID
   LEFT JOIN auth.UserAccount deleter ON deleter.UserID = n.DeletedByUserID
   WHERE n.NewsID = @NewsID;
@@ -4665,15 +4688,20 @@ GO
 -- Útil para validaciones de lineups y reportes
 -- ============================================================================
 CREATE OR ALTER PROCEDURE app.sp_GetPlayersByDesignation
-  @Designation    NVARCHAR(10),
+  @Designation    NVARCHAR(10),  -- ⭐ SIGUE SIENDO STRING PARA NO CAMBIAR EL INPUT
   @NFLTeamID      INT = NULL,
   @Position       NVARCHAR(20) = NULL
 AS
 BEGIN
   SET NOCOUNT ON;
 
-  -- Validar designación
-  IF @Designation NOT IN (N'O', N'D', N'Q', N'P', N'FP', N'IR', N'PUP', N'SUS')
+  -- ⭐ TRADUCIR CÓDIGO A ID Y VALIDAR QUE EXISTE
+  DECLARE @DesignationID TINYINT;
+  SELECT @DesignationID = DesignationID
+  FROM ref.PlayerDesignation
+  WHERE DesignationCode = @Designation;
+
+  IF @DesignationID IS NULL
     THROW 50740, 'Designación inválida. Valores permitidos: O, D, Q, P, FP, IR, PUP, SUS.', 1;
 
   SELECT
@@ -4685,12 +4713,13 @@ BEGIN
     p.NFLTeamID,
     nt.TeamName AS NFLTeamName,
     nt.City AS NFLTeamCity,
-    p.CurrentDesignation,
+    pd.DesignationCode AS CurrentDesignation,  -- ⭐ TRADUCCIÓN AQUÍ
     p.PhotoThumbnailUrl,
     p.UpdatedAt AS DesignationUpdatedAt
   FROM ref.NFLPlayer p
   JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
-  WHERE p.CurrentDesignation = @Designation
+  LEFT JOIN ref.PlayerDesignation pd ON pd.DesignationID = p.CurrentDesignationID  -- ⭐ JOIN A LA TABLA DE DESIGNACIONES
+  WHERE p.CurrentDesignationID = @DesignationID  -- ⭐ CAMBIO: CurrentDesignation → CurrentDesignationID
     AND p.IsActive = 1
     AND (@NFLTeamID IS NULL OR p.NFLTeamID = @NFLTeamID)
     AND (@Position IS NULL OR p.Position = @Position)
