@@ -3571,6 +3571,13 @@ BEGIN
     IF @ThumbnailHeight IS NOT NULL AND (@ThumbnailHeight < 300 OR @ThumbnailHeight > 1024)
       THROW 50513, 'Alto de thumbnail fuera de rango (300-1024).', 1;
 
+    -- Si no se envió InjuryStatus ni InjuryDescription, aplicar valores por defecto
+    IF @InjuryStatus IS NULL AND @InjuryDescription IS NULL
+    BEGIN
+        SET @InjuryStatus = N'Healthy';
+        SET @InjuryDescription = NULL;
+    END
+
     DECLARE @NFLPlayerID INT;
 
     BEGIN TRAN;
@@ -4340,6 +4347,8 @@ BEGIN
     -- Validar que el actor es ADMIN
     DECLARE @ActorRole NVARCHAR(20);
     SELECT @ActorRole = SystemRoleCode FROM auth.UserAccount WHERE UserID = @ActorUserID;
+    DECLARE @DesignationName NVARCHAR(50) = NULL;
+    DECLARE @DesignationDescription NVARCHAR(200) = NULL;
 
     IF @ActorRole IS NULL
       THROW 50700, 'Usuario actor no existe.', 1;
@@ -4376,7 +4385,10 @@ BEGIN
         THROW 50706, 'La designación es obligatoria para noticias de lesión.', 1;
 
       -- ⭐ TRADUCIR CÓDIGO A ID Y VALIDAR QUE EXISTE
-      SELECT @DesignationID = DesignationID
+      SELECT 
+        @DesignationID = DesignationID,
+        @DesignationName = DesignationName,
+        @DesignationDescription = Description
       FROM ref.PlayerDesignation
       WHERE DesignationCode = @Designation;
 
@@ -4416,10 +4428,12 @@ BEGIN
       IF @IsInjury = 1
       BEGIN
         UPDATE ref.NFLPlayer
-           SET CurrentDesignationID = @DesignationID,  -- ⭐ CAMBIO: CurrentDesignation → CurrentDesignationID
-               UpdatedByUserID = @ActorUserID,
-               UpdatedAt = SYSUTCDATETIME()
-         WHERE NFLPlayerID = @NFLPlayerID;
+          SET CurrentDesignationID = @DesignationID,
+              InjuryStatus = @DesignationName,             -- ⭐ NUEVO
+              InjuryDescription = @DesignationDescription, -- ⭐ NUEVO
+              UpdatedByUserID = @ActorUserID,
+              UpdatedAt = SYSUTCDATETIME()
+        WHERE NFLPlayerID = @NFLPlayerID;
 
         -- Registrar cambio de designación en ChangeLog
         INSERT INTO ref.NFLPlayerChangeLog(
@@ -4535,12 +4549,39 @@ BEGIN
           WHERE DesignationID = @PreviousDesignationID;
         END
 
-        -- Actualizar CurrentDesignationID del jugador (NULL si no hay previa)
-        UPDATE ref.NFLPlayer
-           SET CurrentDesignationID = @PreviousDesignationID,  -- ⭐ CAMBIO: CurrentDesignation → CurrentDesignationID
-               UpdatedByUserID = @ActorUserID,
-               UpdatedAt = SYSUTCDATETIME()
-         WHERE NFLPlayerID = @NFLPlayerID;
+        ------------------------------------------------------------
+        -- Actualizar estado del jugador según la designación previa
+        ------------------------------------------------------------
+        IF @PreviousDesignationID IS NULL
+        BEGIN
+            -- No hay noticias previas → jugador sano
+            UPDATE ref.NFLPlayer
+              SET CurrentDesignationID = NULL,
+                  InjuryStatus = N'Healthy',
+                  InjuryDescription = NULL,
+                  UpdatedByUserID = @ActorUserID,
+                  UpdatedAt = SYSUTCDATETIME()
+            WHERE NFLPlayerID = @NFLPlayerID;
+        END
+        ELSE
+        BEGIN
+            -- Sí hay noticia previa → obtener su info desde PlayerDesignation
+            DECLARE @PrevStatus NVARCHAR(50), @PrevDescription NVARCHAR(200);
+
+            SELECT 
+                @PrevStatus = DesignationName,
+                @PrevDescription = Description
+            FROM ref.PlayerDesignation
+            WHERE DesignationID = @PreviousDesignationID;
+
+            UPDATE ref.NFLPlayer
+              SET CurrentDesignationID = @PreviousDesignationID,
+                  InjuryStatus = @PrevStatus,
+                  InjuryDescription = @PrevDescription,
+                  UpdatedByUserID = @ActorUserID,
+                  UpdatedAt = SYSUTCDATETIME()
+            WHERE NFLPlayerID = @NFLPlayerID;
+        END
 
         -- Registrar cambio de designación en ChangeLog
         INSERT INTO ref.NFLPlayerChangeLog(
