@@ -181,7 +181,7 @@ SELECT
   p.NFLTeamID,
   nt.TeamName AS NFLTeamName,
   nt.City AS NFLTeamCity,
-  p.CurrentDesignation,
+  pd.DesignationCode AS CurrentDesignation,  -- ⭐ TRADUCCIÓN AQUÍ
   p.InjuryStatus,
   p.InjuryDescription,
   p.PhotoUrl,
@@ -195,7 +195,8 @@ SELECT
     WHERE tr.NFLPlayerID = p.NFLPlayerID AND tr.IsActive = 1
   ) THEN 1 ELSE 0 END AS IsOnFantasyRoster
 FROM ref.NFLPlayer p
-LEFT JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID;
+LEFT JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
+LEFT JOIN ref.PlayerDesignation pd ON pd.DesignationID = p.CurrentDesignationID;  -- ⭐ JOIN A LA TABLA DE DESIGNACIONES
 GO
 
 GRANT SELECT ON dbo.vw_Players TO app_executor;
@@ -216,11 +217,12 @@ SELECT
   p.NFLTeamID,
   nt.TeamName AS NFLTeamName,
   nt.City AS NFLTeamCity,
-  p.CurrentDesignation,
+  pd.DesignationCode AS CurrentDesignation,  -- ⭐ TRADUCCIÓN AQUÍ
   p.InjuryStatus,
   p.PhotoThumbnailUrl
 FROM ref.NFLPlayer p
 LEFT JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
+LEFT JOIN ref.PlayerDesignation pd ON pd.DesignationID = p.CurrentDesignationID  -- ⭐ JOIN A LA TABLA DE DESIGNACIONES
 WHERE p.IsActive = 1
   AND NOT EXISTS (
     SELECT 1 
@@ -248,11 +250,12 @@ SELECT
   p.LastName,
   p.FullName,
   p.Position,
-  p.CurrentDesignation,
+  pd.DesignationCode AS CurrentDesignation,  -- ⭐ TRADUCCIÓN AQUÍ
   p.InjuryStatus,
   p.IsActive AS PlayerIsActive
 FROM ref.NFLTeam nt
 LEFT JOIN ref.NFLPlayer p ON p.NFLTeamID = nt.NFLTeamID
+LEFT JOIN ref.PlayerDesignation pd ON pd.DesignationID = p.CurrentDesignationID  -- ⭐ JOIN A LA TABLA DE DESIGNACIONES
 WHERE nt.IsActive = 1;
 GO
 
@@ -323,7 +326,7 @@ SELECT
   nt.TeamName AS NFLTeamName,
   nt.City AS NFLTeamCity,
   nt.ThumbnailUrl AS NFLTeamLogo,
-  p.CurrentDesignation,
+  pd.DesignationCode AS CurrentDesignation,  -- ⭐ TRADUCCIÓN AQUÍ
   p.InjuryStatus,
   p.InjuryDescription,
   p.PhotoUrl,
@@ -339,6 +342,7 @@ JOIN league.Team t ON t.TeamID = tr.TeamID
 JOIN league.League l ON l.LeagueID = t.LeagueID
 JOIN ref.NFLPlayer p ON p.NFLPlayerID = tr.NFLPlayerID
 LEFT JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
+LEFT JOIN ref.PlayerDesignation pd ON pd.DesignationID = p.CurrentDesignationID  -- ⭐ JOIN A LA TABLA DE DESIGNACIONES
 LEFT JOIN auth.UserAccount adder ON adder.UserID = tr.AddedByUserID;
 GO
 
@@ -362,7 +366,7 @@ SELECT
   p.FullName,
   p.Position,
   nt.TeamName AS NFLTeamName,
-  p.CurrentDesignation,
+  pd.DesignationCode AS CurrentDesignation,  -- ⭐ TRADUCCIÓN AQUÍ
   p.InjuryStatus,
   p.PhotoThumbnailUrl,
   tr.AcquisitionType,
@@ -371,6 +375,7 @@ FROM league.TeamRoster tr
 JOIN league.Team t ON t.TeamID = tr.TeamID
 JOIN ref.NFLPlayer p ON p.NFLPlayerID = tr.NFLPlayerID
 LEFT JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
+LEFT JOIN ref.PlayerDesignation pd ON pd.DesignationID = p.CurrentDesignationID  -- ⭐ JOIN A LA TABLA DE DESIGNACIONES
 WHERE tr.IsActive = 1;
 GO
 
@@ -391,7 +396,7 @@ SELECT
   p.FullName AS PlayerName,
   p.Position,
   nt.TeamName AS NFLTeamName,
-  p.CurrentDesignation,
+  pd.DesignationCode AS CurrentDesignation,  -- ⭐ TRADUCCIÓN AQUÍ
   p.InjuryStatus,
   tr.AcquisitionType,
   -- Orden lógico de posiciones
@@ -411,6 +416,7 @@ FROM league.TeamRoster tr
 JOIN league.Team t ON t.TeamID = tr.TeamID
 JOIN ref.NFLPlayer p ON p.NFLPlayerID = tr.NFLPlayerID
 LEFT JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
+LEFT JOIN ref.PlayerDesignation pd ON pd.DesignationID = p.CurrentDesignationID  -- ⭐ JOIN A LA TABLA DE DESIGNACIONES
 WHERE tr.IsActive = 1;
 GO
 
@@ -925,7 +931,7 @@ SELECT
   nt.TeamName AS NFLTeamName,
   nt.City AS NFLTeamCity,
   nt.ThumbnailUrl AS NFLTeamLogo,
-  p.CurrentDesignation,
+  pd.DesignationCode AS CurrentDesignation,  -- ⭐ TRADUCCIÓN AQUÍ
   p.InjuryStatus,
   p.InjuryDescription,
   p.PhotoUrl,
@@ -941,7 +947,8 @@ SELECT
   -- Contar en cuántos rosters está
   (SELECT COUNT(*) FROM league.TeamRoster tr WHERE tr.NFLPlayerID = p.NFLPlayerID AND tr.IsActive = 1) AS RosterCount
 FROM ref.NFLPlayer p
-JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID;
+JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
+LEFT JOIN ref.PlayerDesignation pd ON pd.DesignationID = p.CurrentDesignationID;  -- ⭐ JOIN A LA TABLA DE DESIGNACIONES
 GO
 
 GRANT SELECT ON dbo.vw_NFLPlayers TO app_executor;
@@ -962,7 +969,7 @@ SELECT
   p.NFLTeamID,
   nt.TeamName AS NFLTeamName,
   nt.City AS NFLTeamCity,
-  p.CurrentDesignation,
+  pd.DesignationCode AS CurrentDesignation,  -- ⭐ TRADUCCIÓN AQUÍ
   p.InjuryStatus,
   p.InjuryDescription,
   p.PhotoUrl,
@@ -982,6 +989,7 @@ SELECT
   updater.Email AS UpdatedByEmail
 FROM ref.NFLPlayer p
 JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
+LEFT JOIN ref.PlayerDesignation pd ON pd.DesignationID = p.CurrentDesignationID  -- ⭐ JOIN A LA TABLA DE DESIGNACIONES
 LEFT JOIN auth.UserAccount creator ON creator.UserID = p.CreatedByUserID
 LEFT JOIN auth.UserAccount updater ON updater.UserID = p.UpdatedByUserID;
 GO
@@ -1005,10 +1013,11 @@ SELECT
   nt.TeamName AS NFLTeamName,
   nt.City AS NFLTeamCity,
   p.PhotoThumbnailUrl,
-  p.CurrentDesignation,
+  pd.DesignationCode AS CurrentDesignation,  -- ⭐ TRADUCCIÓN AQUÍ
   p.InjuryStatus
 FROM ref.NFLPlayer p
 JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
+LEFT JOIN ref.PlayerDesignation pd ON pd.DesignationID = p.CurrentDesignationID  -- ⭐ JOIN A LA TABLA DE DESIGNACIONES
 WHERE p.IsActive = 1;
 GO
 
@@ -1030,7 +1039,7 @@ SELECT
   p.NFLTeamID,
   nt.TeamName AS NFLTeamName,
   nt.City AS NFLTeamCity,
-  p.CurrentDesignation,
+  pd.DesignationCode AS CurrentDesignation,  -- ⭐ TRADUCCIÓN AQUÍ
   p.InjuryStatus,
   p.PhotoThumbnailUrl,
   p.IsActive,
@@ -1054,7 +1063,8 @@ SELECT
     WHERE tr.NFLPlayerID = p.NFLPlayerID AND tr.IsActive = 1
   ) THEN 1 ELSE 0 END AS IsOnFantasyRoster
 FROM ref.NFLPlayer p
-JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID;
+JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
+LEFT JOIN ref.PlayerDesignation pd ON pd.DesignationID = p.CurrentDesignationID;  -- ⭐ JOIN A LA TABLA DE DESIGNACIONES
 GO
 
 GRANT SELECT ON dbo.vw_NFLPlayersByPosition TO app_executor;
@@ -1070,7 +1080,7 @@ SELECT
   p.NFLPlayerID,
   p.FullName AS PlayerName,
   p.Position,
-  p.CurrentDesignation,
+  pd.DesignationCode AS CurrentDesignation,  -- ⭐ TRADUCCIÓN AQUÍ
   tr.RosterID,
   tr.TeamID,
   t.TeamName,
@@ -1084,6 +1094,7 @@ SELECT
   tr.DroppedDate,
   u.Name AS ManagerName
 FROM ref.NFLPlayer p
+LEFT JOIN ref.PlayerDesignation pd ON pd.DesignationID = p.CurrentDesignationID  -- ⭐ JOIN A LA TABLA DE DESIGNACIONES
 JOIN league.TeamRoster tr ON tr.NFLPlayerID = p.NFLPlayerID
 JOIN league.Team t ON t.TeamID = tr.TeamID
 JOIN league.League l ON l.LeagueID = t.LeagueID
@@ -1105,7 +1116,7 @@ SELECT
   p.NFLPlayerID,
   p.FullName AS PlayerName,
   p.Position,
-  p.CurrentDesignation,
+  pd.DesignationCode AS CurrentDesignation,  -- ⭐ TRADUCCIÓN AQUÍ
   p.NFLTeamID,
   nt.TeamName AS NFLTeamName,
   l.LeagueID,
@@ -1130,6 +1141,7 @@ SELECT
      AND tr.IsActive = 1) AS CurrentTeamName
 FROM ref.NFLPlayer p
 JOIN ref.NFLTeam nt ON nt.NFLTeamID = p.NFLTeamID
+LEFT JOIN ref.PlayerDesignation pd ON pd.DesignationID = p.CurrentDesignationID  -- ⭐ JOIN A LA TABLA DE DESIGNACIONES
 CROSS JOIN league.League l
 JOIN league.Season s ON s.SeasonID = l.SeasonID
 WHERE p.IsActive = 1

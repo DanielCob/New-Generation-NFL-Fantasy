@@ -23,7 +23,9 @@ using NFL_Fantasy_API.LogicLayer.GameLogic.Services.Interfaces.Fantasy;
 using NFL_Fantasy_API.LogicLayer.GameLogic.Services.Interfaces.NflDetails;
 using NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Implementations.Storage;
 using NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Interfaces.Storage;
+using NFL_Fantasy_API.SharedSystems.DatabaseConfig;
 using NFL_Fantasy_API.SharedSystems.EmailConfig;
+using NFL_Fantasy_API.SharedSystems.Middleware;
 using NFL_Fantasy_API.SharedSystems.Security;
 using NFL_Fantasy_API.SharedSystems.Security.Filters;
 using NFL_Fantasy_API.SharedSystems.StorageConfig;
@@ -130,9 +132,23 @@ builder.Services.Configure<MinIOSettings>(
 
 #region Dependency Injection - Database & Core Infrastructure
 
-// DatabaseHelper: Wrapper de ADO.NET para operaciones con SQL Server
+// DatabaseHelper: Wrapper de ADO.NET para operaciones con SQL Server con replicación
 // Scoped: Una instancia por request HTTP
 builder.Services.AddScoped<IDatabaseHelper, DatabaseHelper>();
+
+// Configurar opciones de replicación
+builder.Services.Configure<DatabaseReplicationSettings>(
+    builder.Configuration.GetSection("DatabaseReplication")
+);
+
+// Servicio de inicialización de bases de datos (ejecuta al arranque)
+builder.Services.AddHostedService<DatabaseInitializationService>();
+
+// Servicio de sincronización periódica (cada 5 minutos)
+// y también disponible vía IDatabaseSyncService para el controlador
+builder.Services.AddSingleton<DatabaseSyncService>();
+builder.Services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<DatabaseSyncService>());
+builder.Services.AddSingleton<IDatabaseSyncService>(sp => sp.GetRequiredService<DatabaseSyncService>());
 
 #endregion
 
@@ -387,6 +403,12 @@ else
 // 1. HTTPS Redirection (siempre primero)
 app.UseHttpsRedirection();
 
+// 1.5. Database Replication Logging (opcional, solo en desarrollo)
+if (app.Environment.IsDevelopment())
+{
+    app.UseDatabaseReplicationLogging();
+}
+
 // 2. CORS (debe ir antes de UseRouting)
 app.UseCors("AllowAllOrigins"); // En produccion, usar "ProductionCors"
 
@@ -422,6 +444,11 @@ app.MapGet("/", () => Results.Ok(new
     {
         swagger = "/swagger",
         health = "/health",
+        databaseHealth = new
+        {
+            status = "GET /api/database-health/status",
+            forceSync = "POST /api/database-health/force-sync"
+        },
         auth = new
         {
             register = "POST /api/auth/register",
@@ -552,7 +579,8 @@ app.MapGet("/", () => Results.Ok(new
         feature_10_2 = "Gestion de Jugadores NFL (CRUD, batch imports, reportes)",
         feature_10_3 = "Estado de Jugador (noticias, lesiones, designaciones IR/OUT/Q/D/P)",
         audit = "Sistema de auditoria completo con captura de IP y UserAgent",
-        maintenance = "Limpieza automatica de sesiones y tokens expirados"
+        maintenance = "Limpieza automatica de sesiones y tokens expirados",
+        replication = "Sistema de replicación de bases de datos en 2 sectores (sectorA y sectorB)"
     }
 }))
 .WithName("Root")

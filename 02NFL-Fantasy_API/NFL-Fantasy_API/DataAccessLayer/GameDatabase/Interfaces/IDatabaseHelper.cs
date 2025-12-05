@@ -8,8 +8,20 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Interfaces
     /// </summary>
     public interface IDatabaseHelper
     {
-        /// <summary>Cadena de conexión activa (solo lectura).</summary>
+        /// <summary>
+        /// Cadena de conexión activa (solo lectura).
+        /// </summary>
         string ConnectionString { get; }
+
+        /// <summary>
+        /// Establece el sector activo para operaciones de base de datos.
+        /// </summary>
+        void SetActiveSector(string sector);
+
+        /// <summary>
+        /// Obtiene el sector activo actual.
+        /// </summary>
+        string GetActiveSector();
 
         // ---------------------------
         // Stored Procedures
