@@ -1,6 +1,8 @@
-﻿using NFL_Fantasy_API.Models.DTOs;
+﻿using Microsoft.Extensions.Options;
 using NFL_Fantasy_API.DataAccessLayer.StorageDatabase.Implementations;
 using NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Interfaces.Storage;
+using NFL_Fantasy_API.Models.DTOs;
+using NFL_Fantasy_API.SharedSystems.StorageConfig;
 using NFL_Fantasy_API.SharedSystems.Validators.Storage;
 
 namespace NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Implementations.Storage
@@ -23,12 +25,15 @@ namespace NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Implementations.Stora
     {
         private readonly MinIODataAccess _dataAccess;
         private readonly ILogger<StorageService> _logger;
+        private readonly MinIOSettings _settings;
 
         public StorageService(
             MinIODataAccess dataAccess,
+            IOptions<MinIOSettings> settings,
             ILogger<StorageService> logger)
         {
             _dataAccess = dataAccess;
+            _settings = settings.Value;
             _logger = logger;
         }
 
@@ -45,7 +50,8 @@ namespace NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Implementations.Stora
         {
             try
             {
-                var uniqueObjectName = GenerateUniqueObjectName(fileName, folder);
+                var targetFolder = folder ?? _settings.ImagesFolder;
+                var uniqueObjectName = GenerateUniqueObjectName(fileName, targetFolder);
 
                 var publicUrl = await _dataAccess.UploadObjectAsync(
                     imageStream,
@@ -173,7 +179,8 @@ namespace NFL_Fantasy_API.LogicLayer.StorageLogic.Services.Implementations.Stora
         {
             try
             {
-                var uniqueObjectName = GenerateUniqueObjectName(fileName, folder);
+                var targetFolder = folder ?? _settings.JsonFolder;
+                var uniqueObjectName = GenerateUniqueObjectName(fileName, targetFolder);
 
                 var publicUrl = await _dataAccess.UploadObjectAsync(
                     jsonStream,

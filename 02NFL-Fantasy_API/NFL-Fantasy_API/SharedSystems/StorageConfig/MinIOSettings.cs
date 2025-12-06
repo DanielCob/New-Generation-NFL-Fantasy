@@ -45,13 +45,15 @@
         public bool UseSSL { get; set; } = false;
 
         /// <summary>
-        /// Nombre del bucket donde se almacenarán las imágenes.
+        /// Nombre del bucket donde se almacenarán los objetos.
         /// Debe ser minúsculas, sin espacios, sin caracteres especiales.
         /// </summary>
-        public string BucketName { get; set; } = "nfl-fantasy-images";
+        public string BucketName { get; set; } = "nfl-fantasy";
+        public string ImagesFolder { get; set; } = "images";
+        public string JsonFolder { get; set; } = "json";
 
         /// <summary>
-        /// Carpeta por defecto dentro del bucket (opcional).
+        /// Carpeta por defecto dentro del bucket.
         /// </summary>
         public string? DefaultFolder { get; set; } = "images";
 
