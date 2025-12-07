@@ -1,8 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Reset } from './reset';
 import { ActivatedRoute, Router } from '@angular/router';
-import { AuthService } from '../../../core/services/auth.service';
 import { of, throwError } from 'rxjs';
+import { AuthService } from '../../../core/services/auth-service';
 
 describe('ResetComponent', () => {
   let component: Reset;

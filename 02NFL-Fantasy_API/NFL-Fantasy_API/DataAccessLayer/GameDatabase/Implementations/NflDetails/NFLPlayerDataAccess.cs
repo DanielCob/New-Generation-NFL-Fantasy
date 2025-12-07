@@ -4,6 +4,7 @@ using System.Reflection;
 using NFL_Fantasy_API.Models.DTOs.NflDetails;
 using NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions;
 using NFL_Fantasy_API.DataAccessLayer.GameDatabase.Interfaces;
+using NFL_Fantasy_API.DataAccessLayer.GameDatabase.Interfaces.NflDetails;
 
 namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.NflDetails
 {
@@ -11,8 +12,9 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.NflDetail
     /// Capa de acceso a datos para operaciones de jugadores NFL.
     /// Responsabilidad: Construcción de parámetros y ejecución de SPs/Views.
     /// NO contiene lógica de negocio.
+    /// Implementa <see cref="INFLPlayerDataAccess"/> para permitir inyección de dependencias y mocking en tests.
     /// </summary>
-    public class NFLPlayerDataAccess
+    public class NFLPlayerDataAccess : INFLPlayerDataAccess
     {
         private readonly IDatabaseHelper _db;
 

@@ -1,4 +1,5 @@
 ﻿using Microsoft.Data.SqlClient;
+using System.Data.Common;
 
 namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions
 {
@@ -27,10 +28,10 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions
         /// <summary>
         /// Lee un Int32 de forma segura.
         /// </summary>
-        /// <param name="reader">SqlDataReader activo</param>
+        /// <param name="reader">DbDataReader activo</param>
         /// <param name="columnName">Nombre de la columna a leer</param>
         /// <returns>Valor entero o 0 si es NULL/no existe</returns>
-        public static int GetSafeInt32(this SqlDataReader reader, string columnName)
+        public static int GetSafeInt32(this DbDataReader reader, string columnName)
         {
             try
             {
@@ -39,13 +40,17 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions
             }
             catch (IndexOutOfRangeException ex)
             {
-                // Fallar explícitamente si columna no existe
+                // SqlDataReader típicamente lanza esto
+                throw new InvalidOperationException(
+                    $"Column '{columnName}' does not exist in the result set.", ex);
+            }
+            catch (ArgumentException ex) // DataTableReader lanza esto
+            {
                 throw new InvalidOperationException(
                     $"Column '{columnName}' does not exist in the result set.", ex);
             }
             catch (InvalidCastException ex)
             {
-                // Fallar si hay problema de conversión
                 throw new InvalidOperationException(
                     $"Cannot convert column '{columnName}' to Int32.", ex);
             }
@@ -54,10 +59,10 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions
         /// <summary>
         /// Lee un Int32 nullable de forma segura.
         /// </summary>
-        /// <param name="reader">SqlDataReader activo</param>
+        /// <param name="reader">DbDataReader activo</param>
         /// <param name="columnName">Nombre de la columna a leer</param>
         /// <returns>Valor entero o null si es NULL/no existe</returns>
-        public static int? GetSafeNullableInt32(this SqlDataReader reader, string columnName)
+        public static int? GetSafeNullableInt32(this DbDataReader reader, string columnName)
         {
             try
             {
@@ -74,10 +79,10 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions
         /// Lee un SmallInt (Int16) de forma segura.
         /// Útil para columnas SMALLINT en SQL Server.
         /// </summary>
-        /// <param name="reader">SqlDataReader activo</param>
+        /// <param name="reader">DbDataReader activo</param>
         /// <param name="columnName">Nombre de la columna a leer</param>
         /// <returns>Valor short o 0 si es NULL/no existe</returns>
-        public static short GetSafeInt16(this SqlDataReader reader, string columnName)
+        public static short GetSafeInt16(this DbDataReader reader, string columnName)
         {
             try
             {
@@ -93,7 +98,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions
         /// <summary>
         /// Lee un SmallInt (Int16) nullable de forma segura.
         /// </summary>
-        public static short? GetSafeNullableInt16(this SqlDataReader reader, string columnName)
+        public static short? GetSafeNullableInt16(this DbDataReader reader, string columnName)
         {
             try
             {
@@ -110,10 +115,10 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions
         /// Lee un BigInt (Int64) de forma segura.
         /// Útil para IDs grandes o columnas BIGINT en SQL Server.
         /// </summary>
-        /// <param name="reader">SqlDataReader activo</param>
+        /// <param name="reader">DbDataReader activo</param>
         /// <param name="columnName">Nombre de la columna a leer</param>
         /// <returns>Valor long o 0 si es NULL/no existe</returns>
-        public static long GetSafeInt64(this SqlDataReader reader, string columnName)
+        public static long GetSafeInt64(this DbDataReader reader, string columnName)
         {
             try
             {
@@ -129,7 +134,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions
         /// <summary>
         /// Lee un BigInt (Int64) nullable de forma segura.
         /// </summary>
-        public static long? GetSafeNullableInt64(this SqlDataReader reader, string columnName)
+        public static long? GetSafeNullableInt64(this DbDataReader reader, string columnName)
         {
             try
             {
@@ -146,10 +151,10 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions
         /// Lee un TinyInt (byte) de forma segura.
         /// Útil para flags, estados pequeños o columnas TINYINT en SQL Server.
         /// </summary>
-        /// <param name="reader">SqlDataReader activo</param>
+        /// <param name="reader">DbDataReader activo</param>
         /// <param name="columnName">Nombre de la columna a leer</param>
         /// <returns>Valor byte o 0 si es NULL/no existe</returns>
-        public static byte GetSafeByte(this SqlDataReader reader, string columnName)
+        public static byte GetSafeByte(this DbDataReader reader, string columnName)
         {
             try
             {
@@ -165,7 +170,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions
         /// <summary>
         /// Lee un TinyInt (byte) nullable de forma segura.
         /// </summary>
-        public static byte? GetSafeNullableByte(this SqlDataReader reader, string columnName)
+        public static byte? GetSafeNullableByte(this DbDataReader reader, string columnName)
         {
             try
             {
@@ -185,14 +190,14 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions
         /// <summary>
         /// Lee un String de forma segura.
         /// </summary>
-        /// <param name="reader">SqlDataReader activo</param>
+        /// <param name="reader">DbDataReader activo</param>
         /// <param name="columnName">Nombre de la columna a leer</param>
         /// <returns>Valor string o string.Empty si es NULL/no existe</returns>
         /// <remarks>
         /// Retorna string.Empty en lugar de null para evitar NullReferenceException
         /// en código que asume strings no-null.
         /// </remarks>
-        public static string GetSafeString(this SqlDataReader reader, string columnName)
+        public static string GetSafeString(this DbDataReader reader, string columnName)
         {
             try
             {
@@ -208,13 +213,13 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions
         /// <summary>
         /// Lee un String nullable de forma segura.
         /// </summary>
-        /// <param name="reader">SqlDataReader activo</param>
+        /// <param name="reader">DbDataReader activo</param>
         /// <param name="columnName">Nombre de la columna a leer</param>
         /// <returns>Valor string o null si es NULL/no existe</returns>
         /// <remarks>
         /// Usar cuando se necesita distinguir entre NULL y string vacío.
         /// </remarks>
-        public static string? GetSafeNullableString(this SqlDataReader reader, string columnName)
+        public static string? GetSafeNullableString(this DbDataReader reader, string columnName)
         {
             try
             {
@@ -234,10 +239,10 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions
         /// <summary>
         /// Lee un Boolean de forma segura.
         /// </summary>
-        /// <param name="reader">SqlDataReader activo</param>
+        /// <param name="reader">DbDataReader activo</param>
         /// <param name="columnName">Nombre de la columna a leer</param>
         /// <returns>Valor bool o false si es NULL/no existe</returns>
-        public static bool GetSafeBool(this SqlDataReader reader, string columnName)
+        public static bool GetSafeBool(this DbDataReader reader, string columnName)
         {
             try
             {
@@ -253,10 +258,10 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions
         /// <summary>
         /// Lee un Boolean nullable de forma segura.
         /// </summary>
-        /// <param name="reader">SqlDataReader activo</param>
+        /// <param name="reader">DbDataReader activo</param>
         /// <param name="columnName">Nombre de la columna a leer</param>
         /// <returns>Valor bool o null si es NULL/no existe</returns>
-        public static bool? GetSafeNullableBool(this SqlDataReader reader, string columnName)
+        public static bool? GetSafeNullableBool(this DbDataReader reader, string columnName)
         {
             try
             {
@@ -276,14 +281,14 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions
         /// <summary>
         /// Lee un DateTime de forma segura.
         /// </summary>
-        /// <param name="reader">SqlDataReader activo</param>
+        /// <param name="reader">DbDataReader activo</param>
         /// <param name="columnName">Nombre de la columna a leer</param>
         /// <returns>Valor DateTime o DateTime.MinValue si es NULL/no existe</returns>
         /// <remarks>
         /// ADVERTENCIA: DateTime.MinValue (01/01/0001) puede no ser válido en SQL Server.
         /// Considerar usar GetSafeNullableDateTime si se necesita distinguir NULL.
         /// </remarks>
-        public static DateTime GetSafeDateTime(this SqlDataReader reader, string columnName)
+        public static DateTime GetSafeDateTime(this DbDataReader reader, string columnName)
         {
             try
             {
@@ -299,13 +304,13 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions
         /// <summary>
         /// Lee un DateTime nullable de forma segura.
         /// </summary>
-        /// <param name="reader">SqlDataReader activo</param>
+        /// <param name="reader">DbDataReader activo</param>
         /// <param name="columnName">Nombre de la columna a leer</param>
         /// <returns>Valor DateTime o null si es NULL/no existe</returns>
         /// <remarks>
         /// Preferir este método sobre GetSafeDateTime para columnas opcionales.
         /// </remarks>
-        public static DateTime? GetSafeNullableDateTime(this SqlDataReader reader, string columnName)
+        public static DateTime? GetSafeNullableDateTime(this DbDataReader reader, string columnName)
         {
             try
             {
@@ -325,10 +330,10 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions
         /// <summary>
         /// Lee un Guid (UNIQUEIDENTIFIER) de forma segura.
         /// </summary>
-        /// <param name="reader">SqlDataReader activo</param>
+        /// <param name="reader">DbDataReader activo</param>
         /// <param name="columnName">Nombre de la columna a leer</param>
         /// <returns>Valor Guid o Guid.Empty si es NULL/no existe</returns>
-        public static Guid GetSafeGuid(this SqlDataReader reader, string columnName)
+        public static Guid GetSafeGuid(this DbDataReader reader, string columnName)
         {
             try
             {
@@ -344,10 +349,10 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions
         /// <summary>
         /// Lee un Guid nullable de forma segura.
         /// </summary>
-        /// <param name="reader">SqlDataReader activo</param>
+        /// <param name="reader">DbDataReader activo</param>
         /// <param name="columnName">Nombre de la columna a leer</param>
         /// <returns>Valor Guid o null si es NULL/no existe</returns>
-        public static Guid? GetSafeNullableGuid(this SqlDataReader reader, string columnName)
+        public static Guid? GetSafeNullableGuid(this DbDataReader reader, string columnName)
         {
             try
             {
@@ -368,10 +373,10 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions
         /// Lee un Decimal de forma segura.
         /// Útil para columnas DECIMAL, NUMERIC o MONEY en SQL Server.
         /// </summary>
-        /// <param name="reader">SqlDataReader activo</param>
+        /// <param name="reader">DbDataReader activo</param>
         /// <param name="columnName">Nombre de la columna a leer</param>
         /// <returns>Valor decimal o 0m si es NULL/no existe</returns>
-        public static decimal GetSafeDecimal(this SqlDataReader reader, string columnName)
+        public static decimal GetSafeDecimal(this DbDataReader reader, string columnName)
         {
             try
             {
@@ -387,7 +392,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions
         /// <summary>
         /// Lee un Decimal nullable de forma segura.
         /// </summary>
-        public static decimal? GetSafeNullableDecimal(this SqlDataReader reader, string columnName)
+        public static decimal? GetSafeNullableDecimal(this DbDataReader reader, string columnName)
         {
             try
             {
@@ -404,7 +409,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions
         /// Lee un Double de forma segura.
         /// Útil para columnas FLOAT en SQL Server.
         /// </summary>
-        public static double GetSafeDouble(this SqlDataReader reader, string columnName)
+        public static double GetSafeDouble(this DbDataReader reader, string columnName)
         {
             try
             {
@@ -420,7 +425,7 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions
         /// <summary>
         /// Lee un Double nullable de forma segura.
         /// </summary>
-        public static double? GetSafeNullableDouble(this SqlDataReader reader, string columnName)
+        public static double? GetSafeNullableDouble(this DbDataReader reader, string columnName)
         {
             try
             {
@@ -452,13 +457,13 @@ namespace NFL_Fantasy_API.DataAccessLayer.GameDatabase.Extensions
         }
 
         /// <summary>
-        /// Verifica si una columna existe en el SqlDataReader actual.
+        /// Verifica si una columna existe en el DbDataReader actual.
         /// Útil para validar schema antes de leer datos.
         /// </summary>
-        /// <param name="reader">SqlDataReader activo</param>
+        /// <param name="reader">DbDataReader activo</param>
         /// <param name="columnName">Nombre de la columna a verificar</param>
         /// <returns>True si la columna existe, false en caso contrario</returns>
-        public static bool HasColumn(this SqlDataReader reader, string columnName)
+        public static bool HasColumn(this DbDataReader reader, string columnName)
         {
             try
             {
