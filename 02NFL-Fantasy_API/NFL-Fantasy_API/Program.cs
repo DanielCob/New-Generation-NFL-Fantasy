@@ -9,6 +9,7 @@ using NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Auth;
 using NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.Fantasy;
 using NFL_Fantasy_API.DataAccessLayer.GameDatabase.Implementations.NflDetails;
 using NFL_Fantasy_API.DataAccessLayer.GameDatabase.Interfaces;
+using NFL_Fantasy_API.DataAccessLayer.GameDatabase.Interfaces.NflDetails;
 using NFL_Fantasy_API.DataAccessLayer.StorageDatabase.Implementations;
 using NFL_Fantasy_API.Helpers.Filters;
 using NFL_Fantasy_API.LogicLayer.EmailLogic.Services.Implementations.Email;
@@ -168,7 +169,7 @@ builder.Services.AddScoped<TeamDataAccess>();
 
 // NFL Data
 builder.Services.AddScoped<NFLTeamDataAccess>();
-builder.Services.AddScoped<NFLPlayerDataAccess>();
+builder.Services.AddScoped<INFLPlayerDataAccess, NFLPlayerDataAccess>();
 builder.Services.AddScoped<ScoringDataAccess>();
 
 // System & Configuration

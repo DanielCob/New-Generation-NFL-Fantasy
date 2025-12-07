@@ -6,6 +6,7 @@ using NFL_Fantasy_API.Models.DTOs.NflDetails;
 using NFL_Fantasy_API.SharedSystems.Validators;
 using NFL_Fantasy_API.SharedSystems.Validators.Images;
 using NFL_Fantasy_API.SharedSystems.Validators.NflDetails;
+using NFL_Fantasy_API.DataAccessLayer.GameDatabase.Interfaces.NflDetails;
 
 namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.NflDetails
 {
@@ -17,11 +18,11 @@ namespace NFL_Fantasy_API.LogicLayer.GameLogic.Services.Implementations.NflDetai
     /// </summary>
     public class NFLPlayerService : INFLPlayerService
     {
-        private readonly NFLPlayerDataAccess _dataAccess;
+        private readonly INFLPlayerDataAccess _dataAccess;
         private readonly ILogger<NFLPlayerService> _logger;
 
         public NFLPlayerService(
-            NFLPlayerDataAccess dataAccess,
+            INFLPlayerDataAccess dataAccess,
             IConfiguration configuration,
             ILogger<NFLPlayerService> logger)
         {
