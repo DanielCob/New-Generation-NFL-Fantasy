@@ -1,5 +1,14 @@
 # Frontend Workflow (Angular) — WEB_WORKFLOW.md
 
+```ts
+$env:CHROME_BIN="C:\Users\adriel\AppData\Local\BraveSoftware\Brave-Browser\Application\brave.exe"
+ng test
+ng test --no-watch --code-coverage
+ng test --include='**/nfl-player-service.spec.ts'
+ng test --include='**/nfl-player-service.spec.ts' --no-watch --code-coverage
+ng test --include='**/*dialog.spec.ts' --no-watch --code-coverage
+```
+
 > **Goal**
 > Keep a clear and consistent **API ⇄ Frontend mapping** and a repeatable way to **add/extend features** (leagues, teams, NFL players, news, etc.) without breaking security, routes, or UI patterns.
 > This document describes **where things live**, **how we structure models/services/components**, and **how to safely plug new functionality into the existing app**.

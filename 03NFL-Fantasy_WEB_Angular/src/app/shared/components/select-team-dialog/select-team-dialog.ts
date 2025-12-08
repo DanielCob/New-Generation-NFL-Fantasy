@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { Router } from '@angular/router';                   // 👈 NUEVO
 import { UserTeam } from '../../../core/models/user-model';
 import { UserService } from '../../../core/services/user-service';
 
@@ -44,8 +45,9 @@ import { UserService } from '../../../core/services/user-service';
   `]
 })
 export class SelectTeamDialog implements OnInit {
-  private ref = inject(MatDialogRef<SelectTeamDialog>);
+  private ref   = inject(MatDialogRef<SelectTeamDialog>);
   private userSrv = inject(UserService);
+  private router = inject(Router);                         // 👈 NUEVO
 
   teams = signal<UserTeam[]>([]);
 
@@ -63,11 +65,14 @@ export class SelectTeamDialog implements OnInit {
   }
 
   select(t: UserTeam): void {
-    const id = t.TeamID;                 // 👈 usa el TeamID numérico
+    const id = t.TeamID;
     if (!id) return;
+
     localStorage.setItem('xnf.currentTeamId', String(id));
     this.ref.close(String(id));
-    window.location.href = `/teams/${id}/my-team`;
+
+    // 👇 SPA navigation, sin recargar toda la página
+    this.router.navigate(['/teams', id, 'my-team']);
   }
 
   close(): void { this.ref.close(); }

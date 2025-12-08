@@ -242,6 +242,35 @@ DECLARE @NFLTeamCount INT = @@ROWCOUNT;
 PRINT N'✓ ' + CAST(@NFLTeamCount AS NVARCHAR(10)) + N' equipos NFL insertados/actualizados con metadata visual.';
 
 /* ============================================================
+   SECCIÓN 3.5: REF - Designaciones de Jugadores (NUEVA)
+   ============================================================ */
+PRINT N'Poblando designaciones de jugadores NFL...';
+
+MERGE ref.PlayerDesignation AS T
+USING (VALUES
+  (N'O',   N'Out',                      N'Jugador fuera por lesión, no jugará'),
+  (N'D',   N'Doubtful',                 N'Muy dudoso que juegue (menos del 25% de probabilidad)'),
+  (N'Q',   N'Questionable',             N'Cuestionable para el partido (50% de probabilidad)'),
+  (N'P',   N'Probable',                 N'Probable que juegue (75% o más de probabilidad)'),
+  (N'FP',  N'Full Practice',            N'Participación completa en práctica'),
+  (N'IR',  N'Injured Reserve',          N'Lista de reserva de lesionados (mínimo 4 semanas fuera)'),
+  (N'PUP', N'Physically Unable',        N'Lista PUP - Físicamente incapaz de practicar'),
+  (N'SUS', N'Suspended',                N'Suspendido por violación de reglas de la liga')
+) AS S(DesignationCode, DesignationName, Description)
+ON (T.DesignationCode = S.DesignationCode)
+WHEN MATCHED AND (T.DesignationName <> S.DesignationName OR ISNULL(T.Description, N'') <> ISNULL(S.Description, N'')) THEN
+  UPDATE SET 
+    T.DesignationName = S.DesignationName,
+    T.Description = S.Description
+WHEN NOT MATCHED BY TARGET THEN
+  INSERT(DesignationCode, DesignationName, Description)
+  VALUES(S.DesignationCode, S.DesignationName, S.Description);
+
+DECLARE @DesignationCount INT = @@ROWCOUNT;
+PRINT N'✓ ' + CAST(@DesignationCount AS NVARCHAR(10)) + N' designaciones de jugadores insertadas/actualizadas';
+PRINT N'';
+
+/* ============================================================
    SECCIÓN 4: SCORING - Schemas + Rules (SIN CAMBIOS)
    ============================================================ */
 PRINT N'Poblando esquemas de puntuación...';
@@ -746,22 +775,13 @@ PRINT N'';
 PRINT N'📋 Designaciones actuales de jugadores:';
 SELECT 
   CONCAT(p.FirstName, N' ', p.LastName) AS Jugador,
-  p.CurrentDesignation AS Designación,
-  CASE p.CurrentDesignation
-    WHEN N'O' THEN N'Fuera (OUT)'
-    WHEN N'D' THEN N'Dudoso (DOUBTFUL)'
-    WHEN N'Q' THEN N'Cuestionable (QUESTIONABLE)'
-    WHEN N'P' THEN N'Probable (PROBABLE)'
-    WHEN N'FP' THEN N'Participación Plena (FULL PRACTICE)'
-    WHEN N'IR' THEN N'Reserva de Lesionados (INJURED RESERVE)'
-    WHEN N'PUP' THEN N'Incapaz Físicamente (PUP)'
-    WHEN N'SUS' THEN N'Suspendido (SUSPENDED)'
-    ELSE N'Sin designación'
-  END AS Descripción
+  pd.DesignationCode AS Designación,  -- ⭐ CAMBIO
+  pd.DesignationName AS Descripción    -- ⭐ CAMBIO
 FROM ref.NFLPlayer p
-WHERE p.CurrentDesignation IS NOT NULL
+JOIN ref.PlayerDesignation pd ON pd.DesignationID = p.CurrentDesignationID  -- ⭐ CAMBIO
+WHERE p.CurrentDesignationID IS NOT NULL  -- ⭐ CAMBIO
 ORDER BY 
-  CASE p.CurrentDesignation
+  CASE pd.DesignationCode  -- ⭐ CAMBIO
     WHEN N'O' THEN 1
     WHEN N'IR' THEN 2
     WHEN N'D' THEN 3
@@ -1038,7 +1058,7 @@ SELECT @cnt_games = COUNT(*) FROM league.NFLGame;
 SELECT @cnt_roster = COUNT(*) FROM league.TeamRoster WHERE IsActive = 1;
 DECLARE @cnt_news INT, @cnt_designations INT;
 SELECT @cnt_news = COUNT(*) FROM ref.NFLPlayerNews WHERE IsDeleted = 0;
-SELECT @cnt_designations = COUNT(*) FROM ref.NFLPlayer WHERE CurrentDesignation IS NOT NULL;
+SELECT @cnt_designations = COUNT(*) FROM ref.NFLPlayer WHERE CurrentDesignationID IS NOT NULL;  -- ⭐ CAMBIO
 SELECT @cnt_admins = COUNT(*) FROM auth.UserAccount WHERE SystemRoleCode = N'ADMIN';
 SELECT @cnt_brandmgrs = COUNT(*) FROM auth.UserAccount WHERE SystemRoleCode = N'BRAND_MANAGER';
 SELECT @cnt_regularusers = COUNT(*) FROM auth.UserAccount WHERE SystemRoleCode = N'USER';

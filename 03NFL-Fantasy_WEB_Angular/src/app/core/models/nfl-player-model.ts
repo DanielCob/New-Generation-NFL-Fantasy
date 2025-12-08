@@ -265,12 +265,17 @@ export interface CreatePlayerNewsResponse {
   };
 }
 
+/** Data que devuelve el DELETE /NFLPlayer/news/{newsId} */
+export interface DeletePlayerNewsData {
+  Message: string;
+  // Puede venir con una designación, ser null o no venir
+  RevertedDesignation?: 'O' | 'D' | 'Q' | 'P' | 'FP' | 'IR' | 'PUP' | 'SUS' | null;
+}
+
 export interface DeletePlayerNewsResponse {
   Success: boolean;
   Message: string;
-  Data: {
-    Message: string;
-  };
+  Data: DeletePlayerNewsData;
 }
 
 export const INJURY_DESIGNATIONS = [

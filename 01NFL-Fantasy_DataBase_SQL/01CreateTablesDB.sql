@@ -227,6 +227,22 @@ BEGIN
 END
 GO
 
+/* ================================================
+   TABLA DE DESIGNACIONES DE JUGADORES NFL
+   ================================================ */
+-- Catálogo de designaciones permitidas para jugadores
+IF OBJECT_ID('ref.PlayerDesignation','U') IS NULL
+BEGIN
+  CREATE TABLE ref.PlayerDesignation(
+    DesignationID TINYINT IDENTITY(1,1) CONSTRAINT PK_PlayerDesignation PRIMARY KEY,
+    DesignationCode NVARCHAR(10) NOT NULL CONSTRAINT UQ_PlayerDesignation_Code UNIQUE,
+    DesignationName NVARCHAR(50) NOT NULL,
+    Description NVARCHAR(200) NULL,
+    CONSTRAINT CK_PlayerDesignation_Code CHECK (DesignationCode IN (N'O',N'D',N'Q',N'P',N'FP',N'IR',N'PUP',N'SUS'))
+  );
+END
+GO
+
 -- Formatos de posicion configurables
 IF OBJECT_ID('ref.PositionFormat','U') IS NULL
 BEGIN
@@ -545,7 +561,7 @@ CREATE TABLE ref.NFLPlayer(
   FullName AS (FirstName + N' ' + LastName) PERSISTED,
   Position NVARCHAR(20) NOT NULL,
   NFLTeamID INT NOT NULL,
-  CurrentDesignation NVARCHAR(10) NULL,
+  CurrentDesignationID TINYINT NULL,
   InjuryStatus NVARCHAR(50) NULL,
   InjuryDescription NVARCHAR(300) NULL,
   PhotoUrl NVARCHAR(400) NULL,
@@ -562,7 +578,6 @@ CREATE TABLE ref.NFLPlayer(
   UpdatedByUserID INT NULL,
   UpdatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_NFLPlayer_UpdatedAt DEFAULT(SYSUTCDATETIME()),
   CONSTRAINT UQ_NFLPlayer_Name_NFLTeam UNIQUE(FirstName, LastName, NFLTeamID),
-  CONSTRAINT CK_NFLPlayer_Designation CHECK (CurrentDesignation IS NULL OR CurrentDesignation IN (N'O',N'D',N'Q',N'P',N'FP',N'IR',N'PUP',N'SUS')),
   CONSTRAINT CK_NFLPlayer_PhotoDims CHECK (
     (PhotoWidth IS NULL OR (PhotoWidth BETWEEN 300 AND 1024)) AND
     (PhotoHeight IS NULL OR (PhotoHeight BETWEEN 300 AND 1024))
@@ -588,6 +603,10 @@ IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLPlayer_Updater')
   ALTER TABLE ref.NFLPlayer ADD CONSTRAINT FK_NFLPlayer_Updater FOREIGN KEY(UpdatedByUserID) REFERENCES auth.UserAccount(UserID) ON DELETE NO ACTION;
 GO
 
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLPlayer_Designation')
+  ALTER TABLE ref.NFLPlayer ADD CONSTRAINT FK_NFLPlayer_Designation FOREIGN KEY(CurrentDesignationID) REFERENCES ref.PlayerDesignation(DesignationID) ON DELETE NO ACTION;
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayer_Position' AND object_id=OBJECT_ID('ref.NFLPlayer'))
   CREATE NONCLUSTERED INDEX IX_NFLPlayer_Position ON ref.NFLPlayer(Position);
 GO
@@ -605,7 +624,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayer_IsActive' AND 
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayer_CurrentDesignation' AND object_id=OBJECT_ID('ref.NFLPlayer'))
-  CREATE NONCLUSTERED INDEX IX_NFLPlayer_CurrentDesignation ON ref.NFLPlayer(CurrentDesignation) WHERE CurrentDesignation IS NOT NULL;
+  CREATE NONCLUSTERED INDEX IX_NFLPlayer_CurrentDesignation ON ref.NFLPlayer(CurrentDesignationID) WHERE CurrentDesignationID IS NOT NULL;
 GO
 
 
@@ -618,7 +637,7 @@ BEGIN
     NewsText NVARCHAR(300) NOT NULL,
     IsInjury BIT NOT NULL CONSTRAINT DF_NFLPlayerNews_IsInjury DEFAULT(0),
     InjurySummary NVARCHAR(30) NULL,
-    Designation NVARCHAR(10) NULL,
+    DesignationID TINYINT NULL,
     CreatedByUserID INT NOT NULL,
     CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_NFLPlayerNews_CreatedAt DEFAULT(SYSUTCDATETIME()),
     IsDeleted BIT NOT NULL CONSTRAINT DF_NFLPlayerNews_IsDeleted DEFAULT(0),
@@ -629,10 +648,9 @@ BEGIN
     CONSTRAINT CK_NFLPlayerNews_TextLength CHECK (LEN(NewsText) BETWEEN 10 AND 300),
     CONSTRAINT CK_NFLPlayerNews_InjurySummaryLength CHECK (InjurySummary IS NULL OR LEN(InjurySummary) <= 30),
     CONSTRAINT CK_NFLPlayerNews_InjuryLogic CHECK (
-      (IsInjury = 0 AND InjurySummary IS NULL AND Designation IS NULL) OR
-      (IsInjury = 1 AND InjurySummary IS NOT NULL AND Designation IS NOT NULL)
+      (IsInjury = 0 AND InjurySummary IS NULL AND DesignationID IS NULL) OR
+      (IsInjury = 1 AND InjurySummary IS NOT NULL AND DesignationID IS NOT NULL)
     ),
-    CONSTRAINT CK_NFLPlayerNews_Designation CHECK (Designation IS NULL OR Designation IN (N'O',N'D',N'Q',N'P',N'FP',N'IR',N'PUP',N'SUS')),
     CONSTRAINT CK_NFLPlayerNews_DeletedLogic CHECK (
       (IsDeleted = 0 AND DeletedByUserID IS NULL AND DeletedAt IS NULL) OR
       (IsDeleted = 1 AND DeletedByUserID IS NOT NULL AND DeletedAt IS NOT NULL)
@@ -653,12 +671,16 @@ IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLPlayerNews_Delet
   ALTER TABLE ref.NFLPlayerNews ADD CONSTRAINT FK_NFLPlayerNews_Deleter FOREIGN KEY(DeletedByUserID) REFERENCES auth.UserAccount(UserID) ON DELETE NO ACTION;
 GO
 
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name='FK_NFLPlayerNews_Designation')
+  ALTER TABLE ref.NFLPlayerNews ADD CONSTRAINT FK_NFLPlayerNews_Designation FOREIGN KEY(DesignationID) REFERENCES ref.PlayerDesignation(DesignationID) ON DELETE NO ACTION;
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayerNews_Player_CreatedAt' AND object_id=OBJECT_ID('ref.NFLPlayerNews'))
   CREATE NONCLUSTERED INDEX IX_NFLPlayerNews_Player_CreatedAt ON ref.NFLPlayerNews(NFLPlayerID, CreatedAt DESC) WHERE IsDeleted = 0;
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayerNews_Player_Designation' AND object_id=OBJECT_ID('ref.NFLPlayerNews'))
-  CREATE NONCLUSTERED INDEX IX_NFLPlayerNews_Player_Designation ON ref.NFLPlayerNews(NFLPlayerID, CreatedAt DESC) WHERE IsDeleted = 0 AND Designation IS NOT NULL;
+  CREATE NONCLUSTERED INDEX IX_NFLPlayerNews_Player_Designation ON ref.NFLPlayerNews(NFLPlayerID, CreatedAt DESC) WHERE IsDeleted = 0 AND DesignationID IS NOT NULL;
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name='IX_NFLPlayerNews_CreatedBy_Date' AND object_id=OBJECT_ID('ref.NFLPlayerNews'))

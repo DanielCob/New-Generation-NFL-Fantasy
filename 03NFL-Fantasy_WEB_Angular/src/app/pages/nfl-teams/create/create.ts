@@ -117,7 +117,7 @@ export class CreateNFLTeamComponent {
 
       // 3. Generar y subir thumbnail
       this.uploadingThumb.set(true);
-      const thumbnailFile = await this.generateThumbnail(file, 320, 180);
+      const thumbnailFile = await this.generateThumbnail(file, 320, 300);
       const thumbResult = await this.imageStorage.uploadImage(thumbnailFile).toPromise();
       
       if (!thumbResult?.imageUrl) {

@@ -11,7 +11,11 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import { NFLPlayerService } from '../../../../core/services/nfl-player-service';
-import { PlayerNewsItem, ListPlayerNewsRequest, NFLPlayerListItem } from '../../../../core/models/nfl-player-model';
+import {
+  PlayerNewsItem,
+  ListPlayerNewsRequest,
+  NFLPlayerListItem
+} from '../../../../core/models/nfl-player-model';
 
 @Component({
   selector: 'app-delete-player-news-dialog',
@@ -55,7 +59,7 @@ export class DeletePlayerNewsDialog {
   loadNews(): void {
     const req: ListPlayerNewsRequest = {
       PageNumber: 1,
-      PageSize: 50
+      PageSize: 20
     };
 
     this.loadingNews.set(true);
@@ -68,7 +72,9 @@ export class DeletePlayerNewsDialog {
       },
       error: (err) => {
         console.error('❌ [DeleteNewsDialog] Error:', err);
-        this.error.set(err?.error?.message || err?.error?.Message || 'Error cargando noticias');
+        const msg = 'Error cargando noticias';
+        this.error.set(msg);
+        this.snack.open(msg, 'OK', { duration: 3000 });
         this.loadingNews.set(false);
       }
     });
@@ -79,8 +85,14 @@ export class DeletePlayerNewsDialog {
   }
 
   deleteNews(): void {
+    if (this.deleting()) {
+      return;
+    }
+
     if (this.form.invalid) {
-      this.snack.open('Por favor selecciona una noticia para eliminar', 'OK', { duration: 3000 });
+      this.snack.open('Por favor selecciona una noticia para eliminar', 'OK', {
+        duration: 3000
+      });
       return;
     }
 
@@ -92,8 +104,14 @@ export class DeletePlayerNewsDialog {
       return;
     }
 
-    // Confirmación adicional
-    if (!confirm(`¿Estás seguro de eliminar la noticia ID #${newsId}?\n\n"${selectedNews.NewsText.substring(0, 100)}..."\n\nEsta acción no se puede deshacer.`)) {
+    if (
+      !confirm(
+        `¿Estás seguro de eliminar la noticia ID #${newsId}?\n\n"${selectedNews.NewsText.substring(
+          0,
+          100
+        )}..."\n\nEsta acción no se puede deshacer.`
+      )
+    ) {
       return;
     }
 
@@ -101,14 +119,21 @@ export class DeletePlayerNewsDialog {
     this.deleting.set(true);
 
     this.svc.deletePlayerNews(newsId).subscribe({
-      next: (response) => {
+      next: (response: any) => {
         console.log('✅ [DeleteNewsDialog] Noticia eliminada:', response);
-        this.snack.open(response.Message || 'Noticia eliminada exitosamente', 'OK', { duration: 3000 });
+        this.snack.open(
+          response.Message || 'Noticia eliminada exitosamente',
+          'OK',
+          { duration: 3000 }
+        );
         this.dialogRef.close({ deleted: true, newsId });
       },
       error: (err) => {
         console.error('❌ [DeleteNewsDialog] Error:', err);
-        const msg = err?.error?.message || err?.error?.Message || 'Error eliminando noticia';
+        const msg =
+          err?.error?.message ||
+          err?.error?.Message ||
+          'Error eliminando noticia';
         this.snack.open(msg, 'OK', { duration: 4000 });
         this.deleting.set(false);
       }
@@ -118,14 +143,14 @@ export class DeletePlayerNewsDialog {
   getDesignationColor(designation?: string): string {
     if (!designation) return '#ccc';
     const colors: Record<string, string> = {
-      'O': '#f44336',
-      'D': '#ff9800',
-      'Q': '#ffeb3b',
-      'P': '#8bc34a',
-      'FP': '#4caf50',
-      'IR': '#9c27b0',
-      'PUP': '#2196f3',
-      'SUS': '#b71c1c'
+      O: '#f44336',
+      D: '#ff9800',
+      Q: '#ffeb3b',
+      P: '#8bc34a',
+      FP: '#4caf50',
+      IR: '#9c27b0',
+      PUP: '#2196f3',
+      SUS: '#b71c1c'
     };
     return colors[designation] || '#ccc';
   }
@@ -133,19 +158,28 @@ export class DeletePlayerNewsDialog {
   getDesignationLabel(designation?: string): string {
     if (!designation) return 'N/A';
     const labels: Record<string, string> = {
-      'O': 'Out',
-      'D': 'Doubtful',
-      'Q': 'Questionable',
-      'P': 'Probable',
-      'FP': 'Full Practice',
-      'IR': 'Injured Reserve',
-      'PUP': 'PUP',
-      'SUS': 'Suspended'
+      O: 'Out',
+      D: 'Doubtful',
+      Q: 'Questionable',
+      P: 'Probable',
+      FP: 'Full Practice',
+      IR: 'Injured Reserve',
+      PUP: 'PUP',
+      SUS: 'Suspended'
     };
     return labels[designation] || designation;
   }
 
   get selectedNewsId(): number | null {
-    return this.form.value.selectedNewsId ?? null;  // ✅ Convertir undefined a null
+    return this.form.value.selectedNewsId ?? null;
+  }
+
+  formatDate(value: string): string {
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return value;
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
   }
 }
